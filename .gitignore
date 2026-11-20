@@ -1,0 +1,40 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# Java
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# 运行时
+logs/
+run/
+data/
+*.pid
+*.log
+
+# 前端
+node_modules/
+dist/
+
+# 本地数据库/模型
+*.db
+*.sqlite
+*.sqlite3
+models/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
