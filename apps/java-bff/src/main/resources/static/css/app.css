@@ -203,6 +203,21 @@ body {
 }
 .composer-hint { max-width: 900px; margin: 7px auto 0; color: var(--muted); font-size: 11px; text-align: center; }
 
+/* 自定义确认弹窗：不依赖浏览器原生 confirm，避免“阻止弹窗”后无法再删 */
+.modal {
+  position: fixed; inset: 0; z-index: 50; padding: 20px;
+  background: rgba(21, 34, 56, .38);
+  display: grid; place-items: center;
+}
+.modal[hidden] { display: none; }
+.modal-card {
+  width: min(420px, 100%); background: var(--panel); border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(21, 34, 56, .22); padding: 20px;
+}
+.modal-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+.modal-text { color: var(--muted); font-size: 13px; line-height: 1.65; margin-bottom: 18px; white-space: pre-wrap; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
   background: #152238; color: #fff; border-radius: 10px; padding: 9px 14px;

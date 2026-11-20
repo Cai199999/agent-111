@@ -154,7 +154,11 @@ function renderSessions() {
 }
 
 async function deleteSession(session) {
-  if (!window.confirm(`确定删除会话「${session.title || '新会话'}」及其消息、任务和事件吗？`)) {
+  const confirmed = await askConfirm(
+    `确定删除会话「${session.title || '新会话'}」及其消息、任务和事件吗？此操作不可恢复。`,
+    { title: '删除会话', confirmText: '删除', danger: true },
+  );
+  if (!confirmed) {
     return;
   }
   try {
@@ -630,6 +634,52 @@ function autoResize() {
 
 function scrollToBottom() {
   els.messages.scrollTop = els.messages.scrollHeight;
+}
+
+function askConfirm(message, options = {}) {
+  const modal = document.getElementById('confirmModal');
+  const title = document.getElementById('confirmTitle');
+  const text = document.getElementById('confirmText');
+  const ok = document.getElementById('confirmOk');
+  const cancel = document.getElementById('confirmCancel');
+
+  if (!modal || !title || !text || !ok || !cancel) {
+    return Promise.resolve(false);
+  }
+  if (!modal.hidden) {
+    return Promise.resolve(false);
+  }
+
+  title.textContent = options.title || '请确认';
+  text.textContent = message;
+  ok.textContent = options.confirmText || '确定';
+  ok.className = options.danger === false ? 'btn primary' : 'btn danger';
+  modal.hidden = false;
+  ok.focus();
+
+  return new Promise((resolve) => {
+    const cleanup = (value) => {
+      modal.hidden = true;
+      ok.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(value);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onBackdrop = (event) => {
+      if (event.target === modal) cleanup(false);
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') cleanup(false);
+      if (event.key === 'Enter' && document.activeElement === ok) cleanup(true);
+    };
+    ok.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
 }
 
 function showToast(message) {
