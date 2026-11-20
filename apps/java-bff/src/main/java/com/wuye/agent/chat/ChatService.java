@@ -254,10 +254,12 @@ public class ChatService {
                 if (item instanceof Map<?, ?> map) {
                     if (map.containsKey("ticketNo")) {
                         sb.append("- ").append(map.get("ticketNo"))
-                                .append("｜").append(map.get("title"))
-                                .append("｜").append(map.get("status"))
-                                .append("｜优先级 ").append(map.get("priority"))
-                                .append("｜处理人 ").append(map.get("assignee"))
+                                .append("｜").append(text(map, "title"))
+                                .append("｜状态 ").append(ticketStatus(map))
+                                .append("｜优先级 ").append(priority(map))
+                                .append("｜位置 ").append(first(map, "locationText", "location", "-"))
+                                .append("｜处理人 ").append(first(map, "assigneeName", "assignee",
+                                        "handlerName", "assigneeId", "未派单"))
                                 .append("\n");
                     } else if (map.containsKey("ruleCode")) {
                         sb.append("- ").append(map.get("ruleCode"))
@@ -290,6 +292,48 @@ public class ChatService {
             return sb.toString().strip();
         }
         return String.valueOf(output);
+    }
+
+    private String ticketStatus(Map<?, ?> map) {
+        String raw = first(map, "statusName", "statusCode", "status", "PENDING");
+        return switch (raw) {
+            case "PENDING" -> "待处理(PENDING)";
+            case "ASSIGNED" -> "已派单(ASSIGNED)";
+            case "ACCEPTED" -> "已接单(ACCEPTED)";
+            case "PROCESSING", "RUNNING" -> "处理中(PROCESSING)";
+            case "RESOLVED" -> "已解决(RESOLVED)";
+            case "VERIFIED" -> "已验证(VERIFIED)";
+            case "CLOSED" -> "已关闭(CLOSED)";
+            case "CANCELLED" -> "已取消(CANCELLED)";
+            case "HOLD" -> "已挂起(HOLD)";
+            default -> raw;
+        };
+    }
+
+    private String priority(Map<?, ?> map) {
+        String raw = first(map, "priorityName", "priorityCode", "priority", "-");
+        return switch (raw) {
+            case "LOW" -> "低(LOW)";
+            case "NORMAL" -> "普通(NORMAL)";
+            case "HIGH" -> "高(HIGH)";
+            case "URGENT" -> "紧急(URGENT)";
+            default -> raw;
+        };
+    }
+
+    private static String text(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        return value == null ? "-" : String.valueOf(value);
+    }
+
+    private static String first(Map<?, ?> map, String... keysAndFallback) {
+        for (int i = 0; i < keysAndFallback.length - 1; i++) {
+            Object value = map.get(keysAndFallback[i]);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                return String.valueOf(value);
+            }
+        }
+        return keysAndFallback[keysAndFallback.length - 1];
     }
 
     private void emit(SseEmitter emitter, String name, Object data) {
