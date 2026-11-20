@@ -1,5 +1,6 @@
 package com.wuye.agent.api;
 
+import com.wuye.agent.routing.AiProperties;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,6 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 public class HealthController {
+
+    private final AiProperties aiProperties;
+
+    public HealthController(AiProperties aiProperties) {
+        this.aiProperties = aiProperties;
+    }
 
     @GetMapping("/health")
     public Map<String, Object> health() {
@@ -30,7 +37,7 @@ public class HealthController {
         body.put("checks", Map.of(
                 "store", "UP",
                 "agents", "MOCK",
-                "llm", "RULE_ONLY"
+                "llm", aiProperties.isEnabled() ? "LLM_ENABLED" : "RULE_ONLY"
         ));
         return body;
     }

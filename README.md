@@ -28,15 +28,24 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：14/14 passed
+# 当前：Java 19/19 passed；Python AI 5/5
 
 # 启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
 bash scripts/start-prototype.sh
 ```
 
-已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
+已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400；Python AI 路由服务（DeepSeek/OpenAI 兼容，规则优先 + LLM 兜底）。
 
-原型边界：无真实登录、无 Python AI、Manifest 静态、无 Redis/MinIO、任务事件轮询、真实子 Agent 未启动尚未联调。
+```bash
+# 接入真实大模型
+# 1) 在 .env 填 DEEPSEEK_API_KEY
+# 2) 启动 Python AI（默认 8700，需登记 RESOURCES.md）
+bash scripts/start-python-ai.sh
+# 3) 打开 LLM 路由并重启 Java
+WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
+```
+
+原型边界：无真实登录、Manifest 静态、无 Redis/MinIO、任务事件轮询、真实子 Agent 未启动尚未联调。
 
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 
@@ -62,5 +71,5 @@ bash scripts/start-prototype.sh
 1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。
 2. 启动物业 8402 / 合同 8400，切换 `WUYE_AGENT_MODE=http` 做活体联调。
 3. 接 Manifest 自动同步/版本校验，替换静态能力描述。
-4. 接入 Python AI 路由（`/internal/v1/ai/route`），规则保留为第一层。
+4. 启用并验证 LLM 路由（`/internal/v1/ai/route`）；补 LLM 生成/usage 落库。
 5. 增加任务 SSE、审计、Agent 管理后台、Redis 确认令牌。

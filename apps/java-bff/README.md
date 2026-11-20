@@ -38,7 +38,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：14/14 passed
+# 当前：Java 19/19 passed（Python AI 另 5/5）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh
@@ -71,6 +71,28 @@ WUYE_AGENT_MODE=http mvn -f apps/java-bff/pom.xml spring-boot:run
 | `审查合同 10001` | 异步任务，1.5s 后成功 |
 | `查一下知识库` | 追问物业/合同域 |
 | `合同创建规则：付款节点必须明确` | 确认后异步创建规则 |
+
+## 真实大模型（Python AI）
+
+```bash
+# 1. 在根目录 .env 填 DEEPSEEK_API_KEY，并确认 INTERNAL_TOKEN_J2P 与 Java 一致
+# 2. 启动 Python AI（8700，需先登记 RESOURCES.md）
+bash scripts/start-python-ai.sh
+
+# 3. 打开 LLM 路由并重启 Java
+WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
+```
+
+行为：
+
+- 规则高置信度（≥ `rule-confidence-threshold`）直接使用规则，不调 LLM；
+- 规则歧义/低置信度时调用 `POST /internal/v1/ai/route`；
+- LLM 返回的 `capabilityId` 必须存在于能力目录，否则降级为追问；
+- LLM 超时/失败/未配置时回退规则，并熔断 30 秒，避免每轮等待；
+- Python 不接触子 Agent 凭据，也不直连子 Agent；
+- LLM 的 token 用量写入 Python 日志，后续落审计/成本表。
+
+见 [`apps/python-ai/README.md`](../python-ai/README.md)。
 
 ## 持久化（mysql profile）
 
@@ -123,12 +145,13 @@ export AGENT_CONTRACT_INTERNAL_TOKEN=...
 | 确认令牌 | Redis + TTL | MySQL AES-GCM 加密列 | 不引入 Redis 依赖；生产建议迁回 Redis |
 | 表范围 | 16 张完整表 | 4 张核心表 | 先覆盖会话/消息/任务/事件；管理/审计表后续 |
 | Manifest | 自动同步/版本校验 | 静态描述 | 子 Agent 未启动；后续接同步 |
-| 路由 | 规则 + Python LLM | 规则 | Python AI 服务尚未搭建 |
+| 路由 | 规则 + Python LLM | 已实现规则 + LLM 兜底 | 需用户填 `DEEPSEEK_API_KEY` 后启用 |
+| LLM 生成/成本 | 自然语言生成 + usage 落库 | 目前只用 LLM 做路由，usage 写日志 | 先验证路由，再扩展生成 |
 
 ## 原型边界
 
 - 无真实登录；使用 `X-Actor-Id` 默认 `10001`。
-- 无 Python AI；路由是规则实现，后续替换为 Java → Python `/internal/v1/ai/route`。
+- Python AI 只做路由决策；自然语言生成、槽位补全、usage 落库尚未接入。
 - Manifest 为静态描述，尚未接自动同步/版本校验。
 - 无 Redis/MinIO；确认令牌用 MySQL 加密列，附件上传未接。
 - 任务事件用轮询刷新；后续可加任务 SSE。

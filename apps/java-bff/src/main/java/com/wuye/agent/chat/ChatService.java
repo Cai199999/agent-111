@@ -7,7 +7,7 @@ import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.routing.RouteDecision;
-import com.wuye.agent.routing.RuleRouter;
+import com.wuye.agent.routing.Router;
 import com.wuye.agent.store.ChatMessage;
 import com.wuye.agent.store.SessionState;
 import com.wuye.agent.store.Store;
@@ -38,12 +38,12 @@ public class ChatService {
 
     private final Store store;
     private final AdapterRegistry registry;
-    private final RuleRouter router;
+    private final Router router;
     private final TaskService taskService;
     private final Ids ids;
 
     public ChatService(Store store, AdapterRegistry registry,
-                       RuleRouter router, TaskService taskService, Ids ids) {
+                       Router router, TaskService taskService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
@@ -89,7 +89,7 @@ public class ChatService {
             Map<String, Object> routeEvent = new LinkedHashMap<>();
             routeEvent.put("capabilityId", route.capabilityId());
             routeEvent.put("confidence", route.confidence());
-            routeEvent.put("router", "RULE");
+            routeEvent.put("router", route.router());
             routeEvent.put("reason", route.reason());
             emit(emitter, "route", routeEvent);
 

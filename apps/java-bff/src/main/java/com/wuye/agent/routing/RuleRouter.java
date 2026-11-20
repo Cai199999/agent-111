@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * LLM 只输出 JSON 决策，不直接执行工具。</p>
  */
 @Component
-public class RuleRouter {
+public class RuleRouter implements Router {
 
     private static final Pattern TICKET_NO = Pattern.compile("GD\\d{6,}");
     private static final Pattern CONTRACT_NO = Pattern.compile("HT[-A-Za-z0-9]+");
