@@ -5,6 +5,9 @@ import com.wuye.agent.common.ApiResponse;
 import com.wuye.agent.common.Ids;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthService authService;
     private final AgentCatalogService catalogService;
@@ -35,7 +40,14 @@ public class AuthController {
         if (request == null || request.username() == null || request.password() == null) {
             throw new com.wuye.agent.common.ApiException("VALIDATION_ERROR", 400, "用户名和密码不能为空");
         }
-        AuthService.LoginResult result = authService.login(request.username().strip(), request.password());
+        AuthService.LoginResult result;
+        try {
+            result = authService.login(request.username().strip(), request.password());
+            log.info("login success username={} roles={}", result.user().username(), result.user().roles());
+        } catch (RuntimeException ex) {
+            log.warn("login failed username={} reason={}", request.username(), ex.getMessage());
+            throw ex;
+        }
         return ApiResponse.ok(new LoginResponse(
                 result.accessToken(),
                 "Bearer",

@@ -1,5 +1,31 @@
 const TOKEN_KEY = 'wuye_token';
+const UI_VERSION = '20261120-auth2';
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
+console.info(`[wuye] auth ui ${UI_VERSION}`);
+
+function readToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeToken(token) {
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // 隐私模式/存储被禁用时仍允许本次会话登录
+  }
+}
+
+function clearToken() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 const state = {
   token: null,
@@ -67,7 +93,7 @@ init();
 
 async function init() {
   bindEvents();
-  state.token = localStorage.getItem(TOKEN_KEY);
+  state.token = readToken();
   if (!state.token) {
     showLogin();
     return;
@@ -156,7 +182,7 @@ async function handleLogin(event) {
       throw new Error(body.message || '登录失败');
     }
     state.token = body.data.accessToken;
-    localStorage.setItem(TOKEN_KEY, state.token);
+    writeToken(state.token);
     await bootstrap();
   } catch (error) {
     els.loginError.textContent = error.message || '登录失败';
@@ -176,7 +202,7 @@ function hideLogin() {
 }
 
 function logoutLocal() {
-  localStorage.removeItem(TOKEN_KEY);
+  clearToken();
   state.token = null;
   state.me = null;
   state.agents = [];
