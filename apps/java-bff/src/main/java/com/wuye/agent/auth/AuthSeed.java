@@ -40,6 +40,7 @@ public final class AuthSeed {
                 "capability:property.ticket.query",
                 "capability:property.ticket.detail"));
         ROLE_PERMISSIONS.put("WORKER", Set.of(
+                "human:manage",
                 "capability:property.ticket.query",
                 "capability:property.ticket.detail",
                 "capability:property.ticket.accept",

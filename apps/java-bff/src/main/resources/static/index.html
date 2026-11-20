@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
   <title>物业主 Agent · 单对话框原型</title>
-  <link rel="stylesheet" href="/css/app.css?v=20261120-auth14"/>
+  <link rel="stylesheet" href="/css/app.css?v=20261120-auth15"/>
 </head>
 <body>
 <div id="loginView" class="login-view" hidden>
@@ -21,7 +21,7 @@
       <button class="btn primary block" type="submit">登录</button>
       <div id="loginError" class="login-error"></div>
     </form>
-    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth14</div>
+    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth15</div>
   </div>
 </div>
 
@@ -70,6 +70,7 @@
           </button>
           <div id="userDropdown" class="dropdown" hidden>
             <button type="button" data-action="dashboard" id="dashboardMenuItem">数据看板</button>
+            <button type="button" data-action="human" id="humanMenuItem">人工介入</button>
             <button type="button" data-action="audit" id="auditMenuItem">审计日志</button>
             <button type="button" data-action="profile">个人信息</button>
             <button type="button" data-action="settings">设置</button>
@@ -143,6 +144,16 @@
   </div>
 </div>
 
+<div id="humanModal" class="modal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="humanTitle">
+    <div id="humanTitle" class="modal-title">人工介入队列</div>
+    <div id="humanList" class="audit-list"></div>
+    <div class="modal-actions">
+      <button id="humanClose" class="btn" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div id="auditModal" class="modal" hidden>
   <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="auditTitle">
     <div id="auditTitle" class="modal-title">审计日志</div>
@@ -193,13 +204,13 @@
           error.textContent = '浏览器禁止本地存储，请允许站点存储或换普通窗口打开';
           return;
         }
-        window.location.href = '/?v=20261120-auth14';
+        window.location.href = '/?v=20261120-auth15';
       } catch (e) {
         error.textContent = e.message || '登录失败';
       }
     });
   });
 </script>
-<script type="module" src="/js/app.js?v=20261120-auth14"></script>
+<script type="module" src="/js/app.js?v=20261120-auth15"></script>
 </body>
 </html>

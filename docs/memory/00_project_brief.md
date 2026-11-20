@@ -51,12 +51,12 @@
 - `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
 - 主 Agent 原型已完成：`apps/java-bff`，Java BFF + MySQL 持久化 + Mock/HTTP Adapter + 原生单对话框 UI。
   - `mvn -f apps/java-bff/pom.xml test`：20/20 passed（10 项 BFF smoke + 5 项 HTTP Adapter + 5 项 LLM 路由）。
-  - 已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（Manifest forms.personalInfo）、按权限过滤 Agent/能力卡片；LLM 主导路由、计划拆解、多轮补参、参数自动修正；子 Agent 原始 output 保留在 SSE `result`/任务 API，聊天区按中文字段名与中文枚举展示，并由 LLM `explain` 生成简短中文解释；工具 API `/api/v1/tools`；ADMIN 数据看板（成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本，成本按可配置单价估算）；操作审计 `wa_audit_log`（登录/任务提交/确认/取消/会话删除/工具调用，ADMIN 查询）；进程内限流、`scripts/ci.sh`、`scripts/backup.sh`；会话级摘要记忆（`wa_chat_session.summary`，仅当前会话使用，不跨会话检索）；全局用户画像（`wa_user_memory_profile`，稳定偏好，`memory.profile.update/get` 主 Agent 工具，个人中心可查看/清除）；SSE、确认/拒绝、异步合同审查、取消、任务时间线、会话删除；确认令牌不出服务端。
+  - 已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（Manifest forms.personalInfo）、按权限过滤 Agent/能力卡片；LLM 主导路由、计划拆解、多轮补参、参数自动修正；子 Agent 原始 output 保留在 SSE `result`/任务 API，聊天区按中文字段名与中文枚举展示，并由 LLM `explain` 生成简短中文解释；工具 API `/api/v1/tools`；ADMIN 数据看板（成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本，成本按可配置单价估算）；操作审计 `wa_audit_log`（登录/任务提交/确认/取消/会话删除/工具调用，ADMIN 查询）；进程内限流、`scripts/ci.sh`、`scripts/backup.sh`；会话级摘要记忆（`wa_chat_session.summary`，仅当前会话使用，不跨会话检索）；全局用户画像（`wa_user_memory_profile`，稳定偏好，`memory.profile.update/get` 主 Agent 工具，个人中心可查看/清除）；人工介入队列（`wa_human_intervention`，待确认/失败/拒绝自动入队，WORKER/ADMIN 认领/处理）；SSE、确认/拒绝、异步合同审查、取消、任务时间线、会话删除；确认令牌不出服务端。
   - 演示账号：admin/admin123、worker/worker123、user/user123；合同 Agent 仅管理员可见。
   - 权限：普通用户建单/查自己的工单；工人接单/处理/解决，不能建单；管理员全部。权限来自 `wa_role/wa_permission/wa_role_permission`，不是前端硬编码。
   - 持久化：`wuye_agent_db` + Flyway；会话/消息/任务/事件跨重启验证通过；令牌 AES-GCM 加密落库。
   - 真实 HTTP：`WUYE_AGENT_MODE=http` 接 8402/8400，支持方言、200/202、委托令牌、错误映射；子 Agent 停机时返回 `FAILED(DEPENDENCY)` 不崩溃。
-  - LLM 路由：`apps/python-ai` FastAPI + DeepSeek/OpenAI 兼容；Java **LLM 主导、规则兜底**，支持多步计划（只读前置 + 最终写）、多轮 PendingIntent 补参、`masterdata.options` 枚举映射（ticketTypes/priorities 等）、子 Agent 校验失败回传 LLM 修正参数；LLM 失败 30s 熔断回退规则。Java 34/34、Python 11/11 测试通过。
+  - LLM 路由：`apps/python-ai` FastAPI + DeepSeek/OpenAI 兼容；Java **LLM 主导、规则兜底**，支持多步计划（只读前置 + 最终写）、多轮 PendingIntent 补参、`masterdata.options` 枚举映射（ticketTypes/priorities 等）、子 Agent 校验失败回传 LLM 修正参数；LLM 失败 30s 熔断回退规则。Java 35/35、Python 11/11 测试通过。
   - DeepSeek 实网验证通过：`1栋大堂的灯不亮了` → `property.ticket.create`（LLM，确认后 SUCCEEDED）；`付款节点一般怎么审` → LLM 追问消歧。
   - 临时端口 smoke：首页/JS/CSS 200、派单确认链路成功、SSE 无 `confirmationToken`；MySQL 重启后数据保留。
   - 原型边界：无真实登录、Manifest 静态、无 Redis/MinIO、任务事件轮询；子 Agent 未启动，尚未活体联调；LLM 需用户填 `DEEPSEEK_API_KEY`。

@@ -38,6 +38,12 @@ public class PolicyService {
         }
     }
 
+    public void requirePermission(AuthUser user, String permission) {
+        if (user == null || !user.hasPermission(permission)) {
+            throw new ApiException("AUTH_FORBIDDEN", 403, "当前账号缺少权限：" + permission);
+        }
+    }
+
     public void requireAdmin(AuthUser user) {
         if (user == null || !user.isAdmin()) {
             throw new ApiException("AUTH_FORBIDDEN", 403, "需要管理员权限");

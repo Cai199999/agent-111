@@ -150,6 +150,23 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void humanQueueCanBeClaimedAndResolved() throws Exception {
+        String session = createSession();
+        String sse = send(session, "报修：3栋2单元水管漏水");
+        String taskNo = extractTaskNo(sse);
+
+        String queue = getWithToken("/api/v1/human-tasks?status=PENDING", adminToken);
+        assertTrue(queue.contains(taskNo), queue);
+
+        JsonNode claimed = postForData("/api/v1/human-tasks/" + taskNo + "/claim", Map.of());
+        assertEquals("CLAIMED", claimed.path("human").path("status").asText());
+
+        JsonNode resolved = postForData("/api/v1/human-tasks/" + taskNo + "/resolve",
+                Map.of("note", "人工处理完成"));
+        assertEquals("RESOLVED", resolved.path("human").path("status").asText());
+    }
+
+    @Test
     void profileMemoryCanBeReadAndCleared() throws Exception {
         String memory = getWithToken("/api/v1/profile/memory", adminToken);
         assertTrue(memory.contains("\"profile\""), memory);

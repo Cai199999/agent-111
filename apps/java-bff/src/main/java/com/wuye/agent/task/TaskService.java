@@ -12,6 +12,7 @@ import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import com.wuye.agent.audit.AuditService;
 import com.wuye.agent.common.ApiException;
+import com.wuye.agent.human.HumanInterventionService;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.store.Store;
 import com.wuye.agent.store.TaskRecord;
@@ -34,12 +35,15 @@ public class TaskService {
     private final Store store;
     private final AdapterRegistry registry;
     private final AuditService auditService;
+    private final HumanInterventionService humanInterventionService;
     private final Ids ids;
 
-    public TaskService(Store store, AdapterRegistry registry, AuditService auditService, Ids ids) {
+    public TaskService(Store store, AdapterRegistry registry, AuditService auditService,
+                       HumanInterventionService humanInterventionService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.auditService = auditService;
+        this.humanInterventionService = humanInterventionService;
         this.ids = ids;
     }
 
@@ -215,6 +219,14 @@ public class TaskService {
         }
         addEvents(task, result.events());
         store.putTask(task);
+        if (task.status == TaskStatus.WAITING_CONFIRM
+                || task.status == TaskStatus.FAILED
+                || task.status == TaskStatus.REJECTED) {
+            humanInterventionService.upsertPending(task.taskNo);
+        } else if (task.status == TaskStatus.SUCCEEDED
+                || task.status == TaskStatus.CANCELLED) {
+            humanInterventionService.autoResolve(task.taskNo, "任务已结束：" + task.status);
+        }
     }
 
     private void addEvents(TaskRecord task, List<TaskEvent> incoming) {

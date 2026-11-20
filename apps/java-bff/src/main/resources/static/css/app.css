@@ -374,6 +374,10 @@ body {
 .audit-row .status { font-size: 11px; border-radius: 999px; padding: 2px 8px; height: fit-content; }
 .audit-row .status.SUCCESS { background: var(--green-weak); color: var(--green); }
 .audit-row .status.FAILED { background: var(--red-weak); color: var(--red); }
+.audit-row .status.PENDING { background: var(--amber-weak); color: var(--amber); }
+.audit-row .status.CLAIMED { background: var(--primary-weak); color: var(--primary); }
+.audit-row .status.RESOLVED { background: var(--green-weak); color: var(--green); }
+.audit-row .actions { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 4px; }
 
 .memory-block {
   margin-top: 16px; border: 1px solid var(--line); border-radius: 12px;

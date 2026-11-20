@@ -53,6 +53,18 @@
 - CI：`bash scripts/ci.sh` 执行 JS 语法检查、Java 测试、Python 测试。
 - 备份：`bash scripts/backup.sh` 使用 `mysqldump --single-transaction` 备份 `wuye_agent_db` 到 `backups/`（已 gitignore）。
 
+## 人工介入队列
+
+- 任务进入 `WAITING_CONFIRM` / `FAILED` / `REJECTED` 时自动写入 `wa_human_intervention`；
+- 任务成功/取消时自动标记 `RESOLVED`；
+- 接口：
+  - `GET /api/v1/human-tasks?status=PENDING&limit=50`
+  - `POST /api/v1/human-tasks/{taskNo}/claim`
+  - `POST /api/v1/human-tasks/{taskNo}/resolve` `{ "note": "..." }`
+- 权限：`human:manage`（WORKER/ADMIN）；
+- 前端：用户菜单 → 人工介入；
+- 认领/处理写入审计 `HUMAN_CLAIM` / `HUMAN_RESOLVE`。
+
 ## 操作审计
 
 - 表：`wa_audit_log`（V6）；
@@ -106,7 +118,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 34/34 passed（Python AI 另 11/11）
+# 当前：Java 35/35 passed（Python AI 另 11/11）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

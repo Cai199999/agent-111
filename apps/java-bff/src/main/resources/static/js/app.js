@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth14';
+const UI_VERSION = '20261120-auth15';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -180,6 +180,10 @@ const els = {
   auditModal: document.getElementById('auditModal'),
   auditList: document.getElementById('auditList'),
   auditClose: document.getElementById('auditClose'),
+  humanMenuItem: document.getElementById('humanMenuItem'),
+  humanModal: document.getElementById('humanModal'),
+  humanList: document.getElementById('humanList'),
+  humanClose: document.getElementById('humanClose'),
   sessionList: document.getElementById('sessionList'),
   agentStatus: document.getElementById('agentStatus'),
   messages: document.getElementById('messages'),
@@ -257,6 +261,7 @@ function bindEvents() {
     if (!action) return;
     els.userDropdown.hidden = true;
     if (action === 'dashboard') openDashboard();
+    if (action === 'human') openHumanTasks();
     if (action === 'audit') openAudit();
     if (action === 'profile') openProfile();
     if (action === 'settings') openSettings();
@@ -281,6 +286,9 @@ function bindEvents() {
   });
   els.auditClose.addEventListener('click', () => {
     els.auditModal.hidden = true;
+  });
+  els.humanClose.addEventListener('click', () => {
+    els.humanModal.hidden = true;
   });
 }
 
@@ -348,6 +356,9 @@ function renderCurrentUser() {
   }
   if (els.auditMenuItem) {
     els.auditMenuItem.hidden = !isAdmin;
+  }
+  if (els.humanMenuItem) {
+    els.humanMenuItem.hidden = !(state.me.permissions || []).includes('human:manage');
   }
   const hasContract = state.agents.some((agent) => agent.agentKey === 'contract-review');
   const propertyPill = document.getElementById('propertyPill');
@@ -1376,7 +1387,74 @@ const ACTION_LABELS = {
   TASK_CANCEL: '取消任务',
   SESSION_DELETE: '删除会话',
   TOOL_EXECUTE: '调用工具',
+  HUMAN_CLAIM: '认领人工任务',
+  HUMAN_RESOLVE: '处理人工任务',
 };
+
+async function openHumanTasks() {
+  els.humanModal.hidden = false;
+  els.humanList.textContent = '加载中…';
+  try {
+    const items = await api('/api/v1/human-tasks?status=PENDING&limit=50');
+    els.humanList.replaceChildren();
+    if (!items.length) {
+      els.humanList.append(el('div', 'meta', '暂无待人工处理的任务'));
+      return;
+    }
+    for (const item of items) {
+      const human = item.human || {};
+      const task = item.task || {};
+      const row = el('div', 'audit-row');
+      const main = el('div', 'main',
+        `${capabilityLabel(task.capabilityId)} · ${human.taskNo || task.taskNo || ''}`);
+      const status = el('span', 'status PENDING', humanStatusLabel(human.status));
+      const meta = el('div', 'meta',
+        `任务状态：${statusLabel(task.status)} · 创建：${formatDate(human.createdAt)}`);
+      const actions = el('div', 'actions');
+      const claim = el('button', 'btn primary small', '认领');
+      claim.type = 'button';
+      claim.addEventListener('click', () => claimHuman(human.taskNo));
+      const resolve = el('button', 'btn small', '标记处理');
+      resolve.type = 'button';
+      resolve.addEventListener('click', () => resolveHuman(human.taskNo));
+      actions.append(claim, resolve);
+      row.append(main, status, meta, actions);
+      els.humanList.append(row);
+    }
+  } catch (error) {
+    els.humanList.textContent = error.message || '加载失败';
+  }
+}
+
+async function claimHuman(taskNo) {
+  try {
+    await api(`/api/v1/human-tasks/${taskNo}/claim`, { method: 'POST' });
+    showToast('已认领');
+    await openHumanTasks();
+  } catch (error) {
+    showToast(error.message || '认领失败');
+  }
+}
+
+async function resolveHuman(taskNo) {
+  const confirmed = await askConfirm('确认该人工任务已处理完成？',
+    { title: '处理人工任务', confirmText: '标记完成', danger: false });
+  if (!confirmed) return;
+  try {
+    await api(`/api/v1/human-tasks/${taskNo}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ note: '人工处理完成' }),
+    });
+    showToast('已标记处理');
+    await openHumanTasks();
+  } catch (error) {
+    showToast(error.message || '处理失败');
+  }
+}
+
+function humanStatusLabel(status) {
+  return ({ PENDING: '待处理', CLAIMED: '已认领', RESOLVED: '已处理' })[status] || status;
+}
 
 async function openAudit() {
   els.auditModal.hidden = false;
