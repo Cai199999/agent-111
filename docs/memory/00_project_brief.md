@@ -49,11 +49,13 @@
 - 两个子 Agent 当前均未启动（`8400/8401/8500` 已释放；`8200/8300/8402` 无进程）。
 - 主 Agent 候选端口：`8600`（Java）、`8700`（Python）、`5182`（Web dev），均待登记。
 - `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
-- 主 Agent 原型已完成：`apps/java-bff`，Java BFF + 内存存储 + Mock Adapter + 原生单对话框 UI。
-  - `mvn -f apps/java-bff/pom.xml test`：9/9 passed。
+- 主 Agent 原型已完成：`apps/java-bff`，Java BFF + MySQL 持久化 + Mock/HTTP Adapter + 原生单对话框 UI。
+  - `mvn -f apps/java-bff/pom.xml test`：14/14 passed（9 项 BFF smoke + 5 项 HTTP Adapter 契约）。
   - 已实现：SSE、两域规则路由、知识库消歧、确认/拒绝、异步合同审查、取消、任务时间线；确认令牌不出服务端。
-  - 临时端口 smoke：首页/JS/CSS 200、派单确认链路成功、SSE 无 `confirmationToken`。
-  - 原型边界：无 MySQL/Redis/MinIO、无真实登录、无 Python AI、Adapter 为 Mock。
+  - 持久化：`wuye_agent_db` + Flyway；会话/消息/任务/事件跨重启验证通过；令牌 AES-GCM 加密落库。
+  - 真实 HTTP：`WUYE_AGENT_MODE=http` 接 8402/8400，支持方言、200/202、委托令牌、错误映射；子 Agent 停机时返回 `FAILED(DEPENDENCY)` 不崩溃。
+  - 临时端口 smoke：首页/JS/CSS 200、派单确认链路成功、SSE 无 `confirmationToken`；MySQL 重启后数据保留。
+  - 原型边界：无真实登录、无 Python AI、Manifest 静态、无 Redis/MinIO、任务事件轮询；子 Agent 未启动，尚未活体联调。
 
 ## 关键决策
 
@@ -65,8 +67,9 @@
 
 ## 下一步
 
-1. 评审 `docs/01`–`06`。
-2. 登记主 Agent 端口/库/前缀/bucket（需用户确认）。
-3. 编写 Mock Agent 与内部契约代码（Adapter SPI、统一模型）。
-4. 只读 MVP：Manifest 同步 → 能力目录 → 规则/LLM 路由 → 统一任务卡片。
-5. 并行推动子 Agent 三个 P0：合同委托令牌签发、两边 `inputSchema`、物业端口改造。
+1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。
+2. 启动物业 `8402` / 合同 `8400`，`WUYE_AGENT_MODE=http` 做活体联调。
+3. 接 Manifest 自动同步/版本校验，替换静态能力描述。
+4. 接 Python AI 路由（`/internal/v1/ai/route`），规则保留为第一层。
+5. 补任务 SSE、审计、Agent 管理后台；确认令牌迁 Redis。
+6. 并行推动子 Agent 后续项：异步持久化、usage 计量、tenantId、指标标准化。

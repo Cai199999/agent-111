@@ -21,22 +21,22 @@
 
 ## 原型（已可运行）
 
-位置：`apps/java-bff/`。这是一个纵向切片：Java BFF + 内存存储 + Mock Adapter + 原生单对话框 UI。
+位置：`apps/java-bff/`。纵向切片：Java BFF + MySQL 持久化 + Mock/真实 HTTP Adapter + 原生单对话框 UI。
 
 ```bash
-# 只跑测试（随机端口，不占业务端口）
-mvn -f apps/java-bff/pom.xml test
-# 当前：9/9 passed
+cp .env.example .env && chmod 600 .env
 
-# 启动（8600 需先登记 RESOURCES.md）
-JAVA_PORT=8600 mvn -f apps/java-bff/pom.xml spring-boot:run
-# 或
+# 测试（内存 profile，随机端口，不占业务端口）
+mvn -f apps/java-bff/pom.xml test
+# 当前：14/14 passed
+
+# 启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
 bash scripts/start-prototype.sh
 ```
 
-已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端。
+已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
 
-原型边界：无 MySQL/Redis/MinIO、无真实登录、无 Python AI、Adapter 为 Mock、任务事件用轮询刷新。
+原型边界：无真实登录、无 Python AI、Manifest 静态、无 Redis/MinIO、任务事件轮询、真实子 Agent 未启动尚未联调。
 
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 
@@ -59,8 +59,8 @@ bash scripts/start-prototype.sh
 
 ## 下一步
 
-1. 登记主 Agent 端口/库/前缀/bucket（需用户确认）。
-2. 把 Mock Adapter 替换为真实 HTTP Adapter（物业 8402、合同 8400）。
-3. 接入 MySQL/Flyway，替换内存存储。
+1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。
+2. 启动物业 8402 / 合同 8400，切换 `WUYE_AGENT_MODE=http` 做活体联调。
+3. 接 Manifest 自动同步/版本校验，替换静态能力描述。
 4. 接入 Python AI 路由（`/internal/v1/ai/route`），规则保留为第一层。
-5. 增加任务 SSE、审计、Agent 管理后台。
+5. 增加任务 SSE、审计、Agent 管理后台、Redis 确认令牌。

@@ -12,7 +12,7 @@ import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
-import com.wuye.agent.store.InMemoryStore;
+import com.wuye.agent.store.Store;
 import com.wuye.agent.store.TaskRecord;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -30,11 +30,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class TaskService {
 
-    private final InMemoryStore store;
+    private final Store store;
     private final AdapterRegistry registry;
     private final Ids ids;
 
-    public TaskService(InMemoryStore store, AdapterRegistry registry, Ids ids) {
+    public TaskService(Store store, AdapterRegistry registry, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.ids = ids;
@@ -97,6 +97,7 @@ public class TaskService {
             task.finishedAt = Instant.now();
             store.removeConfirmationToken(confirmation.token());
             addSystemEvent(task, "ERROR", TaskStatus.FAILED, Map.of("message", "确认令牌已过期"));
+            store.putTask(task);
             return task;
         }
 
@@ -115,6 +116,7 @@ public class TaskService {
         if (task.status.terminal()) {
             task.finishedAt = Instant.now();
         }
+        store.putTask(task);
         return task;
     }
 
@@ -141,6 +143,7 @@ public class TaskService {
             task.confirmationStatus = "CANCELLED";
             store.removeConfirmationToken(task.confirmation.token());
         }
+        store.putTask(task);
         return task;
     }
 
@@ -201,6 +204,7 @@ public class TaskService {
             task.finishedAt = Instant.now();
         }
         addEvents(task, result.events());
+        store.putTask(task);
     }
 
     private void addEvents(TaskRecord task, List<TaskEvent> incoming) {

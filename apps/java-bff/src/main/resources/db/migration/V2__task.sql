@@ -1,0 +1,47 @@
+-- 主 Agent 任务、事件、确认（原型持久化）
+CREATE TABLE wa_task_binding (
+    task_no                    VARCHAR(32)  NOT NULL COMMENT '主任务号',
+    session_no                 VARCHAR(32)  NOT NULL COMMENT '会话编号',
+    tenant_id                  VARCHAR(64)  NOT NULL DEFAULT '0' COMMENT '租户',
+    agent_key                  VARCHAR(64)  NOT NULL COMMENT '子 Agent',
+    capability_id              VARCHAR(128) NOT NULL COMMENT '能力 ID',
+    client_task_id             VARCHAR(64)  NOT NULL COMMENT '幂等键',
+    actor_id                   VARCHAR(64)  NOT NULL COMMENT '发起人',
+    execution_mode             VARCHAR(8)   NOT NULL COMMENT 'SYNC/ASYNC',
+    child_task_id              VARCHAR(64)  NULL COMMENT '子 Agent 任务 ID',
+    status                     VARCHAR(24)  NOT NULL COMMENT '统一任务状态',
+    input_json                 JSON         NULL COMMENT '请求参数',
+    output_json                JSON         NULL COMMENT '任务结果',
+    error_json                 JSON         NULL COMMENT '统一错误',
+    confirmation_status        VARCHAR(16)  NOT NULL DEFAULT 'NONE' COMMENT '确认状态',
+    confirmation_title         VARCHAR(128) NULL COMMENT '确认标题',
+    confirmation_risk          VARCHAR(16)  NULL COMMENT '风险级别',
+    confirmation_fields_json   JSON         NULL COMMENT '确认字段',
+    confirmation_expires_at    DATETIME(3)  NULL COMMENT '确认过期时间',
+    confirmation_state         VARCHAR(16)  NULL COMMENT '确认展示状态',
+    confirmation_token_cipher  VARCHAR(1024) NULL COMMENT '加密后的确认令牌',
+    progress                   INT          NULL COMMENT '进度 0-100',
+    current_step               VARCHAR(128) NULL COMMENT '当前步骤',
+    cancel_supported           TINYINT      NOT NULL DEFAULT 1 COMMENT '是否可取消',
+    cancel_reason              VARCHAR(255) NULL COMMENT '取消原因',
+    created_at                 DATETIME(3)  NOT NULL COMMENT '创建时间',
+    started_at                 DATETIME(3)  NULL COMMENT '开始时间',
+    finished_at                DATETIME(3)  NULL COMMENT '结束时间',
+    PRIMARY KEY (task_no),
+    UNIQUE KEY uk_agent_client (agent_key, client_task_id),
+    KEY idx_session_created (session_no, created_at),
+    KEY idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='任务绑定';
+
+CREATE TABLE wa_task_event (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    task_no     VARCHAR(32)  NOT NULL COMMENT '主任务号',
+    seq         BIGINT       NOT NULL COMMENT '任务内序号',
+    event_type  VARCHAR(32)  NOT NULL COMMENT '事件类型',
+    status      VARCHAR(24)  NULL COMMENT '事件时状态',
+    payload_json JSON        NULL COMMENT '事件负载',
+    created_at  DATETIME(3)  NOT NULL COMMENT '事件时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_task_seq (task_no, seq),
+    KEY idx_task_created (task_no, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='任务事件';

@@ -2,6 +2,18 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ ! -f "$ROOT/.env" ]]; then
+  echo "缺少 $ROOT/.env；请先 cp .env.example .env 并填写真实值。"
+  exit 1
+fi
+set -a
+# shellcheck disable=SC1091
+source "$ROOT/.env"
+set +a
+: "${SPRING_PROFILES_ACTIVE:=mysql}"
+export SPRING_PROFILES_ACTIVE
+echo "profile=${SPRING_PROFILES_ACTIVE} adapterMode=${WUYE_AGENT_MODE:-mock}"
+
 PORT="${JAVA_PORT:-8600}"
 JAR="$ROOT/apps/java-bff/target/wuye-agent-bff-0.1.0-SNAPSHOT.jar"
 PID_FILE="$ROOT/run/prototype.pid"

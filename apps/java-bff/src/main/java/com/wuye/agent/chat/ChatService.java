@@ -9,8 +9,8 @@ import com.wuye.agent.common.Ids;
 import com.wuye.agent.routing.RouteDecision;
 import com.wuye.agent.routing.RuleRouter;
 import com.wuye.agent.store.ChatMessage;
-import com.wuye.agent.store.InMemoryStore;
 import com.wuye.agent.store.SessionState;
+import com.wuye.agent.store.Store;
 import com.wuye.agent.store.TaskRecord;
 import com.wuye.agent.task.TaskService;
 import java.io.IOException;
@@ -36,13 +36,13 @@ public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
-    private final InMemoryStore store;
+    private final Store store;
     private final AdapterRegistry registry;
     private final RuleRouter router;
     private final TaskService taskService;
     private final Ids ids;
 
-    public ChatService(InMemoryStore store, AdapterRegistry registry,
+    public ChatService(Store store, AdapterRegistry registry,
                        RuleRouter router, TaskService taskService, Ids ids) {
         this.store = store;
         this.registry = registry;
@@ -66,8 +66,8 @@ public class ChatService {
                 return;
             }
 
-            // 幂等：同一 clientMessageId 不重复执行
-            if (clientMessageId != null && session.clientMessageIds.contains(clientMessageId)) {
+            // 幂等：同一 clientMessageId 不重复执行（内存/MySQL 共用查询）
+            if (clientMessageId != null && store.findMessageByClientId(session, clientMessageId) != null) {
                 emit(emitter, "meta", Map.of("sessionNo", sessionNo, "messageNo", "duplicate", "traceId", traceId));
                 emit(emitter, "delta", Map.of("content", "这条消息已经处理过了，请勿重复提交。"));
                 emit(emitter, "done", Map.of("messageNo", "duplicate", "status", "DUPLICATE"));

@@ -12,6 +12,6 @@ public record SessionView(
 ) {
     public static SessionView from(SessionState session) {
         return new SessionView(session.sessionNo, session.title, session.createdAt,
-                session.lastMessageAt, session.messages.size());
+                session.lastMessageAt, session.messageCount);
     }
 }

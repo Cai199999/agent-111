@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
@@ -16,7 +17,8 @@ import org.springframework.stereotype.Component;
  * 但接口形态保持不变，控制器不感知存储实现。</p>
  */
 @Component
-public class InMemoryStore {
+@Profile("!mysql")
+public class InMemoryStore implements Store {
 
     private final Ids ids;
     private final Map<String, SessionState> sessions = new ConcurrentHashMap<>();
@@ -53,6 +55,7 @@ public class InMemoryStore {
                 metadata == null ? Map.of() : metadata, Instant.now());
         session.messages.add(message);
         session.lastMessageAt = message.createdAt();
+        session.messageCount++;
         if (clientMessageId != null && !clientMessageId.isBlank()) {
             session.clientMessageIds.add(clientMessageId);
         }

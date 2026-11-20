@@ -23,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Component;
  * 以及“拒绝 -> FAILED(CONFIRM_REJECTED)”的方言，验证主 Agent 的归一化。</p>
  */
 @Component
+@ConditionalOnProperty(name = "wuye.agent.mode", havingValue = "mock", matchIfMissing = true)
 public class MockContractAdapter implements AgentAdapter {
 
     private static final String AGENT_KEY = "contract-review";

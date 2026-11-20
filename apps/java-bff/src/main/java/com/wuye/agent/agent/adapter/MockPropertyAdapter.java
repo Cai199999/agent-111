@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Component;
  * 对上层接口不变。</p>
  */
 @Component
+@ConditionalOnProperty(name = "wuye.agent.mode", havingValue = "mock", matchIfMissing = true)
 public class MockPropertyAdapter implements AgentAdapter {
 
     private static final String AGENT_KEY = "property-maintenance";

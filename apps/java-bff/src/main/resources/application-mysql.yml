@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/wuye_agent_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${MYSQL_USERNAME:wuye_agent_app}
+    password: ${MYSQL_PASSWORD:}
+
+wuye:
+  security:
+    confirm-token-key: ${CONFIRM_TOKEN_KEY:}

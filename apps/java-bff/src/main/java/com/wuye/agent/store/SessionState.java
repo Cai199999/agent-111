@@ -17,6 +17,7 @@ public final class SessionState {
     public final Set<String> clientMessageIds = ConcurrentHashMap.newKeySet();
     public volatile String title;
     public volatile Instant lastMessageAt;
+    public volatile int messageCount;
 
     public SessionState(String sessionNo, String title, Instant createdAt) {
         this.sessionNo = sessionNo;

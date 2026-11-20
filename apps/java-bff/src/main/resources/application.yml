@@ -10,6 +10,32 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+wuye:
+  agent:
+    mode: ${WUYE_AGENT_MODE:mock}
+    connect-timeout-ms: 3000
+    read-timeout-ms: 20000
+    property:
+      base-url: ${AGENT_PROPERTY_BASE_URL:http://127.0.0.1:8402}
+      internal-token: ${AGENT_PROPERTY_INTERNAL_TOKEN:}
+      audience: ${AGENT_PROPERTY_AUDIENCE:property-maintenance}
+      actor-id: ${AGENT_PROPERTY_ACTOR_ID:10001}
+      roles: ${AGENT_PROPERTY_ROLES:ADMIN}
+      tenant-id: ${AGENT_PROPERTY_TENANT_ID:0}
+      delegation-path: /agent/v1/delegation/token
+      delegation-scopes: ${AGENT_PROPERTY_DELEGATION_SCOPES:*}
+      use-delegation: true
+    contract:
+      base-url: ${AGENT_CONTRACT_BASE_URL:http://127.0.0.1:8400}
+      internal-token: ${AGENT_CONTRACT_INTERNAL_TOKEN:}
+      audience: ${AGENT_CONTRACT_AUDIENCE:agent-hetong}
+      actor-id: ${AGENT_CONTRACT_ACTOR_ID:10001}
+      roles: ${AGENT_CONTRACT_ROLES:ADMIN}
+      tenant-id: ${AGENT_CONTRACT_TENANT_ID:0}
+      delegation-path: /agent/v1/delegation/token
+      delegation-scopes: ${AGENT_CONTRACT_DELEGATION_SCOPES:*}
+      use-delegation: true
+
 logging:
   level:
     root: INFO
