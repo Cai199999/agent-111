@@ -45,6 +45,8 @@ if [[ ! -f "$JAR" ]]; then
 fi
 
 echo "启动原型：http://127.0.0.1:${PORT}/"
+# Java 不需要模型密钥；避免把 DEEPSEEK_API_KEY 带进 Java 进程环境
+unset DEEPSEEK_API_KEY
 nohup java -jar "$JAR" --server.port="$PORT" >"$LOG_FILE" 2>&1 &
 echo $! >"$PID_FILE"
 echo "PID: $(cat "$PID_FILE")  日志: $LOG_FILE"
