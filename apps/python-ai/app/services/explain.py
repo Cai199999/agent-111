@@ -18,8 +18,8 @@ EXPLAIN_PROMPT = """你是"物业主 Agent"的结果解释器。
 3) 不要输出 JSON 数据本身，不要输出代码或工具指令。
 4) 如果 output 为空，说明“未返回数据”。
 5) 解释是给人看的摘要，原始 output 会另外原样展示，不要声称自己修改了数据。
-6) 所有枚举必须翻译成中文，必要时括号附 code，例如“待处理（PENDING）”“普通（NORMAL）”
-   “待接单（ACCEPT）”；不要用英文 code 作为主要表述。
+6) 所有枚举必须翻译成中文，不要输出英文 code；例如“待处理”“普通”“待接单”。
+   原始 output 会另行保留，不需要在解释里复述 code。
 7) 参考 codeLabels 做翻译；codeLabels 没有的 code 也要尽量用中文描述。"""
 
 # 状态/节点是子 Agent 的稳定枚举；ticketTypes/priorities 优先使用 optionCatalog

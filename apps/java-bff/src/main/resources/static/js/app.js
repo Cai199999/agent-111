@@ -1,8 +1,81 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth8';
+const UI_VERSION = '20261120-auth9';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
+
+const FIELD_LABELS = {
+  id: '编号',
+  ticketNo: '工单号',
+  title: '标题',
+  description: '报修内容',
+  statusCode: '状态',
+  priorityCode: '优先级',
+  ticketTypeCode: '工单类型',
+  reporterId: '报修人',
+  customerId: '客户',
+  roomId: '房间',
+  projectId: '项目',
+  buildingId: '楼栋',
+  equipmentId: '设备',
+  serviceItemId: '服务项',
+  serviceItemText: '服务项',
+  locationText: '位置',
+  locationType: '位置类型',
+  currentNodeCode: '当前节点',
+  createdAt: '创建时间',
+  updatedAt: '更新时间',
+  slaResolveDueAt: 'SLA解决截止',
+  taskDueAt: '任务截止',
+  appointmentAt: '预约时间',
+  version: '版本',
+  contactName: '联系人',
+  contactPhone: '联系电话',
+  contactPhoneMask: '联系电话',
+  indoorPublicArea: '户内/公区',
+  assigneeId: '处理人',
+  assigneeName: '处理人',
+  ruleCode: '规则编码',
+  level: '级别',
+  snippet: '摘要',
+  score: '相关度',
+  summary: '摘要',
+  findingsCount: '风险数',
+  findingsByLevel: '风险分布',
+  overall: '结论',
+  contractId: '合同ID',
+  contractNo: '合同号',
+  versionId: '版本ID',
+  name: '名称',
+  phoneMask: '联系电话',
+  reviewStatus: '审核状态',
+  matchedBy: '匹配依据',
+  code: '编码',
+};
+
+const VALUE_LABELS = {
+  statusCode: {
+    PENDING: '待处理', ASSIGNED: '已派单', ACCEPTED: '已接单',
+    PROCESSING: '处理中', RUNNING: '处理中', RESOLVED: '已解决',
+    VERIFIED: '已验证', PENDING_VERIFY: '待验证', CLOSED: '已关闭',
+    CANCELLED: '已取消', HOLD: '已挂起',
+  },
+  priorityCode: { LOW: '低', NORMAL: '普通', HIGH: '高', URGENT: '紧急' },
+  ticketTypeCode: {
+    ELEVATOR: '电梯故障', HVAC: '空调故障', PUMP: '水泵故障', FIRE: '消防故障',
+    ACCESS: '门禁故障', NETWORK: '网络故障', ELECTRICAL: '电气故障',
+    GENERAL: '通用', OTHER: '其他', PLUMBING: '给排水',
+  },
+  currentNodeCode: {
+    ACCEPT: '待接单', ACCEPTED: '已接单', PROCESS: '处理中',
+    PROCESSING: '处理中', VERIFY: '待验证', CLOSE: '已关闭', CLOSED: '已关闭',
+  },
+  locationType: { INDOOR: '室内', OUTDOOR: '室外' },
+  indoorPublicArea: { INDOOR: '户内', PUBLIC: '公区' },
+  level: { MAJOR: '重大', GENERAL: '一般' },
+  overall: { PASS: '通过', FAIL: '不通过' },
+  reviewStatus: { PENDING: '审核中', APPROVED: '已通过', REJECTED: '已拒绝', NONE: '未提交' },
+};
 
 function readToken() {
   try {
@@ -706,7 +779,7 @@ function renderTaskCard(container, task) {
   }
 
   if (task.output !== undefined && task.output !== null) {
-    body.append(rawResultElement(task.output));
+    body.append(resultElement(task.output));
   }
 
   card.append(head, body);
@@ -719,20 +792,118 @@ function renderTaskCard(container, task) {
 
 function renderRawResult(container, output) {
   if (!container || output === undefined || output === null) return;
-  container.append(rawResultElement(output));
+  container.append(resultElement(output));
 }
 
-function rawResultElement(output) {
-  const box = el('details', 'raw-result');
-  box.append(el('summary', '', '子 Agent 原始返回（字段名/枚举保持原样）'));
-  const pre = el('pre', 'raw-json');
-  try {
-    pre.textContent = JSON.stringify(output, null, 2);
-  } catch {
-    pre.textContent = String(output);
+const TICKET_COLUMNS = [
+  { key: 'ticketNo', label: '工单号' },
+  { key: 'title', label: '标题' },
+  { key: 'statusCode', label: '状态' },
+  { key: 'priorityCode', label: '优先级' },
+  { key: 'ticketTypeCode', label: '工单类型' },
+  { key: 'locationText', label: '位置' },
+  { key: 'contactName', label: '联系人' },
+  { key: 'currentNodeCode', label: '当前节点' },
+  { key: 'slaResolveDueAt', label: 'SLA解决截止' },
+  { key: 'assigneeName', label: '处理人' },
+  { key: 'assigneeId', label: '处理人' },
+];
+
+function resultElement(output) {
+  const box = el('div', 'result-view');
+  if (Array.isArray(output)) {
+    if (output.length && output.every((item) => item && typeof item === 'object' && !Array.isArray(item))) {
+      if (output.some((item) => item.ticketNo)) {
+        box.append(ticketTable(output));
+      } else {
+        output.forEach((item, index) => {
+          if (index) box.append(el('div', 'result-sep'));
+          box.append(objectView(item));
+        });
+      }
+    } else {
+      const list = el('ul', 'result-list');
+      output.forEach((value) => list.append(el('li', '', formatValue('', value))));
+      box.append(list);
+    }
+  } else if (output && typeof output === 'object') {
+    box.append(objectView(output));
+  } else {
+    box.append(el('div', 'result-text', String(output)));
   }
-  box.append(pre);
   return box;
+}
+
+function ticketTable(items) {
+  const columns = TICKET_COLUMNS.filter((column) => items.some((item) =>
+    item[column.key] !== undefined && item[column.key] !== null && item[column.key] !== ''));
+  const table = el('table', 'result-table');
+  const head = el('thead');
+  const headRow = el('tr');
+  columns.forEach((column) => headRow.append(el('th', '', column.label)));
+  head.append(headRow);
+  table.append(head);
+
+  const body = el('tbody');
+  for (const item of items) {
+    const row = el('tr');
+    for (const column of columns) {
+      let value = item[column.key];
+      if (column.key === 'assigneeName' && (value === undefined || value === null)) {
+        value = item.assigneeId;
+      }
+      row.append(el('td', '', value === undefined || value === null || value === ''
+        ? '—' : formatValue(column.key, value)));
+    }
+    body.append(row);
+  }
+  table.append(body);
+  const wrap = el('div', 'result-table-wrap');
+  wrap.append(table);
+  return wrap;
+}
+
+function objectView(object) {
+  const grid = el('div', 'result-grid');
+  const keys = Object.keys(object)
+    .filter((key) => FIELD_LABELS[key])
+    .sort((a, b) => fieldOrder(a) - fieldOrder(b));
+  for (const key of keys) {
+    const value = formatValue(key, object[key]);
+    if (value === '' || value === '—') continue;
+    grid.append(el('div', 'k', FIELD_LABELS[key]), el('div', 'v', value));
+  }
+  return grid;
+}
+
+function fieldOrder(key) {
+  const order = [
+    'ticketNo', 'title', 'statusCode', 'priorityCode', 'ticketTypeCode',
+    'locationText', 'contactName', 'contactPhoneMask', 'currentNodeCode',
+    'slaResolveDueAt', 'taskDueAt', 'createdAt', 'updatedAt', 'description',
+    'ruleCode', 'level', 'snippet', 'score', 'summary', 'findingsCount', 'overall',
+    'contractId', 'contractNo', 'name', 'reviewStatus',
+  ];
+  const index = order.indexOf(key);
+  return index < 0 ? 999 : index;
+}
+
+function formatValue(key, value) {
+  if (value === null || value === undefined) return '—';
+  const labels = VALUE_LABELS[key];
+  if (labels && labels[String(value)]) return labels[String(value)];
+  if (typeof value === 'string' && (key.endsWith('At') || key.endsWith('Time'))) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toLocaleString('zh-CN', { hour12: false });
+  }
+  if (Array.isArray(value)) return value.map((item) => formatValue('', item)).join('、');
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([childKey]) => FIELD_LABELS[childKey])
+      .map(([childKey, childValue]) => `${FIELD_LABELS[childKey]}：${formatValue(childKey, childValue)}`)
+      .join('；');
+  }
+  return String(value);
 }
 
 function renderConfirm(task) {

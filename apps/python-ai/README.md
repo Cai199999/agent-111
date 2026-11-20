@@ -95,7 +95,7 @@ Content-Type: application/json
 
 - `/internal/v1/ai/explain`：接收 `userMessage/capabilityId/output`，返回简短中文解释；
 - 解释只依据原始 output，不编造、不改写数据；
-- 请求会带 `optionCatalog` 和 `codeLabels`，解释中枚举翻译成中文（如“待处理（PENDING）”“普通（NORMAL）”）；
+- 请求会带 `optionCatalog` 和 `codeLabels`，解释中枚举只输出中文（如“待处理”“普通”），不输出英文 code；
 - LLM 不可用时回退为“返回 N 条记录”的确定性摘要；
 - 原始 output 由 Java 侧另外原样透传给前端。
 

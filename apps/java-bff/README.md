@@ -27,9 +27,10 @@
 
 ## 原始结果与工具接口
 
-- 子 Agent 成功结果通过 SSE `event:result` 原样返回 `output`；
+- 子 Agent 成功结果通过 SSE `event:result` 返回原始 `output`，任务 API 也保留原始结构；
+- 聊天区不再展示英文 JSON 字段名，而是按中文字段名 + 中文枚举渲染表格/键值；
 - 同时调用 Python `/internal/v1/ai/explain` 生成简短中文解释，通过 `event:delta` 展示；
-- 解释只做摘要，不改写数据；枚举会翻译成中文（如“待处理（PENDING）”），原始 JSON 仍以“子 Agent 原始返回（字段名/枚举保持原样）”折叠展示；
+- 解释只做摘要，不改写数据；原始结构仍可通过 `GET /api/v1/tasks/{taskNo}` 获取；
 - 子 Agent 能力同时作为工具暴露：
   - `GET /api/v1/tools`：当前用户可用工具 + `inputSchema`
   - `GET /api/v1/tools/{toolName}`：单个工具定义

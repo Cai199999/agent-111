@@ -51,7 +51,7 @@
 - `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
 - 主 Agent 原型已完成：`apps/java-bff`，Java BFF + MySQL 持久化 + Mock/HTTP Adapter + 原生单对话框 UI。
   - `mvn -f apps/java-bff/pom.xml test`：20/20 passed（10 项 BFF smoke + 5 项 HTTP Adapter + 5 项 LLM 路由）。
-  - 已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（Manifest forms.personalInfo）、按权限过滤 Agent/能力卡片；LLM 主导路由、计划拆解、参数自动修正；子 Agent 结果原样透传（SSE `result` + 原始 JSON），并由 LLM `explain` 生成简短解释，两者并存；工具 API `/api/v1/tools`；SSE、确认/拒绝、异步合同审查、取消、任务时间线、会话删除；确认令牌不出服务端。
+  - 已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（Manifest forms.personalInfo）、按权限过滤 Agent/能力卡片；LLM 主导路由、计划拆解、参数自动修正；子 Agent 原始 output 保留在 SSE `result`/任务 API，聊天区按中文字段名与中文枚举展示，并由 LLM `explain` 生成简短中文解释；工具 API `/api/v1/tools`；SSE、确认/拒绝、异步合同审查、取消、任务时间线、会话删除；确认令牌不出服务端。
   - 演示账号：admin/admin123、worker/worker123、user/user123；合同 Agent 仅管理员可见。
   - 权限：普通用户建单/查自己的工单；工人接单/处理/解决，不能建单；管理员全部。权限来自 `wa_role/wa_permission/wa_role_permission`，不是前端硬编码。
   - 持久化：`wuye_agent_db` + Flyway；会话/消息/任务/事件跨重启验证通过；令牌 AES-GCM 加密落库。
