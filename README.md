@@ -19,6 +19,27 @@
 - [`PropertyMaintenanceAgent-主Agent接入使用说明.md`](PropertyMaintenanceAgent-主Agent接入使用说明.md)
 - [`使用手册.md`](使用手册.md)
 
+## 原型（已可运行）
+
+位置：`apps/java-bff/`。这是一个纵向切片：Java BFF + 内存存储 + Mock Adapter + 原生单对话框 UI。
+
+```bash
+# 只跑测试（随机端口，不占业务端口）
+mvn -f apps/java-bff/pom.xml test
+# 当前：9/9 passed
+
+# 启动（8600 需先登记 RESOURCES.md）
+JAVA_PORT=8600 mvn -f apps/java-bff/pom.xml spring-boot:run
+# 或
+bash scripts/start-prototype.sh
+```
+
+已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端。
+
+原型边界：无 MySQL/Redis/MinIO、无真实登录、无 Python AI、Adapter 为 Mock、任务事件用轮询刷新。
+
+详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
+
 ## 当前状态
 
 - 设计文档已同步到子 Agent 最新契约：物业 `0.8.0`、合同 `0.7.0`。
@@ -27,7 +48,7 @@
 - 主 Agent 候选端口：`8600`（Java BFF）、`8700`（Python AI）、`5182`（Web dev）。
 - 物业子 Agent 已改为 `AGENT_SERVICE_PORT` 必填，登记 `8402`；需手动补 `RESOURCES.md`。
 - 合同 `contract.resolve` 已上线；`contract.import` 仍为 `enabled=false`。
-- 主 Agent 原型正在搭建：先做 Java BFF + 内存存储 + Mock Adapter + 单对话框。
+- 原型已完成：后端 + UI + 9 项 smoke 测试通过；下一步接真实 HTTP Adapter 与 MySQL/Flyway。
 
 ## 资源与边界
 
@@ -38,7 +59,8 @@
 
 ## 下一步
 
-1. 评审文档。
-2. 登记资源与端口。
-3. Mock Agent + 内部契约代码。
-4. 只读 MVP。
+1. 登记主 Agent 端口/库/前缀/bucket（需用户确认）。
+2. 把 Mock Adapter 替换为真实 HTTP Adapter（物业 8402、合同 8400）。
+3. 接入 MySQL/Flyway，替换内存存储。
+4. 接入 Python AI 路由（`/internal/v1/ai/route`），规则保留为第一层。
+5. 增加任务 SSE、审计、Agent 管理后台。

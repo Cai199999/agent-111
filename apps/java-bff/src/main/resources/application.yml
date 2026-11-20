@@ -1,0 +1,18 @@
+server:
+  port: ${JAVA_PORT:8600}
+  shutdown: graceful
+
+spring:
+  application:
+    name: wuye-agent-bff
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+logging:
+  level:
+    root: INFO
+    com.wuye.agent: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"

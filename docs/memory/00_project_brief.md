@@ -49,7 +49,11 @@
 - 两个子 Agent 当前均未启动（`8400/8401/8500` 已释放；`8200/8300/8402` 无进程）。
 - 主 Agent 候选端口：`8600`（Java）、`8700`（Python）、`5182`（Web dev），均待登记。
 - `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
-- 主 Agent 原型：Java BFF + 内存存储 + Mock Adapter + 单对话框，优先跑通只读/确认/取消链路。
+- 主 Agent 原型已完成：`apps/java-bff`，Java BFF + 内存存储 + Mock Adapter + 原生单对话框 UI。
+  - `mvn -f apps/java-bff/pom.xml test`：9/9 passed。
+  - 已实现：SSE、两域规则路由、知识库消歧、确认/拒绝、异步合同审查、取消、任务时间线；确认令牌不出服务端。
+  - 临时端口 smoke：首页/JS/CSS 200、派单确认链路成功、SSE 无 `confirmationToken`。
+  - 原型边界：无 MySQL/Redis/MinIO、无真实登录、无 Python AI、Adapter 为 Mock。
 
 ## 关键决策
 

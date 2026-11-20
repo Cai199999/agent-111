@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>物业主 Agent · 单对话框原型</title>
+  <link rel="stylesheet" href="/css/app.css"/>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">W</div>
+      <div>
+        <div class="brand-title">物业主 Agent</div>
+        <div class="brand-sub">单对话框 · 原型</div>
+      </div>
+    </div>
+
+    <button id="newSession" class="btn primary block">＋ 新会话</button>
+
+    <div class="sidebar-section">
+      <div class="section-label">会话</div>
+      <div id="sessionList" class="session-list"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Agent 状态</div>
+      <div id="agentStatus" class="agent-status"></div>
+    </div>
+
+    <div class="sidebar-foot">
+      <span class="dot"></span>
+      Mock Adapter · 规则路由
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div id="chatTitle" class="chat-title">新会话</div>
+        <div id="chatSub" class="chat-sub">物业 + 合同，一个对话框</div>
+      </div>
+      <div class="top-actions">
+        <span class="pill">物业 0.8.0</span>
+        <span class="pill">合同 0.7.0</span>
+      </div>
+    </header>
+
+    <section id="messages" class="messages">
+      <div class="empty" id="emptyState">
+        <h2>一句话，查工单或审合同</h2>
+        <p>原型使用 Mock Adapter，验证路由、确认、异步与取消链路。</p>
+        <div class="quick-grid" id="quickPrompts"></div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="composer-box">
+        <textarea id="input" rows="1" placeholder="例如：我有哪些待处理工单？"></textarea>
+        <button id="send" class="btn primary">发送</button>
+      </div>
+      <div class="composer-hint">Enter 发送 · Shift+Enter 换行 · 写操作会先弹出确认卡片</div>
+    </footer>
+  </main>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
