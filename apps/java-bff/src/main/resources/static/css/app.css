@@ -375,6 +375,17 @@ body {
 .audit-row .status.SUCCESS { background: var(--green-weak); color: var(--green); }
 .audit-row .status.FAILED { background: var(--red-weak); color: var(--red); }
 
+.memory-block {
+  margin-top: 16px; border: 1px solid var(--line); border-radius: 12px;
+  background: #fbfcfe; overflow: hidden;
+}
+.memory-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 11px; background: #f4f7fb; color: var(--muted); font-size: 12px;
+}
+.memory-profile { padding: 4px 0; }
+.memory-profile .result-grid { border: 0; }
+
 .settings-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .setting-row {
   display: flex; justify-content: space-between; align-items: center;

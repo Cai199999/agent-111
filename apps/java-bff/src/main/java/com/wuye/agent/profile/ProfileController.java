@@ -10,10 +10,12 @@ import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.ApiResponse;
 import com.wuye.agent.common.Ids;
+import com.wuye.agent.memory.UserProfileService;
 import com.wuye.agent.store.TaskRecord;
 import com.wuye.agent.task.TaskService;
 import java.util.Map;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,15 +34,17 @@ public class ProfileController {
     private final AdapterRegistry registry;
     private final PolicyService policyService;
     private final PropertyManifestService manifestService;
+    private final UserProfileService userProfileService;
     private final Ids ids;
 
     public ProfileController(TaskService taskService, AdapterRegistry registry,
                              PolicyService policyService, PropertyManifestService manifestService,
-                             Ids ids) {
+                             UserProfileService userProfileService, Ids ids) {
         this.taskService = taskService;
         this.registry = registry;
         this.policyService = policyService;
         this.manifestService = manifestService;
+        this.userProfileService = userProfileService;
         this.ids = ids;
     }
 
@@ -64,6 +68,24 @@ public class ProfileController {
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
         return ApiResponse.ok(runSync(AuthContext.require(), "property.profile.get",
                 Map.of(), trace(traceId)), trace(traceId));
+    }
+
+    @GetMapping("/memory")
+    public ApiResponse<Map<String, Object>> memory(
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        AuthUser user = AuthContext.require();
+        return ApiResponse.ok(Map.of(
+                "profile", userProfileService.getProfile(user.id()),
+                "meta", userProfileService.getMeta(user.id()) == null ? Map.of() : userProfileService.getMeta(user.id())
+        ), trace(traceId));
+    }
+
+    @DeleteMapping("/memory")
+    public ApiResponse<Map<String, Object>> clearMemory(
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        AuthUser user = AuthContext.require();
+        userProfileService.delete(user.id());
+        return ApiResponse.ok(Map.of("deleted", true), trace(traceId));
     }
 
     @PostMapping

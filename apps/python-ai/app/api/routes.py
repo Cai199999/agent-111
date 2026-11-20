@@ -17,8 +17,11 @@ from app.schemas import (
     RouteResponse,
     SummarizeRequest,
     SummarizeResponse,
+    UserProfileRequest,
+    UserProfileResponse,
 )
 from app.services.explain import ExplainService
+from app.services.profile import ProfileService
 from app.services.summarize import SummarizeService
 from app.services.router import RouteService
 
@@ -29,6 +32,7 @@ _client = DeepSeekClient(settings)
 service = RouteService(_client, settings)
 explain_service = ExplainService(_client)
 summarize_service = SummarizeService(_client)
+profile_service = ProfileService(_client)
 
 
 def verify_internal_token(x_internal_token: str = Header(default="")) -> None:
@@ -99,6 +103,18 @@ def explain(request: ExplainRequest) -> ExplainResponse:
 def summarize(request: SummarizeRequest) -> SummarizeResponse:
     response = summarize_service.summarize(request)
     logger.info("summarize session=%s usage=%s", request.sessionNo, response.usage)
+    return response
+
+
+@router.post(
+    "/internal/v1/ai/profile",
+    response_model=UserProfileResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def profile(request: UserProfileRequest) -> UserProfileResponse:
+    response = profile_service.extract(request)
+    logger.info("profile user=%s changed=%s confidence=%s usage=%s",
+                request.userId, response.changed, response.confidence, response.usage)
     return response
 
 

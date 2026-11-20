@@ -91,6 +91,13 @@ Content-Type: application/json
 - `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
 - Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
 
+## 用户画像
+
+- `/internal/v1/ai/profile`：从当前会话摘要/最近消息提取稳定偏好；
+- 只允许默认项目/楼栋/房间、常用工单类型/优先级、常用意图、备注；
+- 不提取姓名/电话/身份证等敏感信息；无明确证据不修改；
+- 画像全局使用，但不读取其他会话原文。
+
 ## 会话摘要
 
 - `/internal/v1/ai/summarize`：接收当前会话 `previousSummary` + 最近消息，返回当前会话摘要；

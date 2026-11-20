@@ -40,7 +40,10 @@ JSON 字段：
 8) 如果输入里有 pending（上一轮追问状态），当前用户消息很可能是对追问的回答：
    把回答合并进 pending.args，继续检查 missingFields；
    不要重复询问已经回答过的字段；如果用户明显切换话题，则按新话题处理。
-9) sessionSummary 只代表当前会话的摘要，只能用于当前会话上下文，不要跨会话推断。"""
+9) sessionSummary 只代表当前会话的摘要，只能用于当前会话上下文，不要跨会话推断。
+10) userProfile 是用户的全局稳定偏好（如默认项目/楼栋/房间、常用工单类型/优先级），
+    可以作为默认值；但当前消息明确表达的内容优先于画像。
+    画像不含敏感个人信息，不要把画像内容当作事实对外复述。"""
 
 REPAIR_PROMPT = """你是"物业主 Agent"的参数修正器。
 子 Agent 拒绝了上一次调用。请根据能力 inputSchema、原始参数和错误信息，
@@ -192,6 +195,7 @@ def build_user_prompt(request: RouteRequest) -> str:
         "optionCatalog": request.optionCatalog,
         "pending": request.pending.model_dump() if request.pending else None,
         "sessionSummary": request.sessionSummary,
+        "userProfile": request.userProfile,
     }
     return "请基于以下输入做路由决策，只输出 JSON：\n" + json.dumps(
         payload, ensure_ascii=False, indent=2

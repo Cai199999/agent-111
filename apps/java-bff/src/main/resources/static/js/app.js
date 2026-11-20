@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth12';
+const UI_VERSION = '20261120-auth14';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -51,6 +51,13 @@ const FIELD_LABELS = {
   reviewStatus: '审核状态',
   matchedBy: '匹配依据',
   code: '编码',
+  preferredProjectId: '默认项目',
+  preferredBuildingId: '默认楼栋',
+  preferredRoomId: '默认房间',
+  preferredTicketTypeCode: '常用工单类型',
+  preferredPriorityCode: '常用优先级',
+  commonIntents: '常用意图',
+  notes: '备注',
 };
 
 const VALUE_LABELS = {
@@ -156,6 +163,8 @@ const els = {
   profileError: document.getElementById('profileError'),
   profileSave: document.getElementById('profileSave'),
   profileClose: document.getElementById('profileClose'),
+  memoryProfile: document.getElementById('memoryProfile'),
+  memoryClear: document.getElementById('memoryClear'),
   settingsModal: document.getElementById('settingsModal'),
   settingNotify: document.getElementById('settingNotify'),
   settingMemory: document.getElementById('settingMemory'),
@@ -262,6 +271,7 @@ function bindEvents() {
     els.profileModal.hidden = true;
   });
   els.profileSave.addEventListener('click', saveProfile);
+  els.memoryClear.addEventListener('click', clearMemory);
   els.settingsClose.addEventListener('click', () => {
     els.settingsModal.hidden = true;
   });
@@ -1122,6 +1132,13 @@ async function openProfile() {
   els.profileForm.replaceChildren();
   els.profileSave.hidden = !state.capabilities.has('property.profile.update');
   els.profileMeta.textContent = '加载中…';
+  // 画像接口独立加载，物业 Agent 停机时也能查看/清除画像
+  try {
+    const memory = await api('/api/v1/profile/memory');
+    renderMemoryProfile(memory || {});
+  } catch (error) {
+    els.memoryProfile.textContent = error.message || '画像加载失败';
+  }
   try {
     const [form, options, profile] = await Promise.all([
       api('/api/v1/profile/form'),
@@ -1197,6 +1214,28 @@ function optionsFor(field) {
   const parent = state.profileDraft[field.dependsOn];
   if (parent === undefined || parent === null || parent === '') return [];
   return all.filter((item) => String(item.projectId ?? item.buildingId ?? '') === String(parent));
+}
+
+function renderMemoryProfile(memory) {
+  const profile = memory.profile || {};
+  if (!Object.keys(profile).length) {
+    els.memoryProfile.textContent = '暂无画像（多轮使用后自动生成）';
+    return;
+  }
+  els.memoryProfile.replaceChildren(objectView(profile));
+}
+
+async function clearMemory() {
+  const confirmed = await askConfirm('确定清除全局用户画像吗？会话摘要不受影响。',
+    { title: '清除用户画像', confirmText: '清除', danger: true });
+  if (!confirmed) return;
+  try {
+    await api('/api/v1/profile/memory', { method: 'DELETE' });
+    els.memoryProfile.textContent = '已清除';
+    showToast('用户画像已清除');
+  } catch (error) {
+    els.profileError.textContent = error.message || '清除失败';
+  }
 }
 
 async function saveProfile() {

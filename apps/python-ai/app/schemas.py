@@ -37,6 +37,7 @@ class RouteRequest(BaseModel):
     optionCatalog: dict[str, Any] | None = None
     pending: PendingContext | None = None
     sessionSummary: str | None = None
+    userProfile: str | None = None
 
 
 class PlanStep(BaseModel):
@@ -76,6 +77,22 @@ class ExplainRequest(BaseModel):
 
 class ExplainResponse(BaseModel):
     explanation: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class UserProfileRequest(BaseModel):
+    userId: str | int | None = None
+    currentProfile: dict[str, Any] | None = None
+    sessionSummary: str | None = None
+    messages: list[TurnIn] = Field(default_factory=list)
+    optionCatalog: dict[str, Any] | None = None
+
+
+class UserProfileResponse(BaseModel):
+    profile: dict[str, Any] = Field(default_factory=dict)
+    changed: bool = False
+    confidence: float = 0.0
+    reason: str | None = None
     usage: dict[str, Any] = Field(default_factory=dict)
 
 

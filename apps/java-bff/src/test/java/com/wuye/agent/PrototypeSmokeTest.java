@@ -150,6 +150,17 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void profileMemoryCanBeReadAndCleared() throws Exception {
+        String memory = getWithToken("/api/v1/profile/memory", adminToken);
+        assertTrue(memory.contains("\"profile\""), memory);
+
+        HttpHeaders headers = authHeaders();
+        ResponseEntity<String> cleared = rest.exchange(url("/api/v1/profile/memory"),
+                HttpMethod.DELETE, new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.OK, cleared.getStatusCode(), cleared.getBody());
+    }
+
+    @Test
     void toolCatalogAndExecuteReturnRawOutput() throws Exception {
         String tools = getWithToken("/api/v1/tools", adminToken);
         assertTrue(tools.contains("property.ticket.query"), tools);

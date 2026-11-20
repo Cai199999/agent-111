@@ -37,13 +37,15 @@
   - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
 - 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
 
-## 会话级记忆 MVP
+## 会话级记忆与用户画像 MVP
 
 - `wa_chat_session.summary` 保存当前会话摘要；
 - 每轮对话后异步调用 Python `/internal/v1/ai/summarize` 更新；
 - 摘要只用于当前会话的路由上下文，不跨会话检索；
-- 不写入知识库，不构建全局记忆；
-- 用户画像/长期记忆/RAG 尚未接入。
+- `wa_user_memory_profile` 保存全局稳定偏好（默认项目/楼栋/房间、常用工单类型/优先级、常用意图、备注）；
+- 主 Agent 自有工具 `memory.profile.update/get`，避免把“记住偏好”误路由到子 Agent 的个人资料；
+- 画像在个人中心可查看/清除，接口 `GET/DELETE /api/v1/profile/memory`；
+- 不保存姓名/电话/身份证等敏感个人信息；不写入知识库；长期记忆/RAG 尚未接入。
 
 ## 限流、CI 与备份
 
@@ -104,7 +106,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 33/33 passed（Python AI 另 10/10）
+# 当前：Java 34/34 passed（Python AI 另 11/11）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

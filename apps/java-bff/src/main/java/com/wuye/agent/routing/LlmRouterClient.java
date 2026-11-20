@@ -18,8 +18,19 @@ public interface LlmRouterClient {
         return route(message, pending);
     }
 
+    default Optional<RouteDecision> route(String message, PendingIntent pending, String sessionSummary,
+                                          String userProfile) {
+        return route(message, pending, sessionSummary);
+    }
+
     default Optional<String> summarize(String sessionNo, String previousSummary,
                                        java.util.List<java.util.Map<String, String>> messages) {
+        return Optional.empty();
+    }
+
+    default Optional<com.wuye.agent.memory.UserProfileOutcome> extractProfile(
+            String userId, Map<String, Object> currentProfile, String sessionSummary,
+            java.util.List<java.util.Map<String, String>> messages) {
         return Optional.empty();
     }
 

@@ -7,6 +7,8 @@ import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.model.Capability;
+import com.wuye.agent.memory.MainAgentTools;
+import com.wuye.agent.memory.UserProfileOutcome;
 import com.wuye.agent.metrics.LlmUsageEvent;
 import com.wuye.agent.metrics.LlmUsageStore;
 import java.net.URI;
@@ -75,6 +77,12 @@ public class PythonAiClient implements LlmRouterClient {
 
     @Override
     public Optional<RouteDecision> route(String message, PendingIntent pending, String sessionSummary) {
+        return route(message, pending, sessionSummary, null);
+    }
+
+    @Override
+    public Optional<RouteDecision> route(String message, PendingIntent pending, String sessionSummary,
+                                         String userProfile) {
         if (!properties.isEnabled() || isBlank(properties.getBaseUrl())) {
             return Optional.empty();
         }
@@ -89,6 +97,9 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("optionCatalog", optionCatalogService.options());
             if (sessionSummary != null && !sessionSummary.isBlank()) {
                 body.put("sessionSummary", sessionSummary);
+            }
+            if (userProfile != null && !userProfile.isBlank()) {
+                body.put("userProfile", userProfile);
             }
             if (pending != null) {
                 Map<String, Object> pendingBody = new LinkedHashMap<>();
@@ -214,6 +225,53 @@ public class PythonAiClient implements LlmRouterClient {
         }
     }
 
+    @Override
+    public Optional<UserProfileOutcome> extractProfile(
+            String userId, Map<String, Object> currentProfile, String sessionSummary,
+            List<Map<String, String>> messages) {
+        if (!properties.isEnabled() || isBlank(properties.getBaseUrl())
+                || System.currentTimeMillis() < nextRetryAt) {
+            return Optional.empty();
+        }
+        try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("userId", userId);
+            body.put("currentProfile", currentProfile);
+            body.put("sessionSummary", sessionSummary);
+            body.put("messages", messages);
+            body.put("optionCatalog", optionCatalogService.options());
+            HttpRequest.Builder builder = HttpRequest.newBuilder(
+                            URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/profile"))
+                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            mapper.writeValueAsString(body), StandardCharsets.UTF_8));
+            if (!isBlank(properties.getInternalToken())) {
+                builder.header("X-Internal-Token", properties.getInternalToken());
+            }
+            HttpResponse<String> response = http.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("LLM 用户画像不可用 status={}", response.statusCode());
+                return Optional.empty();
+            }
+            JsonNode data = mapper.readTree(response.body());
+            if (data.has("data")) {
+                data = data.get("data");
+            }
+            recordUsage("PROFILE", data);
+            return Optional.of(new UserProfileOutcome(
+                    args(data.get("profile")),
+                    data.path("changed").asBoolean(false),
+                    data.path("confidence").asDouble(0),
+                    text(data, "reason")));
+        } catch (Exception ex) {
+            log.warn("LLM 用户画像失败：{}", ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private void recordUsage(String operation, JsonNode data) {
         if (usageStore == null || data == null) {
             return;
@@ -238,7 +296,8 @@ public class PythonAiClient implements LlmRouterClient {
         String reason = text(data, "reason");
         Map<String, Object> args = args(data.get("args"));
 
-        if (capabilityId != null && registry.capability(capabilityId).isEmpty()) {
+        if (capabilityId != null && registry.capability(capabilityId).isEmpty()
+                && !MainAgentTools.isMainTool(capabilityId)) {
             capabilityId = null;
             clarify = true;
             clarification = clarification == null ? "这个能力当前不可用，请换一种说法。" : clarification;
@@ -359,6 +418,7 @@ public class PythonAiClient implements LlmRouterClient {
             }
             payload.add(item);
         }
+        payload.addAll(MainAgentTools.payload());
         return payload;
     }
 

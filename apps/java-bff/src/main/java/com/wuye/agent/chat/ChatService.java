@@ -9,7 +9,9 @@ import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
+import com.wuye.agent.memory.MainAgentTools;
 import com.wuye.agent.memory.MemoryService;
+import com.wuye.agent.memory.UserProfileService;
 import com.wuye.agent.routing.LlmRouterClient;
 import com.wuye.agent.routing.PendingIntent;
 import com.wuye.agent.routing.RepairOutcome;
@@ -52,6 +54,7 @@ public class ChatService {
     private final TaskService taskService;
     private final PolicyService policyService;
     private final MemoryService memoryService;
+    private final UserProfileService userProfileService;
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
@@ -59,7 +62,7 @@ public class ChatService {
     public ChatService(Store store, AdapterRegistry registry,
                        Router router, LlmRouterClient llmRouterClient,
                        TaskService taskService, PolicyService policyService,
-                       MemoryService memoryService, Ids ids) {
+                       MemoryService memoryService, UserProfileService userProfileService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
@@ -67,6 +70,7 @@ public class ChatService {
         this.taskService = taskService;
         this.policyService = policyService;
         this.memoryService = memoryService;
+        this.userProfileService = userProfileService;
         this.ids = ids;
     }
 
@@ -109,7 +113,8 @@ public class ChatService {
                 pendingIntents.remove(sessionNo);
                 pending = null;
             }
-            RouteDecision route = router.route(content, pending, session.summary);
+            RouteDecision route = router.route(content, pending, session.summary,
+                    userProfileService.contextFor(user.id()));
             Map<String, Object> routeEvent = new LinkedHashMap<>();
             routeEvent.put("capabilityId", route.capabilityId());
             routeEvent.put("confidence", route.confidence());
@@ -141,6 +146,11 @@ public class ChatService {
                 return;
             }
             pendingIntents.remove(sessionNo);
+
+            if (route.capabilityId() != null && MainAgentTools.isMainTool(route.capabilityId())) {
+                handleMainTool(route, user, session, emitter);
+                return;
+            }
 
             if (route.hasPlan() && route.plan().size() > 1) {
                 emit(emitter, "plan", Map.of(
@@ -235,6 +245,36 @@ public class ChatService {
             log.info("session deleted sessionNo={}", sessionNo);
         }
         return deleted;
+    }
+
+    private void handleMainTool(RouteDecision route, AuthUser user, SessionState session,
+                                SseEmitter emitter) {
+        String capabilityId = route.capabilityId();
+        Object output;
+        String answer;
+        if (MainAgentTools.MEMORY_UPDATE.equals(capabilityId)) {
+            Map<String, Object> profile = userProfileService.merge(user.id(), route.args());
+            output = profile;
+            answer = "已记住你的偏好，原始画像如下。";
+        } else {
+            Map<String, Object> profile = userProfileService.getProfile(user.id());
+            output = profile;
+            answer = profile.isEmpty() ? "目前还没有记住你的偏好。" : "这是你的当前画像。";
+        }
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("capabilityId", capabilityId);
+        metadata.put("agentKey", "main-agent");
+        metadata.put("mainTool", true);
+        ChatMessage assistant = store.addMessage(session, "ASSISTANT", answer, "RESULT", metadata, null);
+        emit(emitter, "delta", Map.of("content", answer));
+        emit(emitter, "result", Map.of(
+                "taskNo", "memory:" + assistant.messageNo(),
+                "capabilityId", capabilityId,
+                "output", output));
+        emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "SUCCEEDED"));
+        emitter.complete();
+        memoryService.updateAsync(session.sessionNo);
     }
 
     private ExecutionResult executePlan(String sessionNo, String content, RouteDecision route,

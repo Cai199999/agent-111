@@ -29,6 +29,7 @@ public class MemoryService {
 
     private final Store store;
     private final LlmRouterClient llmRouterClient;
+    private final UserProfileService userProfileService;
     private final ExecutorService executor = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "memory-summary");
         thread.setDaemon(true);
@@ -36,9 +37,11 @@ public class MemoryService {
     });
     private final Set<String> running = ConcurrentHashMap.newKeySet();
 
-    public MemoryService(Store store, LlmRouterClient llmRouterClient) {
+    public MemoryService(Store store, LlmRouterClient llmRouterClient,
+                         UserProfileService userProfileService) {
         this.store = store;
         this.llmRouterClient = llmRouterClient;
+        this.userProfileService = userProfileService;
     }
 
     public void updateAsync(String sessionNo) {
@@ -67,7 +70,10 @@ public class MemoryService {
                         .toList();
                 llmRouterClient.summarize(sessionNo, session.summary, turns)
                         .filter(summary -> !summary.isBlank())
-                        .ifPresent(summary -> store.updateSessionSummary(sessionNo, summary));
+                        .ifPresent(summary -> {
+                            store.updateSessionSummary(sessionNo, summary);
+                            userProfileService.updateFromSession(session.userId, sessionNo, summary, messages);
+                        });
             } catch (Exception ex) {
                 log.warn("会话摘要生成失败 sessionNo={}：{}", sessionNo, ex.getMessage());
             } finally {

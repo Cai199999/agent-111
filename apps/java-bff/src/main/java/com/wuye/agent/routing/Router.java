@@ -14,4 +14,9 @@ public interface Router {
     default RouteDecision route(String message, PendingIntent pending, String sessionSummary) {
         return route(message, pending);
     }
+
+    default RouteDecision route(String message, PendingIntent pending, String sessionSummary,
+                                String userProfile) {
+        return route(message, pending, sessionSummary);
+    }
 }

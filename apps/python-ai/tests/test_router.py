@@ -11,8 +11,10 @@ from app.schemas import (
     RepairRequest,
     RouteRequest,
     SummarizeRequest,
+    UserProfileRequest,
 )
 from app.services.explain import ExplainService
+from app.services.profile import ProfileService
 from app.services.router import RouteService
 from app.services.summarize import SummarizeService
 
@@ -192,6 +194,31 @@ def test_summarize_keeps_current_session_only():
     prompt = client.calls[0][1]
     assert "previousSummary" in prompt
     assert "ws-1" in prompt
+
+
+def test_profile_extracts_stable_preference():
+    client = FakeClient(
+        {
+            "profile": {"preferredTicketTypeCode": "PUMP", "commonIntents": ["ticket.create"]},
+            "changed": True,
+            "confidence": 0.82,
+            "reason": "用户多次选择水泵故障",
+        }
+    )
+    service = ProfileService(client)
+
+    response = service.extract(
+        UserProfileRequest(
+            userId="1",
+            currentProfile={},
+            sessionSummary="用户在建单，选择水泵故障",
+            messages=[],
+        )
+    )
+
+    assert response.changed is True
+    assert response.profile["preferredTicketTypeCode"] == "PUMP"
+    assert "preferredTicketTypeCode" in client.calls[0][0]
 
 
 def test_repair_returns_corrected_args():
