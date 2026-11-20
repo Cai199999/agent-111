@@ -1,5 +1,7 @@
 package com.wuye.agent.api;
 
+import com.wuye.agent.auth.AuthContext;
+import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.chat.ChatService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.ApiResponse;
@@ -38,29 +40,29 @@ public class ChatController {
     @PostMapping("/sessions")
     public ApiResponse<SessionView> createSession(@RequestBody(required = false) CreateSessionRequest request,
                                                   @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        SessionState session = chatService.createSession(request == null ? null : request.title());
+        AuthUser user = AuthContext.require();
+        SessionState session = chatService.createSession(user.id(), request == null ? null : request.title());
         return ApiResponse.ok(SessionView.from(session), trace(traceId));
     }
 
     @GetMapping("/sessions")
     public ApiResponse<List<SessionView>> listSessions(
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        return ApiResponse.ok(chatService.listSessions().stream().map(SessionView::from).toList(), trace(traceId));
+        return ApiResponse.ok(chatService.listSessions(AuthContext.require().id()).stream()
+                .map(SessionView::from).toList(), trace(traceId));
     }
 
     @GetMapping("/sessions/{sessionNo}")
     public ApiResponse<SessionView> getSession(@PathVariable String sessionNo,
                                                @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        SessionState session = chatService.getSession(sessionNo);
-        if (session == null) {
-            throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
-        }
+        SessionState session = requireOwnedSession(sessionNo);
         return ApiResponse.ok(SessionView.from(session), trace(traceId));
     }
 
     @DeleteMapping("/sessions/{sessionNo}")
     public ApiResponse<Map<String, Object>> deleteSession(@PathVariable String sessionNo,
                                                          @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        requireOwnedSession(sessionNo);
         if (!chatService.deleteSession(sessionNo)) {
             throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
         }
@@ -70,20 +72,31 @@ public class ChatController {
     @GetMapping("/sessions/{sessionNo}/messages")
     public ApiResponse<List<ChatMessage>> messages(@PathVariable String sessionNo,
                                                    @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        if (chatService.getSession(sessionNo) == null) {
-            throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
-        }
+        requireOwnedSession(sessionNo);
         return ApiResponse.ok(chatService.messages(sessionNo), trace(traceId));
     }
 
     @PostMapping(value = "/sessions/{sessionNo}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter send(@PathVariable String sessionNo,
                            @RequestBody SendMessageRequest request,
-                           @RequestHeader(value = "X-Actor-Id", defaultValue = "10001") String actorId,
                            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        requireOwnedSession(sessionNo);
         SseEmitter emitter = new SseEmitter(60_000L);
-        chatService.send(sessionNo, request.content(), request.clientMessageId(), actorId, trace(traceId), emitter);
+        chatService.send(sessionNo, request.content(), request.clientMessageId(),
+                AuthContext.require(), trace(traceId), emitter);
         return emitter;
+    }
+
+    private SessionState requireOwnedSession(String sessionNo) {
+        AuthUser user = AuthContext.require();
+        SessionState session = chatService.getSession(sessionNo);
+        if (session == null) {
+            throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
+        }
+        if (session.userId != user.id() && !user.isAdmin()) {
+            throw new ApiException("AUTH_FORBIDDEN", 403, "无权访问该会话");
+        }
+        return session;
     }
 
     private String trace(String traceId) {

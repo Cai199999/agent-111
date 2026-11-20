@@ -1,16 +1,46 @@
-const ACTOR = '10001';
+const TOKEN_KEY = 'wuye_token';
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 
 const state = {
+  token: null,
+  me: null,
+  agents: [],
+  capabilities: new Set(),
   sessions: [],
   currentSession: null,
   streaming: false,
   taskEls: new Map(),
   taskData: new Map(),
   polls: new Map(),
+  profileForm: null,
+  profileOptions: {},
+  profileData: {},
+  profileDraft: {},
 };
 
 const els = {
+  app: document.getElementById('app'),
+  loginView: document.getElementById('loginView'),
+  loginForm: document.getElementById('loginForm'),
+  loginUsername: document.getElementById('loginUsername'),
+  loginPassword: document.getElementById('loginPassword'),
+  loginError: document.getElementById('loginError'),
+  userButton: document.getElementById('userButton'),
+  userAvatar: document.getElementById('userAvatar'),
+  userName: document.getElementById('userName'),
+  userRole: document.getElementById('userRole'),
+  userDropdown: document.getElementById('userDropdown'),
+  profileModal: document.getElementById('profileModal'),
+  profileForm: document.getElementById('profileForm'),
+  profileMeta: document.getElementById('profileMeta'),
+  profileError: document.getElementById('profileError'),
+  profileSave: document.getElementById('profileSave'),
+  profileClose: document.getElementById('profileClose'),
+  settingsModal: document.getElementById('settingsModal'),
+  settingNotify: document.getElementById('settingNotify'),
+  settingMemory: document.getElementById('settingMemory'),
+  settingsClose: document.getElementById('settingsClose'),
+  settingsSave: document.getElementById('settingsSave'),
   sessionList: document.getElementById('sessionList'),
   agentStatus: document.getElementById('agentStatus'),
   messages: document.getElementById('messages'),
@@ -23,34 +53,53 @@ const els = {
 };
 
 const QUICK_PROMPTS = [
-  '我有哪些待处理工单？',
-  '查一下 GD20261119000107 详情',
-  '把 GD20261119000107 派给 10002',
-  '报修：3栋2单元水管漏水',
-  '合同审查规则有哪些？',
-  '审查合同 10001',
-  '查一下知识库',
-  '审查合同 HT-2026-001',
+  { text: '我有哪些待处理工单？', capability: 'property.ticket.query' },
+  { text: '查一下 GD20261119000107 详情', capability: 'property.ticket.detail' },
+  { text: '把 GD20261119000107 派给 10002', capability: 'property.ticket.assign' },
+  { text: '报修：3栋2单元水管漏水', capability: 'property.ticket.create' },
+  { text: '合同审查规则有哪些？', capability: 'contract.rule.list' },
+  { text: '审查合同 10001', capability: 'contract.review' },
+  { text: '查一下知识库', capability: 'property.knowledge.search', alt: 'contract.knowledge.search' },
+  { text: '审查合同 HT-2026-001', capability: 'contract.review' },
 ];
 
 init();
 
 async function init() {
   bindEvents();
+  state.token = localStorage.getItem(TOKEN_KEY);
+  if (!state.token) {
+    showLogin();
+    return;
+  }
   try {
-    await loadAgents();
-    await loadSessions();
-    if (!state.sessions.length) {
-      await createSession();
-    } else {
-      await selectSession(state.sessions[0].sessionNo);
-    }
+    await bootstrap();
   } catch (error) {
-    showToast(error.message || String(error));
+    console.warn('bootstrap failed', error);
+    logoutLocal();
+  }
+}
+
+async function bootstrap() {
+  const me = await api('/api/v1/auth/me');
+  state.me = me.user;
+  state.agents = me.agents || [];
+  state.capabilities = new Set(
+    state.agents.flatMap((agent) => (agent.capabilities || []).map((cap) => cap.capabilityId)),
+  );
+  renderCurrentUser();
+  renderAgents();
+  hideLogin();
+  await loadSessions();
+  if (!state.sessions.length) {
+    await createSession();
+  } else {
+    await selectSession(state.sessions[0].sessionNo);
   }
 }
 
 function bindEvents() {
+  els.loginForm.addEventListener('submit', handleLogin);
   els.newSession.addEventListener('click', () => createSession().catch((e) => showToast(e.message)));
   els.send.addEventListener('click', sendMessage);
   els.input.addEventListener('input', autoResize);
@@ -60,17 +109,121 @@ function bindEvents() {
       sendMessage();
     }
   });
+  els.userButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    els.userDropdown.hidden = !els.userDropdown.hidden;
+  });
+  els.userDropdown.addEventListener('click', (event) => {
+    const action = event.target.closest('button')?.dataset.action;
+    if (!action) return;
+    els.userDropdown.hidden = true;
+    if (action === 'profile') openProfile();
+    if (action === 'settings') openSettings();
+    if (action === 'logout') logoutLocal();
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.user-menu')) {
+      els.userDropdown.hidden = true;
+    }
+  });
+  els.profileClose.addEventListener('click', () => {
+    els.profileModal.hidden = true;
+  });
+  els.profileSave.addEventListener('click', saveProfile);
+  els.settingsClose.addEventListener('click', () => {
+    els.settingsModal.hidden = true;
+  });
+  els.settingsSave.addEventListener('click', saveSettings);
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  els.loginError.textContent = '';
+  const username = els.loginUsername.value.trim();
+  const password = els.loginPassword.value;
+  if (!username || !password) {
+    els.loginError.textContent = '请输入用户名和密码';
+    return;
+  }
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const body = await response.json();
+    if (!response.ok || body.code !== 'OK') {
+      throw new Error(body.message || '登录失败');
+    }
+    state.token = body.data.accessToken;
+    localStorage.setItem(TOKEN_KEY, state.token);
+    await bootstrap();
+  } catch (error) {
+    els.loginError.textContent = error.message || '登录失败';
+  }
+}
+
+function showLogin() {
+  els.app.hidden = true;
+  els.loginView.hidden = false;
+  els.loginPassword.value = '';
+  setTimeout(() => els.loginUsername.focus(), 0);
+}
+
+function hideLogin() {
+  els.loginView.hidden = true;
+  els.app.hidden = false;
+}
+
+function logoutLocal() {
+  localStorage.removeItem(TOKEN_KEY);
+  state.token = null;
+  state.me = null;
+  state.agents = [];
+  state.capabilities = new Set();
+  state.sessions = [];
+  state.currentSession = null;
+  state.polls.forEach((timer) => clearInterval(timer));
+  state.polls.clear();
+  showLogin();
+}
+
+function renderCurrentUser() {
+  if (!state.me) return;
+  els.userName.textContent = state.me.displayName || state.me.username;
+  els.userAvatar.textContent = (state.me.displayName || state.me.username || '?').slice(0, 1);
+  const role = (state.me.roles || [])[0] || 'USER';
+  els.userRole.textContent = ({ ADMIN: '管理员', WORKER: '工人', USER: '用户' })[role] || role;
+  const hasContract = state.agents.some((agent) => agent.agentKey === 'contract-review');
+  const propertyPill = document.getElementById('propertyPill');
+  const contractPill = document.getElementById('contractPill');
+  if (propertyPill) propertyPill.hidden = !state.agents.some((agent) => agent.agentKey === 'property-maintenance');
+  if (contractPill) contractPill.hidden = !hasContract;
+}
+
+function renderAgents() {
+  if (!state.agents.length) {
+    els.agentStatus.replaceChildren(el('div', 'agent-chip', '无可用 Agent'));
+    return;
+  }
+  els.agentStatus.replaceChildren(...state.agents.map((agent) => {
+    const chip = el('div', 'agent-chip');
+    const name = el('div', 'name');
+    name.append(el('span', 'dot'), el('span', '', agent.displayName.replace('（Mock）', '')));
+    chip.append(name, el('span', 'ver', `v${agent.contractVersion}`));
+    return chip;
+  }));
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Actor-Id': ACTOR,
-      ...(options.headers || {}),
-    },
-  });
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+  if (state.token) {
+    headers.Authorization = `Bearer ${state.token}`;
+  }
+  const response = await fetch(path, { ...options, headers });
   const text = await response.text();
   let body = {};
   try {
@@ -78,21 +231,14 @@ async function api(path, options = {}) {
   } catch {
     body = {};
   }
+  if (response.status === 401) {
+    logoutLocal();
+    throw new Error('登录已过期，请重新登录');
+  }
   if (!response.ok || (body.code && body.code !== 'OK')) {
     throw new Error(body.message || `HTTP ${response.status}`);
   }
   return body.data;
-}
-
-async function loadAgents() {
-  const agents = await api('/api/v1/admin/agents');
-  els.agentStatus.replaceChildren(...agents.map((agent) => {
-    const chip = el('div', 'agent-chip');
-    const name = el('div', 'name');
-    name.append(el('span', 'dot'), el('span', '', agent.displayName.replace('（Mock）', '')));
-    chip.append(name, el('span', 'ver', `v${agent.contractVersion}`));
-    return chip;
-  }));
 }
 
 async function loadSessions() {
@@ -116,7 +262,8 @@ async function selectSession(sessionNo) {
   if (!session) return;
   state.currentSession = session;
   els.chatTitle.textContent = session.title || '新会话';
-  els.chatSub.textContent = `${session.messageCount || 0} 条消息 · 物业 + 合同`;
+  const agentNames = state.agents.map((agent) => agent.displayName.replace('（Mock）', '')).join(' + ');
+  els.chatSub.textContent = `${session.messageCount || 0} 条消息${agentNames ? ` · ${agentNames}` : ''}`;
   renderSessions();
   await loadMessages(sessionNo);
 }
@@ -232,11 +379,11 @@ function showEmptyState() {
     el('p', '', '原型使用 Mock Adapter，验证路由、确认、异步与取消链路。'),
   );
   const grid = el('div', 'quick-grid');
-  for (const prompt of QUICK_PROMPTS) {
-    const button = el('button', 'quick', prompt);
+  for (const prompt of availablePrompts()) {
+    const button = el('button', 'quick', prompt.text);
     button.type = 'button';
     button.addEventListener('click', () => {
-      els.input.value = prompt;
+      els.input.value = prompt.text;
       autoResize();
       sendMessage();
     });
@@ -244,6 +391,14 @@ function showEmptyState() {
   }
   empty.append(grid);
   els.messages.append(empty);
+}
+
+function availablePrompts() {
+  return QUICK_PROMPTS.filter((prompt) => {
+    if (!prompt.capability) return true;
+    return state.capabilities.has(prompt.capability)
+        || (prompt.alt && state.capabilities.has(prompt.alt));
+  });
 }
 
 async function sendMessage() {
@@ -269,10 +424,14 @@ async function sendMessage() {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
-        'X-Actor-Id': ACTOR,
+        'Authorization': `Bearer ${state.token}`,
       },
       body: JSON.stringify({ content, clientMessageId }),
     });
+    if (response.status === 401) {
+      logoutLocal();
+      throw new Error('登录已过期，请重新登录');
+    }
     if (!response.ok || !response.body) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -680,6 +839,156 @@ function askConfirm(message, options = {}) {
     modal.addEventListener('click', onBackdrop);
     document.addEventListener('keydown', onKey);
   });
+}
+
+async function openProfile() {
+  els.profileModal.hidden = false;
+  els.profileError.textContent = '';
+  els.profileForm.replaceChildren();
+  els.profileSave.hidden = !state.capabilities.has('property.profile.update');
+  els.profileMeta.textContent = '加载中…';
+  try {
+    const [form, options, profile] = await Promise.all([
+      api('/api/v1/profile/form'),
+      api('/api/v1/profile/options'),
+      api('/api/v1/profile'),
+    ]);
+    state.profileForm = form || {};
+    state.profileOptions = options || {};
+    state.profileData = profile || {};
+    state.profileDraft = {};
+    for (const field of state.profileForm.fields || []) {
+      const value = state.profileData[field.name];
+      if (value !== undefined && value !== null) {
+        state.profileDraft[field.name] = value;
+      }
+    }
+    renderProfileForm();
+    els.profileMeta.textContent =
+      `审核状态：${state.profileData.reviewStatus || '未知'} · 表单来源：${state.profileForm.source || 'manifest'}`;
+  } catch (error) {
+    els.profileMeta.textContent = '';
+    els.profileError.textContent = error.message || '加载个人资料失败';
+  }
+}
+
+function renderProfileForm() {
+  const form = state.profileForm;
+  if (!form) return;
+  els.profileForm.replaceChildren();
+  for (const field of form.fields || []) {
+    const label = el('label', field.required ? 'required' : '', field.label || field.name);
+    let input;
+    if (field.type === 'select') {
+      input = document.createElement('select');
+      input.append(new Option('请选择', ''));
+      for (const option of optionsFor(field)) {
+        input.append(new Option(option.name || option.label || option.id, option.id ?? option.value ?? ''));
+      }
+      const value = state.profileDraft[field.name];
+      if (value !== undefined && value !== null) {
+        input.value = String(value);
+      }
+      input.addEventListener('change', () => {
+        state.profileDraft[field.name] = input.value;
+        for (const dependent of form.fields || []) {
+          if (dependent.dependsOn === field.name) {
+            delete state.profileDraft[dependent.name];
+          }
+        }
+        renderProfileForm();
+      });
+    } else {
+      input = document.createElement('input');
+      input.type = field.sensitive ? 'password' : 'text';
+      if (field.maxLength) input.maxLength = field.maxLength;
+      if (field.sensitive && state.profileData.phoneMask) {
+        input.placeholder = state.profileData.phoneMask;
+      }
+      input.value = state.profileDraft[field.name] ?? '';
+      input.autocomplete = 'off';
+      input.addEventListener('input', () => {
+        state.profileDraft[field.name] = input.value;
+      });
+    }
+    label.append(input);
+    els.profileForm.append(label);
+  }
+}
+
+function optionsFor(field) {
+  const all = state.profileOptions[field.optionsKey] || [];
+  if (!field.dependsOn) return all;
+  const parent = state.profileDraft[field.dependsOn];
+  if (parent === undefined || parent === null || parent === '') return [];
+  return all.filter((item) => String(item.projectId ?? item.buildingId ?? '') === String(parent));
+}
+
+async function saveProfile() {
+  els.profileError.textContent = '';
+  const payload = {};
+  for (const field of state.profileForm?.fields || []) {
+    let value = state.profileDraft[field.name];
+    if (value === undefined || value === null || String(value).trim() === '') continue;
+    if (field.type === 'select' && /^\d+$/.test(String(value))) {
+      value = Number(value);
+    }
+    payload[field.name] = value;
+  }
+  try {
+    const task = await api('/api/v1/profile', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (task.status === 'WAITING_CONFIRM') {
+      const confirmed = await askConfirm(
+        '确认保存个人资料？项目/楼宇/房间/客户绑定变更可能需要管理员审核。',
+        { title: '保存个人资料', confirmText: '确认保存', danger: false },
+      );
+      if (!confirmed) return;
+      const result = await api(`/api/v1/tasks/${task.taskNo}/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ decision: 'APPROVE', comment: '个人信息保存' }),
+      });
+      if (result.status === 'FAILED' || result.status === 'REJECTED') {
+        throw new Error(result.error?.message || '保存失败');
+      }
+      const reviewStatus = result.output?.reviewStatus || 'PENDING';
+      els.profileMeta.textContent = `审核状态：${reviewStatus}`;
+      showToast(reviewStatus === 'PENDING' ? '已保存，绑定变更待管理员审核' : '个人资料已保存');
+      await refreshProfile();
+    } else if (task.status === 'SUCCEEDED') {
+      showToast('个人资料已保存');
+      await refreshProfile();
+    } else {
+      throw new Error(task.error?.message || '保存未完成');
+    }
+  } catch (error) {
+    els.profileError.textContent = error.message || '保存失败';
+  }
+}
+
+async function refreshProfile() {
+  try {
+    state.profileData = (await api('/api/v1/profile')) || {};
+    els.profileMeta.textContent =
+      `审核状态：${state.profileData.reviewStatus || '未知'} · 表单来源：${state.profileForm?.source || 'manifest'}`;
+  } catch (error) {
+    els.profileError.textContent = error.message || '刷新个人资料失败';
+  }
+}
+
+function openSettings() {
+  els.settingNotify.checked = localStorage.getItem('wuye_notify') !== 'off';
+  els.settingMemory.checked = localStorage.getItem('wuye_memory') !== 'off';
+  els.settingsModal.hidden = false;
+}
+
+function saveSettings() {
+  localStorage.setItem('wuye_notify', els.settingNotify.checked ? 'on' : 'off');
+  localStorage.setItem('wuye_memory', els.settingMemory.checked ? 'on' : 'off');
+  els.settingsModal.hidden = true;
+  showToast('设置已保存');
 }
 
 function showToast(message) {

@@ -5,6 +5,8 @@ import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.agent.model.Confirmation;
 import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
+import com.wuye.agent.auth.AuthUser;
+import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.routing.RouteDecision;
 import com.wuye.agent.routing.Router;
@@ -40,19 +42,22 @@ public class ChatService {
     private final AdapterRegistry registry;
     private final Router router;
     private final TaskService taskService;
+    private final PolicyService policyService;
     private final Ids ids;
 
     public ChatService(Store store, AdapterRegistry registry,
-                       Router router, TaskService taskService, Ids ids) {
+                       Router router, TaskService taskService,
+                       PolicyService policyService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
         this.taskService = taskService;
+        this.policyService = policyService;
         this.ids = ids;
     }
 
     public void send(String sessionNo, String content, String clientMessageId,
-                     String actorId, String traceId, SseEmitter emitter) {
+                     AuthUser user, String traceId, SseEmitter emitter) {
         try {
             SessionState session = store.getSession(sessionNo);
             if (session == null) {
@@ -113,7 +118,18 @@ public class ChatService {
                 return;
             }
 
-            TaskRecord task = taskService.submit(sessionNo, capability, route.args(), actorId, traceId);
+            if (!policyService.canUseCapability(user, capability.capabilityId())) {
+                String message = "当前账号没有权限使用该能力。";
+                ChatMessage assistant = store.addMessage(session, "ASSISTANT", message, "TEXT",
+                        Map.of("error", "AUTH_FORBIDDEN"), null);
+                emit(emitter, "error", Map.of(
+                        "code", "AUTH_FORBIDDEN", "message", message, "retryable", false));
+                emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "FAILED"));
+                emitter.complete();
+                return;
+            }
+
+            TaskRecord task = taskService.submit(sessionNo, capability, route.args(), user.actorId(), traceId);
             emit(emitter, "task", taskEvent(task));
             for (TaskEvent event : task.events) {
                 emit(emitter, "task_event", eventView(task.taskNo, event));
@@ -165,12 +181,12 @@ public class ChatService {
         }
     }
 
-    public SessionState createSession(String title) {
-        return store.createSession(title);
+    public SessionState createSession(long userId, String title) {
+        return store.createSession(userId, title);
     }
 
-    public List<SessionState> listSessions() {
-        return store.listSessions();
+    public List<SessionState> listSessions(long userId) {
+        return store.listSessions(userId);
     }
 
     public SessionState getSession(String sessionNo) {

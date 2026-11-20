@@ -52,9 +52,25 @@ public class MockPropertyAdapter implements AgentAdapter {
             List.of(
                     capability("property.ticket.query", "ticket.query", "查询工单", true, false),
                     capability("property.ticket.detail", "ticket.detail", "工单详情", true, false),
+                    capability("property.ticket.similar", "ticket.similar", "相似工单", true, false),
                     capability("property.knowledge.search", "knowledge.search", "物业知识检索", true, false),
+                    capability("property.masterdata.options", "masterdata.options", "主数据选项", true, false),
+                    capability("property.profile.get", "profile.get", "读取个人资料", true, false),
+                    capability("property.profile.update", "profile.update", "更新个人资料", false, true),
                     capability("property.ticket.create", "ticket.create", "创建工单", false, true),
-                    capability("property.ticket.assign", "ticket.assign", "派单", false, true)
+                    capability("property.ticket.assign", "ticket.assign", "派单", false, true),
+                    capability("property.ticket.accept", "ticket.accept", "接单", false, true),
+                    capability("property.ticket.resolve", "ticket.resolve", "提交解决", false, true),
+                    capability("property.ticket.verify", "ticket.verify", "验证", false, true),
+                    capability("property.ticket.close", "ticket.close", "关闭", false, true),
+                    capability("property.ticket.cancel", "ticket.cancel", "取消工单", false, true),
+                    capability("property.ticket.hold", "ticket.hold", "挂起", false, true),
+                    capability("property.ticket.resume", "ticket.resume", "恢复", false, true),
+                    capability("property.ticket.finish", "ticket.finish", "结束", false, true),
+                    capability("property.ticket.comment.add", "ticket.comment.add", "评论", false, true),
+                    capability("property.ticket.material.add", "ticket.material.add", "材料", false, true),
+                    capability("property.ticket.visit.add", "ticket.visit.add", "回访", false, true),
+                    capability("property.ticket.export", "ticket.export", "导出 Excel", false, true)
             ));
 
     private static Capability capability(String id, String taskType, String name,
@@ -74,6 +90,7 @@ public class MockPropertyAdapter implements AgentAdapter {
         State state = new State(childTaskId);
         state.capabilityId = request.capabilityId();
         state.input = request.input() == null ? Map.of() : request.input();
+        state.actorId = request.actorId();
         states.put(childTaskId, state);
 
         switch (request.capabilityId()) {
@@ -96,6 +113,42 @@ public class MockPropertyAdapter implements AgentAdapter {
                         Map.of("title", "二次供水巡检制度", "snippet", "二次供水设备每季度清洗消毒一次。", "score", 0.88)
                 );
                 return succeed(state, unwrapProperty(wrapProperty(data)));
+            }
+            case "property.masterdata.options" -> {
+                Object data = Map.of(
+                        "projects", List.of(Map.of("id", 100, "name", "示范项目")),
+                        "buildings", List.of(Map.of("id", 101, "name", "1栋", "projectId", 100)),
+                        "rooms", List.of(Map.of("id", 1001, "name", "101", "buildingId", 101)),
+                        "customers", List.of(Map.of("id", 2001, "name", "示例客户", "projectId", 100)),
+                        "equipment", List.of(),
+                        "serviceItems", List.of(Map.of("id", 3001, "name", "给排水")));
+                return succeed(state, data);
+            }
+            case "property.profile.get" -> {
+                Object data = Map.of(
+                        "contactName", "资料联系人",
+                        "phoneMask", "138****5678",
+                        "projectId", 100,
+                        "buildingId", 101,
+                        "roomId", 1001,
+                        "customerId", 2001,
+                        "reviewStatus", "10001".equals(request.actorId()) ? "APPROVED" : "PENDING");
+                return succeed(state, data);
+            }
+            case "property.profile.update" -> {
+                Confirmation confirmation = confirmation(
+                        "个人资料确认",
+                        "MEDIUM",
+                        List.of(
+                                new Confirmation.Field("联系人", string(request.input(), "contactName", "未填写")),
+                                new Confirmation.Field("联系电话", string(request.input(), "phone", "未填写")),
+                                new Confirmation.Field("项目", string(request.input(), "projectId", "未选择"))
+                        ));
+                state.confirmation = confirmation;
+                state.status = TaskStatus.WAITING_CONFIRM;
+                state.currentStep = "WAITING_CONFIRM";
+                event(state, "STATUS_CHANGED", TaskStatus.WAITING_CONFIRM, Map.of("message", "等待用户确认个人资料"));
+                return AdapterResult.waiting(childTaskId, confirmation, List.copyOf(state.events));
             }
             case "property.ticket.create" -> {
                 String description = string(request.input(), "description", "用户报修");
@@ -166,10 +219,12 @@ public class MockPropertyAdapter implements AgentAdapter {
 
         if (decision == Decision.APPROVE) {
             state.status = TaskStatus.SUCCEEDED;
-            state.output = "property.ticket.create".equals(state.capabilityId)
-                    ? Map.of("ticketNo", "GD202611200001", "status", "PENDING")
-                    : Map.of("ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
-                    "assigneeId", string(state.input, "assigneeId", "10002"), "status", "ASSIGNED");
+            state.output = switch (state.capabilityId) {
+                case "property.ticket.create" -> Map.of("ticketNo", "GD202611200001", "status", "PENDING");
+                case "property.profile.update" -> profileOutput(state);
+                default -> Map.of("ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                        "assigneeId", string(state.input, "assigneeId", "10002"), "status", "ASSIGNED");
+            };
             state.progress = 100;
             state.currentStep = "DONE";
             state.confirmation = state.confirmation.withStatus("APPROVED");
@@ -268,6 +323,22 @@ public class MockPropertyAdapter implements AgentAdapter {
         return body;
     }
 
+    private static Map<String, Object> profileOutput(State state) {
+        String phone = string(state.input, "phone", "");
+        String masked = phone.length() >= 7
+                ? phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4)
+                : phone;
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("contactName", string(state.input, "contactName", "资料联系人"));
+        output.put("phoneMask", masked);
+        output.put("projectId", state.input.getOrDefault("projectId", 100));
+        output.put("buildingId", state.input.getOrDefault("buildingId", 101));
+        output.put("roomId", state.input.getOrDefault("roomId", 1001));
+        output.put("customerId", state.input.getOrDefault("customerId", 2001));
+        output.put("reviewStatus", "10001".equals(state.actorId) ? "APPROVED" : "PENDING");
+        return output;
+    }
+
     private static String string(Map<String, Object> input, String key, String fallback) {
         Object value = input == null ? null : input.get(key);
         return value == null ? fallback : String.valueOf(value);
@@ -284,6 +355,7 @@ public class MockPropertyAdapter implements AgentAdapter {
         volatile int progress;
         volatile String currentStep = "PENDING";
         volatile String capabilityId;
+        volatile String actorId;
         volatile Map<String, Object> input = Map.of();
 
         State(String childTaskId) {

@@ -50,22 +50,22 @@ public class MySqlStore implements Store {
 
     @Override
     @Transactional
-    public SessionState createSession(String title) {
+    public SessionState createSession(long userId, String title) {
         String sessionNo = ids.next("ws_");
         Instant now = Instant.now();
         String safeTitle = title == null || title.isBlank() ? "新会话" : title;
         jdbc.update("""
                 INSERT INTO wa_chat_session
-                    (session_no, tenant_id, title, message_count, created_at, last_message_at)
-                VALUES (?, '0', ?, 0, ?, ?)
-                """, sessionNo, safeTitle, ts(now), ts(now));
-        return new SessionState(sessionNo, safeTitle, now);
+                    (session_no, user_id, tenant_id, title, message_count, created_at, last_message_at)
+                VALUES (?, ?, '0', ?, 0, ?, ?)
+                """, sessionNo, userId, safeTitle, ts(now), ts(now));
+        return new SessionState(sessionNo, userId, safeTitle, now);
     }
 
     @Override
     public SessionState getSession(String sessionNo) {
         List<SessionState> rows = jdbc.query("""
-                        SELECT session_no, title, message_count, created_at, last_message_at
+                        SELECT session_no, user_id, title, message_count, created_at, last_message_at
                         FROM wa_chat_session WHERE session_no = ?
                         """,
                 (rs, rowNum) -> mapSession(rs), sessionNo);
@@ -73,12 +73,12 @@ public class MySqlStore implements Store {
     }
 
     @Override
-    public List<SessionState> listSessions() {
+    public List<SessionState> listSessions(long userId) {
         return jdbc.query("""
-                        SELECT session_no, title, message_count, created_at, last_message_at
-                        FROM wa_chat_session ORDER BY last_message_at DESC
+                        SELECT session_no, user_id, title, message_count, created_at, last_message_at
+                        FROM wa_chat_session WHERE user_id = ? ORDER BY last_message_at DESC
                         """,
-                (rs, rowNum) -> mapSession(rs));
+                (rs, rowNum) -> mapSession(rs), userId);
     }
 
     @Override
@@ -283,6 +283,7 @@ public class MySqlStore implements Store {
     private SessionState mapSession(ResultSet rs) throws SQLException {
         SessionState session = new SessionState(
                 rs.getString("session_no"),
+                rs.getLong("user_id"),
                 rs.getString("title"),
                 instant(rs.getTimestamp("created_at")));
         session.messageCount = rs.getInt("message_count");

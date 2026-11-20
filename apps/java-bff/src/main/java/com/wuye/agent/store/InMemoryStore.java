@@ -30,9 +30,10 @@ public class InMemoryStore implements Store {
         this.ids = ids;
     }
 
-    public SessionState createSession(String title) {
+    public SessionState createSession(long userId, String title) {
         String sessionNo = ids.next("ws_");
-        SessionState session = new SessionState(sessionNo, title == null ? "新会话" : title, Instant.now());
+        SessionState session = new SessionState(sessionNo, userId,
+                title == null ? "新会话" : title, Instant.now());
         sessions.put(sessionNo, session);
         return session;
     }
@@ -41,8 +42,9 @@ public class InMemoryStore implements Store {
         return sessions.get(sessionNo);
     }
 
-    public List<SessionState> listSessions() {
+    public List<SessionState> listSessions(long userId) {
         return sessions.values().stream()
+                .filter(session -> session.userId == userId)
                 .sorted(Comparator.comparing((SessionState s) -> s.lastMessageAt).reversed())
                 .toList();
     }

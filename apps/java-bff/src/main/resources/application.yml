@@ -42,6 +42,13 @@ wuye:
     timeout-ms: 9000
     confidence-threshold: 0.55
     rule-confidence-threshold: 0.85
+  auth:
+    jwt-secret: ${JWT_SECRET:}
+    token-ttl-seconds: 28800
+  dev:
+    admin-password: ${DEV_ADMIN_PASSWORD:admin123}
+    worker-password: ${DEV_WORKER_PASSWORD:worker123}
+    user-password: ${DEV_USER_PASSWORD:user123}
 
 logging:
   level:

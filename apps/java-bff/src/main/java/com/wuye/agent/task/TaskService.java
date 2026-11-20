@@ -77,9 +77,10 @@ public class TaskService {
         return store.listTasks(sessionNo);
     }
 
-    public TaskRecord confirm(String taskNo, Decision decision, String comment, String actorId) {
+    public TaskRecord confirm(String taskNo, Decision decision, String comment,
+                              String actorId, boolean admin) {
         TaskRecord task = get(taskNo);
-        if (!task.actorId.equals(actorId)) {
+        if (!admin && !task.actorId.equals(actorId)) {
             throw new ApiException("AUTH_FORBIDDEN", 403, "只能由任务发起人确认");
         }
         if (task.status != TaskStatus.WAITING_CONFIRM) {
@@ -120,9 +121,9 @@ public class TaskService {
         return task;
     }
 
-    public TaskRecord cancel(String taskNo, String reason, String actorId) {
+    public TaskRecord cancel(String taskNo, String reason, String actorId, boolean admin) {
         TaskRecord task = get(taskNo);
-        if (!task.actorId.equals(actorId)) {
+        if (!admin && !task.actorId.equals(actorId)) {
             throw new ApiException("AUTH_FORBIDDEN", 403, "只能由任务发起人取消");
         }
         if (task.status.terminal()) {

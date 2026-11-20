@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +42,65 @@ class PrototypeSmokeTest {
 
     @Autowired
     ObjectMapper mapper;
+
+    private String adminToken;
+
+    @BeforeEach
+    void loginAdmin() throws Exception {
+        adminToken = login("admin", "admin123");
+    }
+
+    @Test
+    void loginAndPermissionCatalogWork() throws Exception {
+        assertEquals(401, rest.postForEntity(url("/api/v1/auth/login"),
+                jsonEntity(Map.of("username", "admin", "password", "wrong")), String.class)
+                .getStatusCode().value());
+        assertEquals(401, rest.getForEntity(url("/api/v1/chat/sessions"), String.class)
+                .getStatusCode().value());
+
+        String userToken = login("user", "user123");
+        String workerToken = login("worker", "worker123");
+
+        String adminAgents = getWithToken("/api/v1/agents", adminToken);
+        String userAgents = getWithToken("/api/v1/agents", userToken);
+        String workerAgents = getWithToken("/api/v1/agents", workerToken);
+
+        assertTrue(adminAgents.contains("contract-review"), adminAgents);
+        assertTrue(adminAgents.contains("property-maintenance"), adminAgents);
+        assertTrue(!userAgents.contains("contract-review"), userAgents);
+        assertTrue(!workerAgents.contains("contract-review"), workerAgents);
+        assertTrue(userAgents.contains("property.ticket.create"), userAgents);
+        assertTrue(!workerAgents.contains("property.ticket.create"), workerAgents);
+        assertTrue(workerAgents.contains("property.ticket.accept"), workerAgents);
+    }
+
+    @Test
+    void profileFormAndUpdateFlowWork() throws Exception {
+        String form = getWithToken("/api/v1/profile/form", adminToken);
+        assertTrue(form.contains("contactName"), form);
+        assertTrue(form.contains("profile.update"), form);
+
+        String options = getWithToken("/api/v1/profile/options", adminToken);
+        assertTrue(options.contains("projects"), options);
+
+        String profile = getWithToken("/api/v1/profile", adminToken);
+        assertTrue(profile.contains("phoneMask"), profile);
+
+        JsonNode task = postForData("/api/v1/profile", Map.of(
+                "contactName", "张三",
+                "phone", "13800001234",
+                "projectId", 100,
+                "buildingId", 101,
+                "roomId", 1001,
+                "customerId", 2001));
+        assertEquals("WAITING_CONFIRM", task.path("status").asText(), task.toString());
+        String taskNo = task.path("taskNo").asText();
+
+        JsonNode confirmed = postForData("/api/v1/tasks/" + taskNo + "/confirm",
+                Map.of("decision", "APPROVE", "comment", "保存"));
+        assertEquals("SUCCEEDED", confirmed.path("status").asText(), confirmed.toString());
+        assertEquals("APPROVED", confirmed.path("output").path("reviewStatus").asText());
+    }
 
     @Test
     void propertyQueryReturnsTickets() throws Exception {
@@ -145,19 +205,24 @@ class PrototypeSmokeTest {
         String sse = send(session, "我有哪些待处理工单？");
         String taskNo = extractTaskNo(sse);
 
+        HttpHeaders deleteHeaders = new HttpHeaders();
+        deleteHeaders.setBearerAuth(adminToken);
         ResponseEntity<String> deleted = rest.exchange(
                 url("/api/v1/chat/sessions/" + session),
                 HttpMethod.DELETE,
-                new HttpEntity<>(new HttpHeaders()),
+                new HttpEntity<>(deleteHeaders),
                 String.class);
         assertEquals(HttpStatus.OK, deleted.getStatusCode(), deleted.getBody());
 
-        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
-                url("/api/v1/chat/sessions/" + session), String.class).getStatusCode());
-        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
-                url("/api/v1/chat/sessions/" + session + "/messages"), String.class).getStatusCode());
-        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
-                url("/api/v1/tasks/" + taskNo), String.class).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, rest.exchange(
+                url("/api/v1/chat/sessions/" + session), HttpMethod.GET,
+                new HttpEntity<>(authHeaders()), String.class).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, rest.exchange(
+                url("/api/v1/chat/sessions/" + session + "/messages"), HttpMethod.GET,
+                new HttpEntity<>(authHeaders()), String.class).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, rest.exchange(
+                url("/api/v1/tasks/" + taskNo), HttpMethod.GET,
+                new HttpEntity<>(authHeaders()), String.class).getStatusCode());
     }
 
     @Test
@@ -171,6 +236,13 @@ class PrototypeSmokeTest {
         assertTrue(ready.getBody().contains("\"status\":\"UP\""));
     }
 
+    private String login(String username, String password) throws Exception {
+        ResponseEntity<String> response = rest.postForEntity(url("/api/v1/auth/login"),
+                jsonEntity(Map.of("username", username, "password", password)), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode(), response.getBody());
+        return mapper.readTree(response.getBody()).path("data").path("accessToken").asText();
+    }
+
     private String createSession() throws Exception {
         ResponseEntity<String> response = rest.postForEntity(url("/api/v1/chat/sessions"),
                 jsonEntity(Map.of("title", "测试会话")), String.class);
@@ -182,7 +254,7 @@ class PrototypeSmokeTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.TEXT_EVENT_STREAM));
-        headers.set("X-Actor-Id", "10001");
+        headers.setBearerAuth(adminToken);
         String body = mapper.writeValueAsString(Map.of(
                 "content", content,
                 "clientMessageId", "cm_" + UUID.randomUUID()));
@@ -203,7 +275,8 @@ class PrototypeSmokeTest {
         long deadline = System.currentTimeMillis() + timeoutMs;
         JsonNode last = null;
         while (System.currentTimeMillis() < deadline) {
-            ResponseEntity<String> response = rest.getForEntity(url("/api/v1/tasks/" + taskNo), String.class);
+            ResponseEntity<String> response = rest.exchange(url("/api/v1/tasks/" + taskNo),
+                    HttpMethod.GET, new HttpEntity<>(authHeaders()), String.class);
             assertEquals(HttpStatus.OK, response.getStatusCode(), response.getBody());
             last = mapper.readTree(response.getBody()).path("data");
             if (status.equals(last.path("status").asText())) {
@@ -214,6 +287,15 @@ class PrototypeSmokeTest {
         throw new AssertionError("任务未在 " + timeoutMs + "ms 内进入 " + status + "，最后状态：" + last);
     }
 
+    private String getWithToken(String path, String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        ResponseEntity<String> response = rest.exchange(url(path), HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode(), response.getBody());
+        return response.getBody();
+    }
+
     private String extractTaskNo(String sse) {
         Matcher matcher = TASK_NO.matcher(sse);
         assertTrue(matcher.find(), "SSE 中没有 taskNo：" + sse);
@@ -221,10 +303,17 @@ class PrototypeSmokeTest {
     }
 
     private HttpEntity<String> jsonEntity(Object body) throws Exception {
-        HttpHeaders headers = new HttpHeaders();
+        HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Actor-Id", "10001");
         return new HttpEntity<>(mapper.writeValueAsString(body), headers);
+    }
+
+    private HttpHeaders authHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        if (adminToken != null) {
+            headers.setBearerAuth(adminToken);
+        }
+        return headers;
     }
 
     private String url(String path) {

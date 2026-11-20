@@ -51,7 +51,9 @@
 - `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
 - 主 Agent 原型已完成：`apps/java-bff`，Java BFF + MySQL 持久化 + Mock/HTTP Adapter + 原生单对话框 UI。
   - `mvn -f apps/java-bff/pom.xml test`：20/20 passed（10 项 BFF smoke + 5 项 HTTP Adapter + 5 项 LLM 路由）。
-  - 已实现：SSE、两域规则路由、知识库消歧、确认/拒绝、异步合同审查、取消、任务时间线、会话删除（级联消息/任务/事件）；确认令牌不出服务端。
+  - 已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（Manifest forms.personalInfo）、按权限过滤 Agent/能力卡片；SSE、两域规则路由、知识库消歧、确认/拒绝、异步合同审查、取消、任务时间线、会话删除（级联消息/任务/事件）；确认令牌不出服务端。
+  - 演示账号：admin/admin123、worker/worker123、user/user123；合同 Agent 仅管理员可见。
+  - 权限：普通用户建单/查自己的工单；工人接单/处理/解决，不能建单；管理员全部。权限来自 `wa_role/wa_permission/wa_role_permission`，不是前端硬编码。
   - 持久化：`wuye_agent_db` + Flyway；会话/消息/任务/事件跨重启验证通过；令牌 AES-GCM 加密落库。
   - 真实 HTTP：`WUYE_AGENT_MODE=http` 接 8402/8400，支持方言、200/202、委托令牌、错误映射；子 Agent 停机时返回 `FAILED(DEPENDENCY)` 不崩溃。
   - LLM 路由：`apps/python-ai` FastAPI + DeepSeek/OpenAI 兼容，Java 规则优先、LLM 兜底；LLM 失败 30s 熔断回退规则。Java 20/20、Python 5/5 测试通过。

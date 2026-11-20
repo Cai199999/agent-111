@@ -13,6 +13,16 @@
       → 内存存储
 ```
 
+## 登录与权限
+
+- 登录页 + JWT；演示账号：`admin/admin123`、`worker/worker123`、`user/user123`（开发默认，生产必须改）。
+- RBAC 表：`wa_user / wa_role / wa_permission / wa_role_permission / wa_user_role`；角色 `BASE → USER/WORKER → ADMIN`，权限从数据库读取。
+- 合同 Agent 仅 `ADMIN` 可见；普通用户：建单、查自己的工单、个人中心；工人：接单/处理/解决等，不能建单；管理员全部。
+- 后端 `AuthFilter + PolicyService` 强制校验，前端只按 `/api/v1/agents` 返回的能力渲染卡片。
+- 个人中心：`GET /api/v1/profile/form` 读取子 Agent Manifest `forms.personalInfo`；`profile.get/options/update` 由主 Agent 转交子 Agent；修改绑定返回 `PENDING` 等审核状态。
+
+> 当前 `.env` 的物业内部令牌为空时，Manifest/个人资料会走 `fallback` 表单；填入 `AGENT_PROPERTY_INTERNAL_TOKEN` 后即为子 Agent 真实表单。
+
 ## 当前能力
 
 - 单对话框：会话列表、消息历史、SSE 流式输出、路由标识；
@@ -39,7 +49,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 20/20 passed（Python AI 另 5/5）
+# 当前：Java 22/22 passed（Python AI 另 5/5）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

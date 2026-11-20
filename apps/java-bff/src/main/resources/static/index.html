@@ -7,7 +7,22 @@
   <link rel="stylesheet" href="/css/app.css"/>
 </head>
 <body>
-<div class="app">
+<div id="loginView" class="login-view" hidden>
+  <div class="login-card">
+    <div class="brand-mark">W</div>
+    <h1>物业主 Agent</h1>
+    <p class="login-sub">登录后按角色使用工单、合同与个人中心</p>
+    <form id="loginForm" class="login-form">
+      <label>用户名<input id="loginUsername" autocomplete="username" placeholder="admin / worker / user"/></label>
+      <label>密码<input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码"/></label>
+      <button class="btn primary block" type="submit">登录</button>
+      <div id="loginError" class="login-error"></div>
+    </form>
+    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123</div>
+  </div>
+</div>
+
+<div id="app" class="app" hidden>
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">W</div>
@@ -42,8 +57,20 @@
         <div id="chatSub" class="chat-sub">物业 + 合同，一个对话框</div>
       </div>
       <div class="top-actions">
-        <span class="pill">物业 0.8.0</span>
-        <span class="pill">合同 0.7.0</span>
+        <span id="propertyPill" class="pill">物业 0.9.0</span>
+        <span id="contractPill" class="pill">合同 0.7.0</span>
+        <div class="user-menu">
+          <button id="userButton" class="user-btn" type="button">
+            <span id="userAvatar" class="user-avatar">A</span>
+            <span id="userName">未登录</span>
+            <span id="userRole" class="pill">--</span>
+          </button>
+          <div id="userDropdown" class="dropdown" hidden>
+            <button type="button" data-action="profile">个人信息</button>
+            <button type="button" data-action="settings">设置</button>
+            <button type="button" data-action="logout" class="danger-text">退出登录</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -63,6 +90,33 @@
       <div class="composer-hint">Enter 发送 · Shift+Enter 换行 · 写操作会先弹出确认卡片</div>
     </footer>
   </main>
+</div>
+
+<div id="profileModal" class="modal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div id="profileTitle" class="modal-title">个人信息</div>
+    <div id="profileMeta" class="profile-meta"></div>
+    <form id="profileForm" class="profile-form"></form>
+    <div id="profileError" class="login-error"></div>
+    <div class="modal-actions">
+      <button id="profileClose" class="btn" type="button">关闭</button>
+      <button id="profileSave" class="btn primary" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="settingsModal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div id="settingsTitle" class="modal-title">设置</div>
+    <div class="settings-list">
+      <label class="setting-row"><span>接收站内通知</span><input id="settingNotify" type="checkbox" checked/></label>
+      <label class="setting-row"><span>启用记忆摘要</span><input id="settingMemory" type="checkbox" checked/></label>
+    </div>
+    <div class="modal-actions">
+      <button id="settingsClose" class="btn" type="button">关闭</button>
+      <button id="settingsSave" class="btn primary" type="button">保存</button>
+    </div>
+  </div>
 </div>
 
 <div id="confirmModal" class="modal" hidden>

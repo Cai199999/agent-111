@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class SessionState {
 
     public final String sessionNo;
+    public final long userId;
     public final Instant createdAt;
     public final List<ChatMessage> messages = new CopyOnWriteArrayList<>();
     public final Set<String> clientMessageIds = ConcurrentHashMap.newKeySet();
@@ -19,8 +20,9 @@ public final class SessionState {
     public volatile Instant lastMessageAt;
     public volatile int messageCount;
 
-    public SessionState(String sessionNo, String title, Instant createdAt) {
+    public SessionState(String sessionNo, long userId, String title, Instant createdAt) {
         this.sessionNo = sessionNo;
+        this.userId = userId;
         this.title = title;
         this.createdAt = createdAt;
         this.lastMessageAt = createdAt;

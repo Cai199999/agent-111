@@ -11,11 +11,11 @@ import java.util.Map;
  */
 public interface Store {
 
-    SessionState createSession(String title);
+    SessionState createSession(long userId, String title);
 
     SessionState getSession(String sessionNo);
 
-    List<SessionState> listSessions();
+    List<SessionState> listSessions(long userId);
 
     /**
      * 硬删除会话及其消息、任务、事件、确认令牌。
