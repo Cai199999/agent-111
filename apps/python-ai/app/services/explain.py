@@ -17,7 +17,40 @@ EXPLAIN_PROMPT = """你是"物业主 Agent"的结果解释器。
 2) 列表结果说明条数和最关键的字段/状态；不要逐条复述全部数据。
 3) 不要输出 JSON 数据本身，不要输出代码或工具指令。
 4) 如果 output 为空，说明“未返回数据”。
-5) 解释是给人看的摘要，原始 output 会另外原样展示，不要声称自己修改了数据。"""
+5) 解释是给人看的摘要，原始 output 会另外原样展示，不要声称自己修改了数据。
+6) 所有枚举必须翻译成中文，必要时括号附 code，例如“待处理（PENDING）”“普通（NORMAL）”
+   “待接单（ACCEPT）”；不要用英文 code 作为主要表述。
+7) 参考 codeLabels 做翻译；codeLabels 没有的 code 也要尽量用中文描述。"""
+
+# 状态/节点是子 Agent 的稳定枚举；ticketTypes/priorities 优先使用 optionCatalog
+STATUS_LABELS = {
+    "PENDING": "待处理",
+    "ASSIGNED": "已派单",
+    "ACCEPTED": "已接单",
+    "PROCESSING": "处理中",
+    "RUNNING": "处理中",
+    "RESOLVED": "已解决",
+    "VERIFIED": "已验证",
+    "PENDING_VERIFY": "待验证",
+    "CLOSED": "已关闭",
+    "CANCELLED": "已取消",
+    "HOLD": "已挂起",
+}
+CURRENT_NODE_LABELS = {
+    "ACCEPT": "待接单",
+    "ACCEPTED": "已接单",
+    "PROCESS": "处理中",
+    "PROCESSING": "处理中",
+    "VERIFY": "待验证",
+    "CLOSE": "已关闭",
+    "CLOSED": "已关闭",
+}
+PRIORITY_LABELS = {
+    "LOW": "低",
+    "NORMAL": "普通",
+    "HIGH": "高",
+    "URGENT": "紧急",
+}
 
 
 class ExplainService:
@@ -25,10 +58,13 @@ class ExplainService:
         self.client = client
 
     def explain(self, request: ExplainRequest) -> ExplainResponse:
+        catalog = request.optionCatalog or {}
         payload = {
             "capabilityId": request.capabilityId,
             "userMessage": request.userMessage,
             "output": request.output,
+            "optionCatalog": catalog,
+            "codeLabels": _build_labels(catalog),
         }
         try:
             data, usage = self.client.chat_json(
@@ -41,6 +77,27 @@ class ExplainService:
         except Exception:
             pass
         return ExplainResponse(explanation=_fallback(request.output), usage={})
+
+
+def _build_labels(catalog: dict) -> dict:
+    priority = dict(PRIORITY_LABELS)
+    for item in catalog.get("priorities", []) or []:
+        code = item.get("code")
+        name = item.get("name")
+        if code and name:
+            priority[str(code)] = str(name)
+    ticket_type = {}
+    for item in catalog.get("ticketTypes", []) or []:
+        code = item.get("code")
+        name = item.get("name")
+        if code and name:
+            ticket_type[str(code)] = str(name)
+    return {
+        "status": STATUS_LABELS,
+        "currentNode": CURRENT_NODE_LABELS,
+        "priority": priority,
+        "ticketType": ticket_type,
+    }
 
 
 def _fallback(output: object) -> str:

@@ -70,6 +70,7 @@ class ExplainRequest(BaseModel):
     userMessage: str
     capabilityId: str
     output: Any = None
+    optionCatalog: dict[str, Any] | None = None
 
 
 class ExplainResponse(BaseModel):

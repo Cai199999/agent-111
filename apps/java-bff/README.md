@@ -29,7 +29,7 @@
 
 - 子 Agent 成功结果通过 SSE `event:result` 原样返回 `output`；
 - 同时调用 Python `/internal/v1/ai/explain` 生成简短中文解释，通过 `event:delta` 展示；
-- 解释只做摘要，不改写数据；原始 JSON 仍以“子 Agent 原始返回”折叠展示；
+- 解释只做摘要，不改写数据；枚举会翻译成中文（如“待处理（PENDING）”），原始 JSON 仍以“子 Agent 原始返回（字段名/枚举保持原样）”折叠展示；
 - 子 Agent 能力同时作为工具暴露：
   - `GET /api/v1/tools`：当前用户可用工具 + `inputSchema`
   - `GET /api/v1/tools/{toolName}`：单个工具定义

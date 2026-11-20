@@ -156,11 +156,15 @@ def test_explain_returns_natural_language():
         ExplainRequest(
             userMessage="我有哪些工单？",
             capabilityId="property.ticket.query",
-            output=[{"ticketNo": "GD1"}, {"ticketNo": "GD2"}],
+            output=[{"ticketNo": "GD1", "statusCode": "PENDING"}],
+            optionCatalog={"priorities": [{"code": "NORMAL", "name": "普通"}]},
         )
     )
 
     assert response.explanation == "子 Agent 返回 2 条工单，均为待处理。"
+    prompt = client.calls[0][1]
+    assert "PENDING" in prompt and "待处理" in prompt
+    assert "普通" in prompt
 
 
 def test_repair_returns_corrected_args():

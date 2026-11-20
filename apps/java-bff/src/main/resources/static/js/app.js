@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth5';
+const UI_VERSION = '20261120-auth8';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -724,7 +724,7 @@ function renderRawResult(container, output) {
 
 function rawResultElement(output) {
   const box = el('details', 'raw-result');
-  box.append(el('summary', '', '子 Agent 原始返回（未经主 Agent 改写）'));
+  box.append(el('summary', '', '子 Agent 原始返回（字段名/枚举保持原样）'));
   const pre = el('pre', 'raw-json');
   try {
     pre.textContent = JSON.stringify(output, null, 2);

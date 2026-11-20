@@ -128,6 +128,7 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("userMessage", userMessage);
             body.put("capabilityId", capabilityId);
             body.put("output", output);
+            body.put("optionCatalog", optionCatalogService.options());
             HttpRequest.Builder builder = HttpRequest.newBuilder(
                             URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/explain"))
                     .timeout(Duration.ofMillis(properties.getTimeoutMs()))
