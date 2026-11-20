@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
   <title>物业主 Agent · 单对话框原型</title>
-  <link rel="stylesheet" href="/css/app.css?v=20261120-auth4"/>
+  <link rel="stylesheet" href="/css/app.css?v=20261120-auth5"/>
 </head>
 <body>
 <div id="loginView" class="login-view" hidden>
@@ -21,7 +21,7 @@
       <button class="btn primary block" type="submit">登录</button>
       <div id="loginError" class="login-error"></div>
     </form>
-    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth4</div>
+    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth5</div>
   </div>
 </div>
 
@@ -162,13 +162,13 @@
           error.textContent = '浏览器禁止本地存储，请允许站点存储或换普通窗口打开';
           return;
         }
-        window.location.href = '/?v=20261120-auth4';
+        window.location.href = '/?v=20261120-auth5';
       } catch (e) {
         error.textContent = e.message || '登录失败';
       }
     });
   });
 </script>
-<script type="module" src="/js/app.js?v=20261120-auth4"></script>
+<script type="module" src="/js/app.js?v=20261120-auth5"></script>
 </body>
 </html>

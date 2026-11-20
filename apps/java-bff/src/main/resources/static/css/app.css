@@ -231,6 +231,7 @@ body {
               radial-gradient(circle at 80% 90%, #e7f7f1, transparent 45%), var(--bg);
   padding: 24px;
 }
+.login-view[hidden] { display: none; }
 .login-card {
   width: min(400px, 100%); background: var(--panel); border: 1px solid var(--line);
   border-radius: 20px; padding: 28px; box-shadow: 0 24px 60px rgba(21,34,56,.12);
