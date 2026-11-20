@@ -144,7 +144,7 @@ public class ChatService {
                 answer = "已生成待确认操作，请在任务卡片中确认。";
                 emit(emitter, "confirm", Map.of(
                         "taskNo", task.taskNo,
-                        "confirmation", confirmationView(task.confirmation)));
+                        "confirmation", confirmationView(task)));
             } else if (task.status == TaskStatus.PENDING || task.status == TaskStatus.RUNNING) {
                 contentType = "TASK";
                 answer = "任务已提交，正在执行，稍后可在任务卡片查看进度。";
@@ -228,17 +228,46 @@ public class ChatService {
         return view;
     }
 
-    private Map<String, Object> confirmationView(Confirmation confirmation) {
+    private Map<String, Object> confirmationView(TaskRecord task) {
+        Confirmation confirmation = task.confirmation;
         if (confirmation == null) {
             return Map.of();
         }
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("title", confirmation.title());
         view.put("riskLevel", confirmation.riskLevel());
-        view.put("fields", confirmation.fields());
+        view.put("fields", confirmationFields(confirmation, task.input));
         view.put("expiresAt", confirmation.expiresAt());
         view.put("status", confirmation.status());
         return view;
+    }
+
+    private static List<Map<String, Object>> confirmationFields(Confirmation confirmation,
+                                                                Map<String, Object> input) {
+        List<Map<String, Object>> fields = new java.util.ArrayList<>();
+        if (confirmation.fields() != null) {
+            for (Confirmation.Field field : confirmation.fields()) {
+                fields.add(Map.of(
+                        "label", field.label() == null ? "" : field.label(),
+                        "value", field.value() == null ? "" : field.value()));
+            }
+        }
+        if (fields.isEmpty() && input != null) {
+            addField(fields, input, "description", "报修内容");
+            addField(fields, input, "locationText", "位置");
+            addField(fields, input, "ticketTypeCode", "工单类型");
+            addField(fields, input, "priorityCode", "优先级");
+            addField(fields, input, "contactName", "联系人");
+        }
+        return fields;
+    }
+
+    private static void addField(List<Map<String, Object>> fields, Map<String, Object> input,
+                                 String key, String label) {
+        Object value = input.get(key);
+        if (value != null && !String.valueOf(value).isBlank()) {
+            fields.add(Map.of("label", label, "value", String.valueOf(value)));
+        }
     }
 
     private String formatOutput(Capability capability, Object output) {

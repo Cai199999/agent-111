@@ -42,6 +42,23 @@ class HybridRouterTest {
     }
 
     @Test
+    void genericCreateAsksForDetailsWithoutCallingLlm() {
+        AtomicInteger calls = new AtomicInteger();
+        LlmRouterClient llm = message -> {
+            calls.incrementAndGet();
+            return Optional.of(RouteDecision.route("property.ticket.create", Map.of(), 0.95, "llm")
+                    .withRouter("LLM"));
+        };
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("创建工单");
+
+        assertTrue(decision.needClarification());
+        assertEquals("RULE", decision.router());
+        assertEquals(0, calls.get());
+    }
+
+    @Test
     void llmFailureFallsBackToRule() {
         LlmRouterClient llm = message -> Optional.empty();
         HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());

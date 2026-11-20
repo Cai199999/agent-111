@@ -39,21 +39,50 @@ public record TaskView(
         return new TaskView(
                 task.taskNo, task.sessionNo, task.agentKey, task.capabilityId,
                 task.status, task.executionMode, task.input, task.output, task.error,
-                confirmationView(task.confirmation), task.confirmationStatus, task.events,
+                confirmationView(task.confirmation, task.input), task.confirmationStatus, task.events,
                 task.progress, task.currentStep, task.cancelSupported, task.cancelable(),
                 task.cancelReason, task.createdAt, task.startedAt, task.finishedAt);
     }
 
-    private static Map<String, Object> confirmationView(Confirmation confirmation) {
+    private static Map<String, Object> confirmationView(Confirmation confirmation,
+                                                        Map<String, Object> input) {
         if (confirmation == null) {
             return null;
         }
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("title", confirmation.title());
         view.put("riskLevel", confirmation.riskLevel());
-        view.put("fields", confirmation.fields());
+        view.put("fields", confirmationFields(confirmation, input));
         view.put("expiresAt", confirmation.expiresAt());
         view.put("status", confirmation.status());
         return view;
+    }
+
+    private static List<Map<String, Object>> confirmationFields(Confirmation confirmation,
+                                                                Map<String, Object> input) {
+        List<Map<String, Object>> fields = new java.util.ArrayList<>();
+        if (confirmation.fields() != null) {
+            for (Confirmation.Field field : confirmation.fields()) {
+                fields.add(Map.of(
+                        "label", field.label() == null ? "" : field.label(),
+                        "value", field.value() == null ? "" : field.value()));
+            }
+        }
+        if (fields.isEmpty() && input != null) {
+            addField(fields, input, "description", "报修内容");
+            addField(fields, input, "locationText", "位置");
+            addField(fields, input, "ticketTypeCode", "工单类型");
+            addField(fields, input, "priorityCode", "优先级");
+            addField(fields, input, "contactName", "联系人");
+        }
+        return fields;
+    }
+
+    private static void addField(List<Map<String, Object>> fields, Map<String, Object> input,
+                                 String key, String label) {
+        Object value = input.get(key);
+        if (value != null && !String.valueOf(value).isBlank()) {
+            fields.add(Map.of("label", label, "value", String.valueOf(value)));
+        }
     }
 }

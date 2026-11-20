@@ -34,6 +34,10 @@ public class HybridRouter implements Router {
         if (!rule.needClarification() && rule.confidence() >= properties.getRuleConfidenceThreshold()) {
             return rule;
         }
+        // 裸“创建工单/新建工单”必须先追问描述，不能交给 LLM 直接建空单
+        if (rule.needClarification() && RuleRouter.isGenericCreate(message)) {
+            return rule;
+        }
         Optional<RouteDecision> llm = llmRouterClient.route(message);
         return llm.orElse(rule);
     }

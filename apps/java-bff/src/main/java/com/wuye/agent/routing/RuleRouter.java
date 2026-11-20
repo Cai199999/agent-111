@@ -94,7 +94,16 @@ public class RuleRouter implements Router {
             return RouteDecision.route("property.ticket.assign", args, 0.95, "命中派单");
         }
 
-        if (containsAny(text, "建单", "报修", "报障", "漏水", "维修", "坏了", "故障")) {
+        // 注意：必须先判断“创建/新建 + 工单”，否则只命中“工单”会落到查询
+        boolean createIntent = containsAny(text, "建单", "创建工单", "新建工单",
+                "新建一张工单", "建一张工单", "创建一个工单", "新建一个工单",
+                "开单", "报修", "报障", "漏水", "维修", "坏了", "故障");
+        if (createIntent) {
+            if (isGenericCreate(text)) {
+                return RouteDecision.clarify(
+                        "请描述报修内容和位置，例如：3栋2单元水管漏水。",
+                        "建单缺少描述");
+            }
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("description", text);
             Matcher location = LOCATION.matcher(text);
@@ -119,6 +128,21 @@ public class RuleRouter implements Router {
         return RouteDecision.clarify(
                 "我可以帮你查工单、建单、派单，或查合同规则、审查合同。请再说具体一点。",
                 "未命中明确意图");
+    }
+
+    public static boolean isGenericCreate(String text) {
+        String normalized = text.replaceAll("[\\s，。！？!?：:、]", "");
+        return normalized.equals("创建工单")
+                || normalized.equals("新建工单")
+                || normalized.equals("新建一张工单")
+                || normalized.equals("创建一个工单")
+                || normalized.equals("新建一个工单")
+                || normalized.equals("建一张工单")
+                || normalized.equals("建单")
+                || normalized.equals("开单")
+                || normalized.equals("报修")
+                || normalized.equals("帮我建单")
+                || normalized.equals("帮我创建工单");
     }
 
     private static boolean containsAny(String text, String... keywords) {
