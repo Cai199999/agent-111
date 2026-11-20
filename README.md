@@ -21,10 +21,13 @@
 
 ## 当前状态
 
-- 设计文档已完成，尚未写业务代码。
+- 设计文档已同步到子 Agent 最新契约：物业 `0.8.0`、合同 `0.7.0`。
+- 子 Agent P0 整改已落地：委托令牌签发、Manifest 元数据、健康/就绪、`clientTaskId` 回查、取消、事件 `seq/afterSeq`。
 - 两个子 Agent 当前均未启动；主 Agent 端口/库/前缀/bucket 待登记确认。
 - 主 Agent 候选端口：`8600`（Java BFF）、`8700`（Python AI）、`5182`（Web dev）。
-- 物业子 Agent 需改用 `AGENT_SERVICE_PORT`（候选 `8402`），避免与合同子 Agent 的 `8400` 冲突。
+- 物业子 Agent 已改为 `AGENT_SERVICE_PORT` 必填，登记 `8402`；需手动补 `RESOURCES.md`。
+- 合同 `contract.resolve` 已上线；`contract.import` 仍为 `enabled=false`。
+- 主 Agent 原型正在搭建：先做 Java BFF + 内存存储 + Mock Adapter + 单对话框。
 
 ## 资源与边界
 

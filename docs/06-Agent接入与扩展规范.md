@@ -75,7 +75,12 @@ GET /.well-known/agent-card.json
   },
   "auth": {
     "schemes": ["InternalToken", "DelegationToken"],
-    "headers": ["X-Internal-Token", "X-Actor-Id", "X-Actor-Roles", "X-Delegation-Token"]
+    "headers": ["X-Internal-Token", "X-Actor-Id", "X-Actor-Roles", "X-Delegation-Token"],
+    "delegation": {
+      "issueEndpoint": "/agent/v1/delegation/token",
+      "audience": "future-agent",
+      "ttlMaxSeconds": 3600
+    }
   },
   "capabilities": [
     {
@@ -109,6 +114,7 @@ GET /.well-known/agent-card.json
   },
   "features": {
     "cancel": true,
+    "cancelSupported": true,
     "progress": true,
     "attachments": true,
     "idempotencyLookup": true,
@@ -200,7 +206,7 @@ POST /agent/v1/tasks/{taskId}/confirm
 ```
 
 - `APPROVE` → 执行；
-- `REJECT` → 终态失败，`error.category=USER_REJECTED`；
+- `REJECT` → 终态 `REJECTED`（或 `FAILED` + `error.category=USER_REJECTED`，由 Adapter 归一化）；
 - 令牌一次性、TTL 10 分钟、绑定任务/Actor/能力/租户；
 - 过期 → `FAILED(CONFIRM_TIMEOUT)`；
 - 重复 → `409 TASK_STATE_CONFLICT`。
@@ -250,6 +256,15 @@ GET /health   → {"status":"UP"}
 GET /ready    → {"status":"UP","checks":{"db":"UP","llm":"UP","storage":"UP"}}
 ```
 
+### 2.8 已上线版本与破坏性变更（2026-11-20）
+
+| Agent | 版本 | 破坏性/关键变更 | 主 Agent 处理 |
+|---|---|---|---|
+| `property-maintenance` | `0.8.0` | `AGENT_SERVICE_PORT` 必填；`REJECTED` 终态；健康路径改为 `/agent/v1/health`、`/agent/v1/ready`；事件补 `seq/type` | 配置 8402；状态归一化；按 Manifest 探活 |
+| `contract-review` | `0.7.0` | 旧委托令牌无 `audience` 返回 401；异步提交 `202`；`CANCELLED` 正式终态 | 按 Agent 重签委托；TaskGateway 接受 200/202；终态集合加 `CANCELLED` |
+
+> 主 Agent 不应依赖旧令牌缓存；升级后应清理 `wuye_agent:delegation:*` 并重新签发。
+
 ---
 
 ## 3. 方言适配
@@ -258,7 +273,7 @@ GET /ready    → {"status":"UP","checks":{"db":"UP","llm":"UP","storage":"UP"}}
 
 ```java
 public interface AgentAdapter {
-    String dialect();                                   // property-v07 / contract-v06 / canonical-v1
+    String dialect();                                   // property-v08 / contract-v07 / canonical-v1
     AgentDescriptor discover();                         // 拉取并解析 Manifest
     HealthStatus health();                              // 健康/就绪
     TaskResult submit(TaskRequest request);             // 提交任务
@@ -277,9 +292,9 @@ public interface AgentAdapter {
 
 | 方言 | Agent | 包络 | 错误码 | 健康路径 | 确认体 | 取消 | 异步 |
 |---|---|---|---|---|---|---|---|
-| `property-v07` | property-maintenance | `{code,data}` | 数字 | `/actuator/health` | token | 支持 | 进程内线程池 |
-| `contract-v06` | contract-review | 裸对象 | 字符串 | `/health`、`/ready` | token+decision | 未启用 | 有恢复 |
-| `canonical-v1` | 未来 Agent | 裸对象 | 字符串 | `/health`、`/ready` | token+decision | 支持 | 持久化 |
+| `property-v08` | property-maintenance | `{code,data}` | 数字 | `/agent/v1/health`、`/agent/v1/ready` | token+decision | 支持 | `db-recovery` |
+| `contract-v07` | contract-review | 裸对象 | 字符串 | `/health`、`/ready` | token+decision | 支持（协作式） | 启动恢复；异步 `202` |
+| `canonical-v1` | 未来 Agent | 裸对象 | 字符串 | `/health`、`/ready` | token+decision | 支持 | `persistent` |
 
 ### 3.3 适配要点
 
@@ -288,10 +303,11 @@ public interface AgentAdapter {
 | 响应取值 | `data.taskId/status` | `taskId/status` |
 | 错误 | 数字码映射 | 字符串码映射 |
 | 事件 | 由 status 事件合成 `seq/type` | 原生 `seq/eventType/payload` |
-| 确认 | 只传 token；`REJECT` 映射为 `FAILED(USER_REJECTED)` | 传 token+decision+comment |
-| 取消 | 原生支持 | 返回不支持，前端隐藏按钮 |
-| 委托 | 调签发端点 | 待签发端点/HMAC 规范 |
-| 附件 | 转发 ONSITE 上传 | 首期不支持 |
+| 确认 | 传 token+decision；`REJECT` → `REJECTED` | 传 token+decision；`CONFIRM_REJECTED` → `REJECTED` |
+| 取消 | 原生支持，带 `cancelReason` | 协作式取消，终态 `CANCELLED` |
+| 委托 | 调签发端点 | 调签发端点（`audience=agent-hetong`）；旧令牌 401 |
+| 异步 | `db-recovery`；重启可恢复 | 启动恢复；异步提交 `202` |
+| 附件 | 支持 ONSITE 上传/列表 | 首期不支持 |
 
 ---
 
@@ -380,11 +396,15 @@ Manifest.capabilities
 - [ ] 无令牌 401；错误令牌 401；越权 403；
 - [ ] 只读 SYNC 任务成功；
 - [ ] 写任务返回 `WAITING_CONFIRM`，未确认不落库；
-- [ ] 确认同意 `SUCCEEDED`；拒绝 `FAILED(USER_REJECTED)`；重复 409；过期 410；
+- [ ] 确认同意 `SUCCEEDED`；拒绝统一为 `REJECTED`；重复 409；过期 410；
+- [ ] 合同异步提交 `202`，同步 `200`；Adapter 不按 HTTP 码推断状态；
+- [ ] 合同旧委托令牌无 `audience` 返回 401；重签一次可恢复；
+- [ ] 物业/合同取消进入 `CANCELLED`；取消竞态下 Worker 不覆盖；
+- [ ] `contract.resolve` 可把合同号/名称解析为 `contractId`；`contract.import` 返回禁用；
 - [ ] 事件轮询 `afterSeq` 正确；SSE 回放 + `done`；
 - [ ] `clientTaskId` 幂等：同键同体原任务；异体 409；
 - [ ] `GET /tasks?clientTaskId=` 可恢复（若声明支持）；
-- [ ] 健康/就绪可用；
+- [ ] 健康/就绪可用；`ready` 失败不误判为进程死亡；
 - [ ] 429 带 `Retry-After`；
 - [ ] 错误对象含 `category/retryable`；
 - [ ] 主 Agent 未直连其数据库/对象存储；

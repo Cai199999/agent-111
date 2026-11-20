@@ -300,6 +300,11 @@ GET /api/v1/tasks/{taskNo}
     "capabilityId": "property.ticket.assign",
     "status": "WAITING_CONFIRM",
     "executionMode": "SYNC",
+    "cancelSupported": true,
+    "cancelable": true,
+    "progress": null,
+    "currentStep": null,
+    "cancelReason": null,
     "input": { "ticketId": "...", "assigneeId": 10002 },
     "output": null,
     "error": null,
@@ -341,7 +346,7 @@ Content-Type: application/json
 响应：
 
 ```json
-{ "code": "OK", "data": { "taskNo": "wt_...", "status": "SUCCEEDED" }, "traceId": "..." }
+{ "code": "OK", "data": { "taskNo": "wt_...", "status": "SUCCEEDED | REJECTED" }, "traceId": "..." }
 ```
 
 ### 4.4 取消
@@ -354,8 +359,9 @@ Content-Type: application/json
 ```
 
 - 仅 `PENDING/RUNNING/WAITING_CONFIRM` 可取消；
-- 合同子 Agent 当前未启用 `CANCELLED`，接口返回 `409 TASK_STATE_CONFLICT` 并提示“该 Agent 不支持取消”；
-- 取消后释放 Redis 确认令牌。
+- 物业与合同均已支持取消；合同为协作式取消，Worker 在步骤间检查取消信号；
+- 终态条件更新，Worker 不会覆盖 `CANCELLED`；
+- 取消后释放 Redis 确认令牌；审计记录 `cancelReason`。
 
 ### 4.5 任务事件轮询
 
@@ -442,8 +448,9 @@ Content-Type: application/json
   "agentKey": "property-maintenance",
   "displayName": "物业运维 Agent",
   "baseUrl": "http://127.0.0.1:8402",
-  "dialect": "property-v07",
+  "dialect": "property-v08",
   "credentialRef": "AGENT_PROPERTY",
+  "delegationAudience": "property-maintenance",
   "enabled": true
 }
 ```
@@ -471,7 +478,7 @@ POST /api/v1/admin/agents/{agentKey}/sync
   "code": "OK",
   "data": {
     "agentKey": "property-maintenance",
-    "manifestVersion": "0.7.0",
+    "manifestVersion": "0.8.0",
     "capabilityCount": 18,
     "changed": true,
     "warnings": []
@@ -614,18 +621,23 @@ GET /internal/v1/ai/health
 
 > 由 Java `AgentAdapter` 执行；以下为 Adapter 内部行为，不暴露给浏览器。
 
-| 动作 | 物业 Agent（property-v07） | 合同 Agent（contract-v06） |
+| 动作 | 物业 Agent（property-v08） | 合同 Agent（contract-v07） |
 |---|---|---|
 | Manifest | `GET /agent/v1/manifest` | `GET /agent/v1/manifest` |
 | 提交任务 | `POST /agent/v1/tasks` | `POST /agent/v1/tasks` |
 | 查询任务 | `GET /agent/v1/tasks/{taskId}` | `GET /agent/v1/tasks/{taskId}` |
 | 确认 | `POST /agent/v1/tasks/{taskId}/confirm` | 同左，body 带 `decision/comment` |
-| 取消 | `POST /agent/v1/tasks/{taskId}/cancel` | 当前不支持 |
+| 取消 | `POST /agent/v1/tasks/{taskId}/cancel` | `POST /agent/v1/tasks/{taskId}/cancel`（协作式） |
 | 事件 | `GET /agent/v1/tasks/{taskId}/events` | 同左，支持 `afterSeq` |
 | SSE | `GET /agent/v1/tasks/{taskId}/events/stream` | 同左 |
-| 健康 | `GET /actuator/health` | `GET /health`、`GET /ready` |
-| 委托令牌 | `POST /agent/v1/delegation/token` | 待子 Agent 提供签发端点 |
+| 健康 | `GET /agent/v1/health`、`GET /agent/v1/ready` | `GET /health`、`GET /ready` |
+| 委托令牌 | `POST /agent/v1/delegation/token` | `POST /agent/v1/delegation/token`（`audience=agent-hetong`） |
+| 合同解析 | - | `contract.resolve`（需委托令牌） |
+| 合同导入 | - | `contract.import`（Manifest `enabled=false`） |
 | 附件上传 | `POST /agent/v1/tickets/{ticketId}/attachments?type=ONSITE` | 首期无 |
+| 附件列表 | `GET /agent/v1/tickets/{ticketId}/attachments` | 首期无 |
+
+> 合同异步提交返回 `202`、同步返回 `200`；Adapter 必须接受两者，并以响应体 `status` 为准，不能按 HTTP 码推断状态。
 | 响应包络 | `{code,data}` | 裸对象 |
 | 错误码 | 数字（10001/10003/20005…） | 字符串（AUTH_* / TASK_STATE_CONFLICT…） |
 | 状态字段 | `data.status` | `status` |
@@ -656,6 +668,8 @@ Content-Type: application/json
 | `WAITING_CONFIRM` | `WAITING_CONFIRM` |
 | `SUCCEEDED` | `SUCCEEDED` |
 | `FAILED` | `FAILED` |
+| `REJECTED`（物业） | `REJECTED` |
+| `FAILED` + `CONFIRM_REJECTED`（合同） | `REJECTED` |
 | `CANCELLED` | `CANCELLED` |
 
 ### 10.2 事件
@@ -692,7 +706,11 @@ Content-Type: application/json
 - [ ] 发消息 SSE 依次收到 `meta → route → task → ... → done`；
 - [ ] `knowledge.search` 歧义返回 `ROUTE_AMBIGUOUS` 或追问事件；
 - [ ] 写任务返回 `WAITING_CONFIRM`，事件中不含确认令牌；
-- [ ] 确认同意后任务 `SUCCEEDED`；拒绝后 `FAILED(USER_REJECTED)`；
+- [ ] 确认同意后任务 `SUCCEEDED`；拒绝后统一为 `REJECTED`；
+- [ ] 合同异步提交 `202`、同步 `200` 都能正确识别；
+- [ ] 合同委托令牌带 `audience`；旧令牌返回 401 时重新签发一次；
+- [ ] 物业/合同取消都能进入 `CANCELLED`，Worker 不覆盖；
+- [ ] `contract.resolve` 能把合同号/名称解析为 `contractId`，再发起 `contract.review`；
 - [ ] 重复确认返回 409；过期返回 410；
 - [ ] 任务事件轮询 `afterSeq` 正确；SSE 断线可补发；
 - [ ] 附件上传类型/大小/魔数校验；

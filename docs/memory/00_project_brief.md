@@ -5,8 +5,8 @@
 - **项目**：`wuye-agent`（物业主 Agent / 单对话框编排 Agent）
 - **目标**：用一个对话框统一接入物业运维与合同审查两个领域子 Agent，并提供可扩展的 Agent 接入层。
 - **首期子 Agent**：
-  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.7.0）
-  - `contract-review`：合同审查/规则/知识（协议 `agent-task-v1` 0.6.0）
+  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.8.0）
+  - `contract-review`：合同审查/规则/知识（协议 `agent-task-v1` 0.7.0）
 
 ## 核心技术栈
 
@@ -42,11 +42,14 @@
 
 ## 当前状态（2026-11-20）
 
-- 五份设计文档 + Agent 扩展规范已完成（`docs/01`–`06`）。
-- **尚未写业务代码**。
-- 两个子 Agent 当前均未启动（`8400/8401/8500` 未监听）。
+- 五份设计文档 + Agent 扩展规范已完成并同步到最新契约。
+- 子 Agent P0 已落地：物业 `0.8.0`、合同 `0.7.0`。
+  - 合同：委托令牌签发、Manifest 元数据、`clientTaskId` 回查、启用 `CANCELLED`、`contract.resolve`；`contract.import` 仍禁用。
+  - 物业：`AGENT_SERVICE_PORT` 必填（8402）、Manifest 元数据、`decision` 确认、`REJECTED` 终态、事件 `seq/afterSeq`、附件列表；异步声明 `db-recovery`。
+- 两个子 Agent 当前均未启动（`8400/8401/8500` 已释放；`8200/8300/8402` 无进程）。
 - 主 Agent 候选端口：`8600`（Java）、`8700`（Python）、`5182`（Web dev），均待登记。
-- 物业子 Agent 需改用 `AGENT_SERVICE_PORT`（候选 `8402`），不能沿用与合同冲突的 `8400`。
+- `RESOURCES.md` 的 `8402` 登记需用户手动补；主 Agent 不越界修改。
+- 主 Agent 原型：Java BFF + 内存存储 + Mock Adapter + 单对话框，优先跑通只读/确认/取消链路。
 
 ## 关键决策
 
