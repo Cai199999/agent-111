@@ -1,5 +1,6 @@
 package com.wuye.agent.api;
 
+import com.wuye.agent.audit.AuditService;
 import com.wuye.agent.auth.AuthContext;
 import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.chat.ChatService;
@@ -30,10 +31,12 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class ChatController {
 
     private final ChatService chatService;
+    private final AuditService auditService;
     private final Ids ids;
 
-    public ChatController(ChatService chatService, Ids ids) {
+    public ChatController(ChatService chatService, AuditService auditService, Ids ids) {
         this.chatService = chatService;
+        this.auditService = auditService;
         this.ids = ids;
     }
 
@@ -66,6 +69,7 @@ public class ChatController {
         if (!chatService.deleteSession(sessionNo)) {
             throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
         }
+        auditService.record("SESSION_DELETE", "SESSION", sessionNo, "SUCCESS", Map.of());
         return ApiResponse.ok(Map.of("sessionNo", sessionNo, "deleted", true), trace(traceId));
     }
 

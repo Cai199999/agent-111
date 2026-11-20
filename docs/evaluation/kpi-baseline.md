@@ -49,7 +49,19 @@
 
 > token/成本已落 `wa_llm_usage`；成本默认 0，需配置 `LLM_INPUT_PRICE_PER_1K` / `LLM_OUTPUT_PRICE_PER_1K`。
 
-## 4. 采集与展示原则
+## 4. 审计覆盖
+
+已落 `wa_audit_log` 的动作：
+
+- `LOGIN`（成功/失败）
+- `TASK_SUBMIT`
+- `TASK_CONFIRM`
+- `TASK_CANCEL`
+- `SESSION_DELETE`
+
+查询：`GET /api/v1/admin/audit-logs`（ADMIN）。后续需补 `TOOL_EXECUTE`、Agent 管理、配置变更等动作，达到 100% 覆盖。
+
+## 5. 采集与展示原则
 
 1. 主 Agent 只统计自己的任务与调用，不读取子 Agent 业务库；
 2. 漏斗是“成功任务调用次数”，不是唯一工单数；需要唯一工单口径时由子 Agent 提供报表；

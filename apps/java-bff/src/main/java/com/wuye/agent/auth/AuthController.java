@@ -1,9 +1,11 @@
 package com.wuye.agent.auth;
 
 import com.wuye.agent.agent.catalog.AgentCatalogService;
+import com.wuye.agent.audit.AuditService;
 import com.wuye.agent.common.ApiResponse;
 import com.wuye.agent.common.Ids;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,11 +28,14 @@ public class AuthController {
 
     private final AuthService authService;
     private final AgentCatalogService catalogService;
+    private final AuditService auditService;
     private final Ids ids;
 
-    public AuthController(AuthService authService, AgentCatalogService catalogService, Ids ids) {
+    public AuthController(AuthService authService, AgentCatalogService catalogService,
+                          AuditService auditService, Ids ids) {
         this.authService = authService;
         this.catalogService = catalogService;
+        this.auditService = auditService;
         this.ids = ids;
     }
 
@@ -44,8 +49,14 @@ public class AuthController {
         try {
             result = authService.login(request.username().strip(), request.password());
             log.info("login success username={} roles={}", result.user().username(), result.user().roles());
+            auditService.recordAs(result.user().username(), result.user().id(),
+                    "LOGIN", "AUTH", result.user().username(), null, null, "SUCCESS",
+                    Map.of("roles", result.user().roles()));
         } catch (RuntimeException ex) {
             log.warn("login failed username={} reason={}", request.username(), ex.getMessage());
+            auditService.recordAs(request.username(), null,
+                    "LOGIN", "AUTH", request.username(), null, null, "FAILED",
+                    Map.of("reason", ex.getMessage() == null ? "login failed" : ex.getMessage()));
             throw ex;
         }
         return ApiResponse.ok(new LoginResponse(

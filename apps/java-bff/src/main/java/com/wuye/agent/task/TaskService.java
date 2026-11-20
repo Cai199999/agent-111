@@ -10,6 +10,7 @@ import com.wuye.agent.agent.model.Confirmation;
 import com.wuye.agent.agent.model.Decision;
 import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
+import com.wuye.agent.audit.AuditService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.store.Store;
@@ -32,11 +33,13 @@ public class TaskService {
 
     private final Store store;
     private final AdapterRegistry registry;
+    private final AuditService auditService;
     private final Ids ids;
 
-    public TaskService(Store store, AdapterRegistry registry, Ids ids) {
+    public TaskService(Store store, AdapterRegistry registry, AuditService auditService, Ids ids) {
         this.store = store;
         this.registry = registry;
+        this.auditService = auditService;
         this.ids = ids;
     }
 
@@ -64,6 +67,8 @@ public class TaskService {
             apply(task, AdapterResult.failed(task.childTaskId,
                     AgentError.dependency("子 Agent 调用失败：" + ex.getMessage()), List.of()));
         }
+        auditService.record("TASK_SUBMIT", "TASK", task.taskNo, task.agentKey, task.capabilityId,
+                task.status.name(), Map.of("executionMode", executionMode));
         return task;
     }
 
@@ -118,6 +123,8 @@ public class TaskService {
             task.finishedAt = Instant.now();
         }
         store.putTask(task);
+        auditService.record("TASK_CONFIRM", "TASK", task.taskNo, task.agentKey, task.capabilityId,
+                task.status.name(), Map.of("decision", decision.name()));
         return task;
     }
 
@@ -145,6 +152,8 @@ public class TaskService {
             store.removeConfirmationToken(task.confirmation.token());
         }
         store.putTask(task);
+        auditService.record("TASK_CANCEL", "TASK", task.taskNo, task.agentKey, task.capabilityId,
+                task.status.name(), Map.of("reason", reason == null ? "" : reason));
         return task;
     }
 

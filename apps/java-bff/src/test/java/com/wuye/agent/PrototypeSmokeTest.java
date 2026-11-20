@@ -132,6 +132,24 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void adminAuditLogsContainLoginAndTaskActions() throws Exception {
+        String session = createSession();
+        send(session, "我有哪些待处理工单？");
+
+        String logs = getWithToken("/api/v1/admin/audit-logs?limit=50", adminToken);
+        assertTrue(logs.contains("\"LOGIN\""), logs);
+        assertTrue(logs.contains("\"TASK_SUBMIT\""), logs);
+
+        String userToken = login("user", "user123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(userToken);
+        ResponseEntity<String> forbidden = rest.exchange(
+                url("/api/v1/admin/audit-logs"), HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.FORBIDDEN, forbidden.getStatusCode());
+    }
+
+    @Test
     void toolCatalogAndExecuteReturnRawOutput() throws Exception {
         String tools = getWithToken("/api/v1/tools", adminToken);
         assertTrue(tools.contains("property.ticket.query"), tools);

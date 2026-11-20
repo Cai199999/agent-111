@@ -37,6 +37,14 @@
   - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
 - 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
 
+## 操作审计
+
+- 表：`wa_audit_log`（V6）；
+- 记录：`LOGIN`、`TASK_SUBMIT`、`TASK_CONFIRM`、`TASK_CANCEL`、`SESSION_DELETE`；
+- 字段：traceId、user、action、resource、resourceId、agentKey、capabilityId、status、detail、createdAt；
+- 查询：`GET /api/v1/admin/audit-logs?limit=50&action=...`（ADMIN）；
+- 前端：用户菜单 → 审计日志（仅 ADMIN）。
+
 ## 数据看板
 
 - `GET /api/v1/admin/metrics/summary?from=...&to=...`（ADMIN）；
@@ -82,7 +90,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 31/31 passed（Python AI 另 9/9）
+# 当前：Java 32/32 passed（Python AI 另 9/9）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

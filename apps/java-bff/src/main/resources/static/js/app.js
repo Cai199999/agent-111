@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth11';
+const UI_VERSION = '20261120-auth12';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -167,6 +167,10 @@ const els = {
   dashboardFunnel: document.getElementById('dashboardFunnel'),
   dashboardTable: document.getElementById('dashboardTable'),
   dashboardClose: document.getElementById('dashboardClose'),
+  auditMenuItem: document.getElementById('auditMenuItem'),
+  auditModal: document.getElementById('auditModal'),
+  auditList: document.getElementById('auditList'),
+  auditClose: document.getElementById('auditClose'),
   sessionList: document.getElementById('sessionList'),
   agentStatus: document.getElementById('agentStatus'),
   messages: document.getElementById('messages'),
@@ -244,6 +248,7 @@ function bindEvents() {
     if (!action) return;
     els.userDropdown.hidden = true;
     if (action === 'dashboard') openDashboard();
+    if (action === 'audit') openAudit();
     if (action === 'profile') openProfile();
     if (action === 'settings') openSettings();
     if (action === 'logout') logoutLocal();
@@ -263,6 +268,9 @@ function bindEvents() {
   els.settingsSave.addEventListener('click', saveSettings);
   els.dashboardClose.addEventListener('click', () => {
     els.dashboardModal.hidden = true;
+  });
+  els.auditClose.addEventListener('click', () => {
+    els.auditModal.hidden = true;
   });
 }
 
@@ -324,8 +332,12 @@ function renderCurrentUser() {
   els.userAvatar.textContent = (state.me.displayName || state.me.username || '?').slice(0, 1);
   const role = (state.me.roles || [])[0] || 'USER';
   els.userRole.textContent = ({ ADMIN: '管理员', WORKER: '工人', USER: '用户' })[role] || role;
+  const isAdmin = (state.me.roles || []).includes('ADMIN');
   if (els.dashboardMenuItem) {
-    els.dashboardMenuItem.hidden = !(state.me.roles || []).includes('ADMIN');
+    els.dashboardMenuItem.hidden = !isAdmin;
+  }
+  if (els.auditMenuItem) {
+    els.auditMenuItem.hidden = !isAdmin;
   }
   const hasContract = state.agents.some((agent) => agent.agentKey === 'contract-review');
   const propertyPill = document.getElementById('propertyPill');
@@ -1316,6 +1328,46 @@ function renderDashboard(data) {
     table.append(row);
   }
   els.dashboardTable.replaceChildren(table);
+}
+
+const ACTION_LABELS = {
+  LOGIN: '登录',
+  TASK_SUBMIT: '提交任务',
+  TASK_CONFIRM: '确认任务',
+  TASK_CANCEL: '取消任务',
+  SESSION_DELETE: '删除会话',
+  TOOL_EXECUTE: '调用工具',
+};
+
+async function openAudit() {
+  els.auditModal.hidden = false;
+  els.auditList.textContent = '加载中…';
+  try {
+    const logs = await api('/api/v1/admin/audit-logs?limit=50');
+    els.auditList.replaceChildren();
+    if (!logs.length) {
+      els.auditList.append(el('div', 'meta', '暂无审计记录'));
+      return;
+    }
+    for (const log of logs) {
+      const row = el('div', 'audit-row');
+      const main = el('div', 'main',
+        `${ACTION_LABELS[log.action] || log.action} · ${log.resource || ''}${log.resourceId ? ` · ${log.resourceId}` : ''}`);
+      const status = el('span', `status ${log.status}`, log.status === 'SUCCESS' ? '成功' : '失败');
+      const meta = el('div', 'meta',
+        `${log.username || 'anonymous'} · ${formatDate(log.createdAt)}${log.capabilityId ? ` · ${capabilityLabel(log.capabilityId)}` : ''}`);
+      row.append(main, status, meta);
+      els.auditList.append(row);
+    }
+  } catch (error) {
+    els.auditList.textContent = error.message || '加载失败';
+  }
+}
+
+function formatDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
 }
 
 function showToast(message) {
