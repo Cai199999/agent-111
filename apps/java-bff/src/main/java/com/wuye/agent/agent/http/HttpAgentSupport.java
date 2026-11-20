@@ -40,6 +40,7 @@ public class HttpAgentSupport {
         this.properties = properties;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
                 .build();
     }

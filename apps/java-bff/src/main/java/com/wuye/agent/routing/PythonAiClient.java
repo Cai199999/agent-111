@@ -44,6 +44,7 @@ public class PythonAiClient implements LlmRouterClient {
         this.registry = registry;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(Math.min(properties.getTimeoutMs(), 3000)))
                 .build();
     }

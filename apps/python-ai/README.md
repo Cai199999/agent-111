@@ -84,6 +84,13 @@ Content-Type: application/json
 }
 ```
 
+## 已验证
+
+- DeepSeek `deepseek-chat` 实网调用成功；
+- `1栋大堂的灯不亮了` → `property.ticket.create`，经确认后 `SUCCEEDED`；
+- `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
+- Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
+
 ## 行为与安全
 
 - 只允许从请求里的 `capabilities` 选 `capabilityId`；未知能力会被降级为追问。

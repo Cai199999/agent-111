@@ -55,6 +55,7 @@
   - 持久化：`wuye_agent_db` + Flyway；会话/消息/任务/事件跨重启验证通过；令牌 AES-GCM 加密落库。
   - 真实 HTTP：`WUYE_AGENT_MODE=http` 接 8402/8400，支持方言、200/202、委托令牌、错误映射；子 Agent 停机时返回 `FAILED(DEPENDENCY)` 不崩溃。
   - LLM 路由：`apps/python-ai` FastAPI + DeepSeek/OpenAI 兼容，Java 规则优先、LLM 兜底；LLM 失败 30s 熔断回退规则。Java 19/19、Python 5/5 测试通过。
+  - DeepSeek 实网验证通过：`1栋大堂的灯不亮了` → `property.ticket.create`（LLM，确认后 SUCCEEDED）；`付款节点一般怎么审` → LLM 追问消歧。
   - 临时端口 smoke：首页/JS/CSS 200、派单确认链路成功、SSE 无 `confirmationToken`；MySQL 重启后数据保留。
   - 原型边界：无真实登录、Manifest 静态、无 Redis/MinIO、任务事件轮询；子 Agent 未启动，尚未活体联调；LLM 需用户填 `DEEPSEEK_API_KEY`。
 
