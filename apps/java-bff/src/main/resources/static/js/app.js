@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth9';
+const UI_VERSION = '20261120-auth10';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -161,6 +161,12 @@ const els = {
   settingMemory: document.getElementById('settingMemory'),
   settingsClose: document.getElementById('settingsClose'),
   settingsSave: document.getElementById('settingsSave'),
+  dashboardMenuItem: document.getElementById('dashboardMenuItem'),
+  dashboardModal: document.getElementById('dashboardModal'),
+  dashboardCards: document.getElementById('dashboardCards'),
+  dashboardFunnel: document.getElementById('dashboardFunnel'),
+  dashboardTable: document.getElementById('dashboardTable'),
+  dashboardClose: document.getElementById('dashboardClose'),
   sessionList: document.getElementById('sessionList'),
   agentStatus: document.getElementById('agentStatus'),
   messages: document.getElementById('messages'),
@@ -237,6 +243,7 @@ function bindEvents() {
     const action = event.target.closest('button')?.dataset.action;
     if (!action) return;
     els.userDropdown.hidden = true;
+    if (action === 'dashboard') openDashboard();
     if (action === 'profile') openProfile();
     if (action === 'settings') openSettings();
     if (action === 'logout') logoutLocal();
@@ -254,6 +261,9 @@ function bindEvents() {
     els.settingsModal.hidden = true;
   });
   els.settingsSave.addEventListener('click', saveSettings);
+  els.dashboardClose.addEventListener('click', () => {
+    els.dashboardModal.hidden = true;
+  });
 }
 
 async function handleLogin(event) {
@@ -314,6 +324,9 @@ function renderCurrentUser() {
   els.userAvatar.textContent = (state.me.displayName || state.me.username || '?').slice(0, 1);
   const role = (state.me.roles || [])[0] || 'USER';
   els.userRole.textContent = ({ ADMIN: '管理员', WORKER: '工人', USER: '用户' })[role] || role;
+  if (els.dashboardMenuItem) {
+    els.dashboardMenuItem.hidden = !(state.me.roles || []).includes('ADMIN');
+  }
   const hasContract = state.agents.some((agent) => agent.agentKey === 'contract-review');
   const propertyPill = document.getElementById('propertyPill');
   const contractPill = document.getElementById('contractPill');
@@ -1239,6 +1252,66 @@ function saveSettings() {
   localStorage.setItem('wuye_memory', els.settingMemory.checked ? 'on' : 'off');
   els.settingsModal.hidden = true;
   showToast('设置已保存');
+}
+
+async function openDashboard() {
+  els.dashboardModal.hidden = false;
+  els.dashboardCards.textContent = '加载中…';
+  els.dashboardFunnel.replaceChildren();
+  els.dashboardTable.replaceChildren();
+  try {
+    const data = await api('/api/v1/admin/metrics/summary');
+    renderDashboard(data);
+  } catch (error) {
+    els.dashboardCards.textContent = error.message || '加载失败';
+  }
+}
+
+function renderDashboard(data) {
+  const tasks = data.tasks || {};
+  const human = data.humanIntervention || {};
+  const cards = [
+    ['任务总数', String(tasks.total || 0)],
+    ['成功率', `${Math.round((tasks.successRate || 0) * 100)}%`],
+    ['待确认', String(tasks.waitingConfirm || 0)],
+    ['平均耗时', `${tasks.avgLatencyMs || 0} ms`],
+    ['人工介入率', `${Math.round((human.rate || 0) * 100)}%`],
+  ];
+  els.dashboardCards.replaceChildren(...cards.map(([label, value]) => {
+    const card = el('div', 'metric-card');
+    card.append(el('div', 'label', label), el('div', 'value', value));
+    return card;
+  }));
+
+  const funnel = data.funnel || {};
+  const steps = [
+    ['建单', funnel.create || 0],
+    ['派单', funnel.assign || 0],
+    ['接单', funnel.accept || 0],
+    ['解决', funnel.resolve || 0],
+    ['回访', funnel.visit || 0],
+  ];
+  els.dashboardFunnel.replaceChildren(...steps.map(([name, count]) => {
+    const step = el('div', 'funnel-step');
+    step.append(el('div', 'name', name), el('div', 'count', String(count)));
+    return step;
+  }));
+
+  const table = el('table', 'metric-table');
+  const head = el('tr');
+  ['能力', '调用数', '成功', '失败'].forEach((label) => head.append(el('th', '', label)));
+  table.append(head);
+  for (const item of data.byCapability || []) {
+    const row = el('tr');
+    row.append(
+      el('td', '', capabilityLabel(item.capabilityId)),
+      el('td', '', String(item.total)),
+      el('td', '', String(item.succeeded)),
+      el('td', '', String(item.failed)),
+    );
+    table.append(row);
+  }
+  els.dashboardTable.replaceChildren(table);
 }
 
 function showToast(message) {

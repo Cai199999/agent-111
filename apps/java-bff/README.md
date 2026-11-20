@@ -37,6 +37,15 @@
   - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
 - 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
 
+## 数据看板
+
+- `GET /api/v1/admin/metrics/summary?from=...&to=...`（ADMIN）；
+- 指标：任务总数、成功率、失败/拒绝、待确认、平均/P95 耗时、人工介入率；
+- 工单漏斗：建单/派单/接单/解决/回访的成功任务数；
+- 能力/Agent 分布；
+- 前端用户菜单 → 数据看板（仅 ADMIN 可见）；
+- 口径说明见 [`docs/evaluation/kpi-baseline.md`](../../docs/evaluation/kpi-baseline.md)。
+
 ## 登录与权限
 
 - 登录页 + JWT；演示账号：`admin/admin123`、`worker/worker123`、`user/user123`（开发默认，生产必须改）。
@@ -73,7 +82,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 30/30 passed（Python AI 另 9/9）
+# 当前：Java 31/31 passed（Python AI 另 9/9）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

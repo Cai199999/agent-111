@@ -115,6 +115,22 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void adminMetricsSummaryWorks() throws Exception {
+        String metrics = getWithToken("/api/v1/admin/metrics/summary", adminToken);
+        assertTrue(metrics.contains("\"tasks\""), metrics);
+        assertTrue(metrics.contains("\"funnel\""), metrics);
+        assertTrue(metrics.contains("\"humanIntervention\""), metrics);
+
+        String userToken = login("user", "user123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(userToken);
+        ResponseEntity<String> forbidden = rest.exchange(
+                url("/api/v1/admin/metrics/summary"), HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.FORBIDDEN, forbidden.getStatusCode());
+    }
+
+    @Test
     void toolCatalogAndExecuteReturnRawOutput() throws Exception {
         String tools = getWithToken("/api/v1/tools", adminToken);
         assertTrue(tools.contains("property.ticket.query"), tools);
