@@ -19,6 +19,9 @@
 | 能力分布 | 按 `capabilityId` 聚合调用/成功/失败 | 路由与能力治理 |
 | Agent 分布 | 按 `agentKey` 聚合 | 子 Agent 健康度 |
 | 工单漏斗 | 建单/派单/接单/解决/回访 成功次数 | G1 闭环（任务级，非唯一工单） |
+| LLM 调用数 | ROUTE/EXPLAIN/REPAIR 次数 | G5 |
+| Token 总量 | prompt + completion | G5 |
+| 成本（元） | token × 配置单价 | G5 |
 
 ## 2. 当前基线（2026-11-20，开发库）
 
@@ -43,7 +46,8 @@
 | 分诊意图准确率 | 需要人工标注集 | 评测集 + 路由决策 |
 | RAG Recall@5 | 需要金标检索集 | 知识库评测 |
 | 工具任务成功率 | 已有任务成功率，需按工具细分 | 能力维度已有 |
-| token/成本 | 目前只写 Python 日志 | `wa_llm_usage` 表 |
+
+> token/成本已落 `wa_llm_usage`；成本默认 0，需配置 `LLM_INPUT_PRICE_PER_1K` / `LLM_OUTPUT_PRICE_PER_1K`。
 
 ## 4. 采集与展示原则
 

@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth10';
+const UI_VERSION = '20261120-auth11';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -1270,12 +1270,16 @@ async function openDashboard() {
 function renderDashboard(data) {
   const tasks = data.tasks || {};
   const human = data.humanIntervention || {};
+  const llm = data.llmUsage || {};
   const cards = [
     ['任务总数', String(tasks.total || 0)],
     ['成功率', `${Math.round((tasks.successRate || 0) * 100)}%`],
     ['待确认', String(tasks.waitingConfirm || 0)],
     ['平均耗时', `${tasks.avgLatencyMs || 0} ms`],
     ['人工介入率', `${Math.round((human.rate || 0) * 100)}%`],
+    ['LLM 调用', String(llm.calls || 0)],
+    ['Token 总量', String(llm.totalTokens || 0)],
+    ['成本（元）', Number(llm.costCny || 0).toFixed(4)],
   ];
   els.dashboardCards.replaceChildren(...cards.map(([label, value]) => {
     const card = el('div', 'metric-card');

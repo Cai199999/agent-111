@@ -46,6 +46,8 @@ wuye:
     timeout-ms: 9000
     confidence-threshold: 0.55
     rule-confidence-threshold: 0.85
+    input-price-per-1k: ${LLM_INPUT_PRICE_PER_1K:0}
+    output-price-per-1k: ${LLM_OUTPUT_PRICE_PER_1K:0}
   auth:
     jwt-secret: ${JWT_SECRET:}
     token-ttl-seconds: 28800

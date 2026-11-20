@@ -15,6 +15,7 @@ import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.http.AgentHttpProperties;
 import com.wuye.agent.agent.http.HttpAgentSupport;
 import com.wuye.agent.common.Ids;
+import com.wuye.agent.metrics.InMemoryLlmUsageStore;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -60,7 +61,7 @@ class PythonAiClientTest {
         OptionCatalogService optionCatalogService = new OptionCatalogService(
                 agentProperties, agentSupport, mapper, new Ids());
         client = new PythonAiClient(properties, registry, schemaService,
-                optionCatalogService, mapper);
+                optionCatalogService, new InMemoryLlmUsageStore(), mapper);
     }
 
     @AfterEach

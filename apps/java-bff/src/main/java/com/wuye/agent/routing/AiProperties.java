@@ -16,6 +16,8 @@ public class AiProperties {
     private int timeoutMs = 9000;
     private double confidenceThreshold = 0.55;
     private double ruleConfidenceThreshold = 0.85;
+    private double inputPricePer1k = 0.0;
+    private double outputPricePer1k = 0.0;
 
     public boolean isEnabled() {
         return enabled;
@@ -63,5 +65,21 @@ public class AiProperties {
 
     public void setRuleConfidenceThreshold(double ruleConfidenceThreshold) {
         this.ruleConfidenceThreshold = ruleConfidenceThreshold;
+    }
+
+    public double getInputPricePer1k() {
+        return inputPricePer1k;
+    }
+
+    public void setInputPricePer1k(double inputPricePer1k) {
+        this.inputPricePer1k = inputPricePer1k;
+    }
+
+    public double getOutputPricePer1k() {
+        return outputPricePer1k;
+    }
+
+    public void setOutputPricePer1k(double outputPricePer1k) {
+        this.outputPricePer1k = outputPricePer1k;
     }
 }

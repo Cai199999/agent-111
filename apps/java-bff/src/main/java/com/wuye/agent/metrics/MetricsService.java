@@ -22,9 +22,11 @@ import org.springframework.stereotype.Service;
 public class MetricsService {
 
     private final Store store;
+    private final LlmUsageStore usageStore;
 
-    public MetricsService(Store store) {
+    public MetricsService(Store store, LlmUsageStore usageStore) {
         this.store = store;
+        this.usageStore = usageStore;
     }
 
     public MetricsSummary summary(Instant from, Instant to) {
@@ -56,7 +58,8 @@ public class MetricsService {
                 successRate, average(latencies), percentile95(latencies));
 
         return new MetricsSummary(from, to, taskMetrics,
-                byCapability(tasks), byAgent(tasks), funnel(tasks), humanIntervention(tasks));
+                byCapability(tasks), byAgent(tasks), funnel(tasks), humanIntervention(tasks),
+                usageStore.summary(from, to));
     }
 
     private List<CapabilityMetric> byCapability(List<TaskRecord> tasks) {
@@ -148,7 +151,8 @@ public class MetricsService {
             List<CapabilityMetric> byCapability,
             List<AgentMetric> byAgent,
             Map<String, Long> funnel,
-            HumanIntervention humanIntervention
+            HumanIntervention humanIntervention,
+            LlmUsageSummary llmUsage
     ) {
     }
 

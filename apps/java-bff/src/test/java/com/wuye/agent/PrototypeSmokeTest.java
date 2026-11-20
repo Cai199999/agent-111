@@ -120,6 +120,7 @@ class PrototypeSmokeTest {
         assertTrue(metrics.contains("\"tasks\""), metrics);
         assertTrue(metrics.contains("\"funnel\""), metrics);
         assertTrue(metrics.contains("\"humanIntervention\""), metrics);
+        assertTrue(metrics.contains("\"llmUsage\""), metrics);
 
         String userToken = login("user", "user123");
         HttpHeaders headers = new HttpHeaders();

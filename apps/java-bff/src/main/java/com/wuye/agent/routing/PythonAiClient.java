@@ -7,12 +7,15 @@ import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.model.Capability;
+import com.wuye.agent.metrics.LlmUsageEvent;
+import com.wuye.agent.metrics.LlmUsageStore;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +41,7 @@ public class PythonAiClient implements LlmRouterClient {
     private final AdapterRegistry registry;
     private final CapabilitySchemaService schemaService;
     private final OptionCatalogService optionCatalogService;
+    private final LlmUsageStore usageStore;
     private final ObjectMapper mapper;
     private final HttpClient http;
     /** 简单熔断：LLM 失败后 30s 内直接回退规则，避免每轮都等超时。 */
@@ -45,11 +49,13 @@ public class PythonAiClient implements LlmRouterClient {
 
     public PythonAiClient(AiProperties properties, AdapterRegistry registry,
                           CapabilitySchemaService schemaService,
-                          OptionCatalogService optionCatalogService, ObjectMapper mapper) {
+                          OptionCatalogService optionCatalogService,
+                          LlmUsageStore usageStore, ObjectMapper mapper) {
         this.properties = properties;
         this.registry = registry;
         this.schemaService = schemaService;
         this.optionCatalogService = optionCatalogService;
+        this.usageStore = usageStore;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -105,6 +111,7 @@ public class PythonAiClient implements LlmRouterClient {
             JsonNode root = mapper.readTree(response.body());
             JsonNode data = root.has("data") ? root.get("data") : root;
             nextRetryAt = 0;
+            recordUsage("ROUTE", data);
             RouteDecision decision = toDecision(data);
             log.info("LLM 路由 capability={} confidence={} clarify={} usage={}",
                     decision.capabilityId(), decision.confidence(), decision.needClarification(),
@@ -149,12 +156,29 @@ public class PythonAiClient implements LlmRouterClient {
             if (data.has("data")) {
                 data = data.get("data");
             }
+            recordUsage("EXPLAIN", data);
             String explanation = text(data, "explanation");
             return explanation == null ? Optional.empty() : Optional.of(explanation);
         } catch (Exception ex) {
             log.warn("LLM 结果解释失败：{}", ex.getMessage());
             return Optional.empty();
         }
+    }
+
+    private void recordUsage(String operation, JsonNode data) {
+        if (usageStore == null || data == null) {
+            return;
+        }
+        JsonNode usage = data.get("usage");
+        if (usage == null || usage.isNull()) {
+            return;
+        }
+        int prompt = usage.path("promptTokens").asInt(0);
+        int completion = usage.path("completionTokens").asInt(0);
+        int total = usage.path("totalTokens").asInt(prompt + completion);
+        double cost = prompt / 1000.0 * properties.getInputPricePer1k()
+                + completion / 1000.0 * properties.getOutputPricePer1k();
+        usageStore.record(new LlmUsageEvent(operation, prompt, completion, total, cost, Instant.now()));
     }
 
     private RouteDecision toDecision(JsonNode data) {
@@ -256,6 +280,7 @@ public class PythonAiClient implements LlmRouterClient {
                 data = data.get("data");
             }
             nextRetryAt = 0;
+            recordUsage("REPAIR", data);
             String repairedCapability = text(data, "capabilityId");
             return Optional.of(new RepairOutcome(
                     repairedCapability == null ? capabilityId : repairedCapability,
