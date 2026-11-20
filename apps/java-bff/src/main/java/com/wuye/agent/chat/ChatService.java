@@ -169,8 +169,9 @@ public class ChatService {
                 answer = "任务已提交，正在执行，稍后可在任务卡片查看进度。";
             } else if (task.status == TaskStatus.SUCCEEDED) {
                 contentType = "RESULT";
-                answer = "子 Agent 返回结果如下。";
-                // 原样透传子 Agent 的 output，不在主 Agent 侧改写/生成内容
+                // 自然语言只做“解释”，原始 output 仍然原样透传
+                answer = llmRouterClient.explain(content, capability.capabilityId(), task.output)
+                        .orElse("子 Agent 返回结果如下。");
                 emit(emitter, "result", Map.of(
                         "taskNo", task.taskNo,
                         "capabilityId", capability.capabilityId(),

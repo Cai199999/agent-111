@@ -41,6 +41,7 @@ class PythonAiClientTest {
         port = server.getAddress().getPort();
         server.createContext("/internal/v1/ai/route", this::handle);
         server.createContext("/internal/v1/ai/repair", this::handleRepair);
+        server.createContext("/internal/v1/ai/explain", this::handleExplain);
         server.start();
 
         AiProperties properties = new AiProperties();
@@ -88,6 +89,24 @@ class PythonAiClientTest {
                 "60001", "ticketTypeCode不能为空");
         assertTrue(repaired.isPresent());
         assertEquals("PLUMBING", repaired.get().args().get("ticketTypeCode"));
+    }
+
+    @Test
+    void explainReturnsNaturalLanguageWithoutChangingOutput() {
+        var explanation = client.explain("我有哪些工单？", "property.ticket.query",
+                java.util.List.of(Map.of("ticketNo", "GD1")));
+        assertTrue(explanation.isPresent());
+        assertTrue(explanation.get().contains("1 条"));
+    }
+
+    private void handleExplain(HttpExchange exchange) throws IOException {
+        byte[] bytes = "{\"explanation\":\"子 Agent 返回 1 条工单记录，原始数据见下方。\"}"
+                .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, bytes.length);
+        try (OutputStream output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
     }
 
     private void handleRepair(HttpExchange exchange) throws IOException {

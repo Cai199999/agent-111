@@ -66,6 +66,17 @@ class RepairRequest(BaseModel):
     optionCatalog: dict[str, Any] | None = None
 
 
+class ExplainRequest(BaseModel):
+    userMessage: str
+    capabilityId: str
+    output: Any = None
+
+
+class ExplainResponse(BaseModel):
+    explanation: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
 class RepairResponse(BaseModel):
     capabilityId: str
     args: dict[str, Any] = Field(default_factory=dict)

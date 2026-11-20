@@ -19,4 +19,8 @@ public interface LlmRouterClient {
                                            String errorCode, String errorMessage) {
         return Optional.empty();
     }
+
+    default Optional<String> explain(String userMessage, String capabilityId, Object output) {
+        return Optional.empty();
+    }
 }

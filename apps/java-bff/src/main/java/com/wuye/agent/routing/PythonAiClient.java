@@ -117,6 +117,45 @@ public class PythonAiClient implements LlmRouterClient {
         }
     }
 
+    @Override
+    public Optional<String> explain(String userMessage, String capabilityId, Object output) {
+        if (!properties.isEnabled() || isBlank(properties.getBaseUrl())
+                || System.currentTimeMillis() < nextRetryAt) {
+            return Optional.empty();
+        }
+        try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("userMessage", userMessage);
+            body.put("capabilityId", capabilityId);
+            body.put("output", output);
+            HttpRequest.Builder builder = HttpRequest.newBuilder(
+                            URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/explain"))
+                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            mapper.writeValueAsString(body), StandardCharsets.UTF_8));
+            if (!isBlank(properties.getInternalToken())) {
+                builder.header("X-Internal-Token", properties.getInternalToken());
+            }
+            HttpResponse<String> response = http.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("LLM 结果解释不可用 status={}", response.statusCode());
+                return Optional.empty();
+            }
+            JsonNode data = mapper.readTree(response.body());
+            if (data.has("data")) {
+                data = data.get("data");
+            }
+            String explanation = text(data, "explanation");
+            return explanation == null ? Optional.empty() : Optional.of(explanation);
+        } catch (Exception ex) {
+            log.warn("LLM 结果解释失败：{}", ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private RouteDecision toDecision(JsonNode data) {
         String capabilityId = text(data, "capabilityId");
         boolean clarify = data.path("needClarification").asBoolean(false);

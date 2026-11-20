@@ -4,7 +4,8 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.core.config import Settings
-from app.schemas import CapabilityIn, PendingContext, RepairRequest, RouteRequest
+from app.schemas import CapabilityIn, ExplainRequest, PendingContext, RepairRequest, RouteRequest
+from app.services.explain import ExplainService
 from app.services.router import RouteService
 
 
@@ -145,6 +146,21 @@ def test_pending_context_is_sent_to_llm():
     assert response.capabilityId == "property.ticket.create"
     assert "pending" in client.calls[0][1]
     assert "ticketTypeCode" in client.calls[0][1]
+
+
+def test_explain_returns_natural_language():
+    client = FakeClient({"explanation": "子 Agent 返回 2 条工单，均为待处理。"})
+    service = ExplainService(client)
+
+    response = service.explain(
+        ExplainRequest(
+            userMessage="我有哪些工单？",
+            capabilityId="property.ticket.query",
+            output=[{"ticketNo": "GD1"}, {"ticketNo": "GD2"}],
+        )
+    )
+
+    assert response.explanation == "子 Agent 返回 2 条工单，均为待处理。"
 
 
 def test_repair_returns_corrected_args():

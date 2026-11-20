@@ -8,13 +8,16 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import settings
 from app.llm.client import DeepSeekClient, LlmUnavailable
-from app.schemas import RepairRequest, RepairResponse, RouteRequest, RouteResponse
+from app.schemas import ExplainRequest, ExplainResponse, RepairRequest, RepairResponse, RouteRequest, RouteResponse
+from app.services.explain import ExplainService
 from app.services.router import RouteService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-service = RouteService(DeepSeekClient(settings), settings)
+_client = DeepSeekClient(settings)
+service = RouteService(_client, settings)
+explain_service = ExplainService(_client)
 
 
 def verify_internal_token(x_internal_token: str = Header(default="")) -> None:
@@ -59,6 +62,22 @@ def route(request: RouteRequest) -> RouteResponse:
     except LlmUnavailable as exc:
         logger.warning("llm unavailable traceId=%s error=%s", request.traceId, exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/internal/v1/ai/explain",
+    response_model=ExplainResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def explain(request: ExplainRequest) -> ExplainResponse:
+    response = explain_service.explain(request)
+    logger.info(
+        "explain capability=%s explanation=%s usage=%s",
+        request.capabilityId,
+        response.explanation[:80],
+        response.usage,
+    )
+    return response
 
 
 @router.post(

@@ -91,6 +91,13 @@ Content-Type: application/json
 - `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
 - Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
 
+## 结果解释
+
+- `/internal/v1/ai/explain`：接收 `userMessage/capabilityId/output`，返回简短中文解释；
+- 解释只依据原始 output，不编造、不改写数据；
+- LLM 不可用时回退为“返回 N 条记录”的确定性摘要；
+- 原始 output 由 Java 侧另外原样透传给前端。
+
 ## 多轮与枚举
 
 - 请求可带 `pending`（上一轮的能力/参数/缺失字段），LLM 会合并本轮回答，不重复追问；
