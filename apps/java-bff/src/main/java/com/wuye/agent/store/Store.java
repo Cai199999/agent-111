@@ -17,6 +17,13 @@ public interface Store {
 
     List<SessionState> listSessions();
 
+    /**
+     * 硬删除会话及其消息、任务、事件、确认令牌。
+     *
+     * @return 会话是否存在并被删除
+     */
+    boolean deleteSession(String sessionNo);
+
     ChatMessage addMessage(SessionState session, String role, String content,
                            String contentType, Map<String, Object> metadata,
                            String clientMessageId);

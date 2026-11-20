@@ -7,8 +7,10 @@ import com.wuye.agent.common.Ids;
 import com.wuye.agent.store.ChatMessage;
 import com.wuye.agent.store.SessionState;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,6 +56,15 @@ public class ChatController {
             throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
         }
         return ApiResponse.ok(SessionView.from(session), trace(traceId));
+    }
+
+    @DeleteMapping("/sessions/{sessionNo}")
+    public ApiResponse<Map<String, Object>> deleteSession(@PathVariable String sessionNo,
+                                                         @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        if (!chatService.deleteSession(sessionNo)) {
+            throw ApiException.notFound("SESSION_NOT_FOUND", "会话不存在：" + sessionNo);
+        }
+        return ApiResponse.ok(Map.of("sessionNo", sessionNo, "deleted", true), trace(traceId));
     }
 
     @GetMapping("/sessions/{sessionNo}/messages")

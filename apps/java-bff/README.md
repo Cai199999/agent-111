@@ -24,6 +24,7 @@
 - 取消：物业/合同均支持 `CANCELLED`；
 - 任务卡片：状态、进度、事件时间线、确认摘要；
 - 确认令牌只留在服务端，SSE/API 不返回 token；
+- 会话删除：`DELETE /api/v1/chat/sessions/{sessionNo}`，级联删除消息/任务/事件/确认令牌；
 - 持久化：MySQL `wuye_agent_db` + Flyway，会话/消息/任务/事件跨重启保留；
 - 真实 HTTP Adapter：`WUYE_AGENT_MODE=http` 时接物业 8402 / 合同 8400，支持方言、200/202、委托令牌、错误映射。
 
@@ -38,7 +39,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 19/19 passed（Python AI 另 5/5）
+# 当前：Java 20/20 passed（Python AI 另 5/5）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

@@ -18,6 +18,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -136,6 +137,27 @@ class PrototypeSmokeTest {
 
         JsonNode data = pollUntil(taskNo, "SUCCEEDED", 6000);
         assertEquals("SUCCEEDED", data.path("status").asText());
+    }
+
+    @Test
+    void deleteSessionRemovesMessagesAndTasks() throws Exception {
+        String session = createSession();
+        String sse = send(session, "我有哪些待处理工单？");
+        String taskNo = extractTaskNo(sse);
+
+        ResponseEntity<String> deleted = rest.exchange(
+                url("/api/v1/chat/sessions/" + session),
+                HttpMethod.DELETE,
+                new HttpEntity<>(new HttpHeaders()),
+                String.class);
+        assertEquals(HttpStatus.OK, deleted.getStatusCode(), deleted.getBody());
+
+        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
+                url("/api/v1/chat/sessions/" + session), String.class).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
+                url("/api/v1/chat/sessions/" + session + "/messages"), String.class).getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, rest.getForEntity(
+                url("/api/v1/tasks/" + taskNo), String.class).getStatusCode());
     }
 
     @Test

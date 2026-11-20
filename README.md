@@ -28,13 +28,13 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 19/19 passed；Python AI 5/5
+# 当前：Java 20/20 passed；Python AI 5/5
 
 # 启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
 bash scripts/start-prototype.sh
 ```
 
-已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400；Python AI 路由服务（DeepSeek/OpenAI 兼容，规则优先 + LLM 兜底）。
+已实现：单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400；Python AI 路由服务（DeepSeek/OpenAI 兼容，规则优先 + LLM 兜底）。
 
 ```bash
 # 接入真实大模型

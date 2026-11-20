@@ -181,6 +181,14 @@ public class ChatService {
         return store.messages(sessionNo);
     }
 
+    public boolean deleteSession(String sessionNo) {
+        boolean deleted = store.deleteSession(sessionNo);
+        if (deleted) {
+            log.info("session deleted sessionNo={}", sessionNo);
+        }
+        return deleted;
+    }
+
     private Map<String, Object> taskEvent(TaskRecord task) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("taskNo", task.taskNo);

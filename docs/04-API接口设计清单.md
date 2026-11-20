@@ -265,7 +265,25 @@ data: {"messageNo":"wm_...","status":"WAITING_CONFIRM"}
 | `done` | `messageNo`、`status`、`taskNo?` | 本轮结束 |
 | `error` | `code`、`message`、`retryable` | 错误 |
 
-### 3.7 断线重连
+### 3.7 删除会话
+
+```http
+DELETE /api/v1/chat/sessions/{sessionNo}
+Authorization: Bearer <JWT>
+```
+
+响应：
+
+```json
+{ "code": "OK", "data": { "sessionNo": "ws_...", "deleted": true }, "traceId": "..." }
+```
+
+- 硬删除会话及其消息、任务、任务事件、确认令牌；
+- 会话不存在返回 `404 SESSION_NOT_FOUND`；
+- 不可恢复，前端必须先二次确认；
+- 仅会话所属用户可删除（生产化接入 RBAC 后）。
+
+### 3.8 断线重连
 
 ```http
 GET /api/v1/chat/sessions/{sessionNo}/events?afterSeq=12
@@ -702,7 +720,8 @@ Content-Type: application/json
 ## 11. 接口验收清单
 
 - [ ] 登录/鉴权/401/403 路径正确；
-- [ ] 会话创建、列表、历史、软删可用；
+- [ ] 会话创建、列表、历史可用；
+- [ ] 删除会话后，消息、任务、事件均查不到（404）；
 - [ ] 发消息 SSE 依次收到 `meta → route → task → ... → done`；
 - [ ] `knowledge.search` 歧义返回 `ROUTE_AMBIGUOUS` 或追问事件；
 - [ ] 写任务返回 `WAITING_CONFIRM`，事件中不含确认令牌；

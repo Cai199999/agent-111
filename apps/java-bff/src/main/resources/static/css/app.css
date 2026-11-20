@@ -59,11 +59,19 @@ body {
   padding: 10px 12px; border-radius: 10px; cursor: pointer;
   border: 1px solid transparent; color: var(--text);
   display: flex; justify-content: space-between; gap: 8px; align-items: center;
+  position: relative;
 }
 .session-item:hover { background: #f7f9fc; }
 .session-item.active { background: var(--primary-weak); border-color: #c9dbff; }
-.session-item .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-item .count { color: var(--muted); font-size: 11px; }
+.session-item .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-item .count { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+.session-delete {
+  border: 0; background: transparent; color: #9aa7ba;
+  font-size: 17px; line-height: 1; padding: 3px 6px; border-radius: 6px;
+  cursor: pointer; opacity: 0; flex: 0 0 auto; transition: .15s ease;
+}
+.session-item:hover .session-delete, .session-delete:focus { opacity: 1; }
+.session-delete:hover { background: var(--red-weak); color: var(--red); }
 
 .agent-status { display: flex; flex-direction: column; gap: 8px; }
 .agent-chip {

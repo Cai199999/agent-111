@@ -83,6 +83,25 @@ public class MySqlStore implements Store {
 
     @Override
     @Transactional
+    public boolean deleteSession(String sessionNo) {
+        Integer exists = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM wa_chat_session WHERE session_no = ?", Integer.class, sessionNo);
+        if (exists == null || exists == 0) {
+            return false;
+        }
+        // 级联删除：事件 -> 任务 -> 消息 -> 会话；确认令牌随任务行一起删除
+        jdbc.update("""
+                DELETE FROM wa_task_event
+                WHERE task_no IN (SELECT task_no FROM wa_task_binding WHERE session_no = ?)
+                """, sessionNo);
+        jdbc.update("DELETE FROM wa_task_binding WHERE session_no = ?", sessionNo);
+        jdbc.update("DELETE FROM wa_chat_message WHERE session_no = ?", sessionNo);
+        jdbc.update("DELETE FROM wa_chat_session WHERE session_no = ?", sessionNo);
+        return true;
+    }
+
+    @Override
+    @Transactional
     public ChatMessage addMessage(SessionState session, String role, String content,
                                   String contentType, Map<String, Object> metadata,
                                   String clientMessageId) {

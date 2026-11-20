@@ -123,18 +123,65 @@ async function selectSession(sessionNo) {
 
 function renderSessions() {
   els.sessionList.replaceChildren(...state.sessions.map((session) => {
-    const item = el('button', 'session-item');
-    item.type = 'button';
+    const item = el('div', 'session-item');
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
     if (state.currentSession && state.currentSession.sessionNo === session.sessionNo) {
       item.classList.add('active');
     }
+    const remove = el('button', 'session-delete', '×');
+    remove.type = 'button';
+    remove.title = '删除会话';
+    remove.setAttribute('aria-label', '删除会话');
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteSession(session);
+    });
     item.append(
       el('span', 'title', session.title || '新会话'),
       el('span', 'count', String(session.messageCount || 0)),
+      remove,
     );
     item.addEventListener('click', () => selectSession(session.sessionNo));
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectSession(session.sessionNo);
+      }
+    });
     return item;
   }));
+}
+
+async function deleteSession(session) {
+  if (!window.confirm(`确定删除会话「${session.title || '新会话'}」及其消息、任务和事件吗？`)) {
+    return;
+  }
+  try {
+    await api(`/api/v1/chat/sessions/${session.sessionNo}`, { method: 'DELETE' });
+    for (const [taskNo, task] of state.taskData) {
+      if (task.sessionNo === session.sessionNo) {
+        stopPolling(taskNo);
+        state.taskData.delete(taskNo);
+        state.taskEls.delete(taskNo);
+      }
+    }
+    state.sessions = state.sessions.filter((item) => item.sessionNo !== session.sessionNo);
+    if (state.currentSession && state.currentSession.sessionNo === session.sessionNo) {
+      state.currentSession = null;
+      clearMessages();
+      if (state.sessions.length) {
+        await selectSession(state.sessions[0].sessionNo);
+      } else {
+        await createSession();
+      }
+    } else {
+      renderSessions();
+    }
+    showToast('会话已删除');
+  } catch (error) {
+    showToast(error.message || '删除失败');
+  }
 }
 
 async function loadMessages(sessionNo) {

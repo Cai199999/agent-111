@@ -47,6 +47,23 @@ public class InMemoryStore implements Store {
                 .toList();
     }
 
+    @Override
+    public boolean deleteSession(String sessionNo) {
+        SessionState removed = sessions.remove(sessionNo);
+        if (removed == null) {
+            return false;
+        }
+        List<TaskRecord> sessionTasks = tasks.values().stream()
+                .filter(task -> sessionNo.equals(task.sessionNo))
+                .toList();
+        for (TaskRecord task : sessionTasks) {
+            tasks.remove(task.taskNo);
+            tasksByClientId.remove(task.agentKey + "|" + task.clientTaskId);
+        }
+        confirmationTokens.entrySet().removeIf(entry -> sessionNo.equals(entry.getValue().sessionNo));
+        return true;
+    }
+
     public ChatMessage addMessage(SessionState session, String role, String content,
                                   String contentType, Map<String, Object> metadata,
                                   String clientMessageId) {
