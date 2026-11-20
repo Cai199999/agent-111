@@ -17,6 +17,8 @@ public final class SessionState {
     public final List<ChatMessage> messages = new CopyOnWriteArrayList<>();
     public final Set<String> clientMessageIds = ConcurrentHashMap.newKeySet();
     public volatile String title;
+    public volatile String summary;
+    public volatile Instant summaryUpdatedAt;
     public volatile Instant lastMessageAt;
     public volatile int messageCount;
 

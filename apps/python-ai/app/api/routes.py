@@ -8,8 +8,18 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import settings
 from app.llm.client import DeepSeekClient, LlmUnavailable
-from app.schemas import ExplainRequest, ExplainResponse, RepairRequest, RepairResponse, RouteRequest, RouteResponse
+from app.schemas import (
+    ExplainRequest,
+    ExplainResponse,
+    RepairRequest,
+    RepairResponse,
+    RouteRequest,
+    RouteResponse,
+    SummarizeRequest,
+    SummarizeResponse,
+)
 from app.services.explain import ExplainService
+from app.services.summarize import SummarizeService
 from app.services.router import RouteService
 
 logger = logging.getLogger(__name__)
@@ -18,6 +28,7 @@ router = APIRouter()
 _client = DeepSeekClient(settings)
 service = RouteService(_client, settings)
 explain_service = ExplainService(_client)
+summarize_service = SummarizeService(_client)
 
 
 def verify_internal_token(x_internal_token: str = Header(default="")) -> None:
@@ -77,6 +88,17 @@ def explain(request: ExplainRequest) -> ExplainResponse:
         response.explanation[:80],
         response.usage,
     )
+    return response
+
+
+@router.post(
+    "/internal/v1/ai/summarize",
+    response_model=SummarizeResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def summarize(request: SummarizeRequest) -> SummarizeResponse:
+    response = summarize_service.summarize(request)
+    logger.info("summarize session=%s usage=%s", request.sessionNo, response.usage)
     return response
 
 

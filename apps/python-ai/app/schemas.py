@@ -36,6 +36,7 @@ class RouteRequest(BaseModel):
     currentDomain: str | None = None
     optionCatalog: dict[str, Any] | None = None
     pending: PendingContext | None = None
+    sessionSummary: str | None = None
 
 
 class PlanStep(BaseModel):
@@ -75,6 +76,17 @@ class ExplainRequest(BaseModel):
 
 class ExplainResponse(BaseModel):
     explanation: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class SummarizeRequest(BaseModel):
+    sessionNo: str | None = None
+    previousSummary: str | None = None
+    messages: list[TurnIn] = Field(default_factory=list)
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
     usage: dict[str, Any] = Field(default_factory=dict)
 
 

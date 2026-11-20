@@ -50,6 +50,15 @@ public class InMemoryStore implements Store {
     }
 
     @Override
+    public void updateSessionSummary(String sessionNo, String summary) {
+        SessionState session = sessions.get(sessionNo);
+        if (session != null) {
+            session.summary = summary;
+            session.summaryUpdatedAt = Instant.now();
+        }
+    }
+
+    @Override
     public boolean deleteSession(String sessionNo) {
         SessionState removed = sessions.remove(sessionNo);
         if (removed == null) {

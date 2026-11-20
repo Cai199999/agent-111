@@ -39,7 +39,8 @@ JSON 字段：
    用户用中文描述时映射到最匹配的 name，无法确定时追问候选值，不要猜。
 8) 如果输入里有 pending（上一轮追问状态），当前用户消息很可能是对追问的回答：
    把回答合并进 pending.args，继续检查 missingFields；
-   不要重复询问已经回答过的字段；如果用户明显切换话题，则按新话题处理。"""
+   不要重复询问已经回答过的字段；如果用户明显切换话题，则按新话题处理。
+9) sessionSummary 只代表当前会话的摘要，只能用于当前会话上下文，不要跨会话推断。"""
 
 REPAIR_PROMPT = """你是"物业主 Agent"的参数修正器。
 子 Agent 拒绝了上一次调用。请根据能力 inputSchema、原始参数和错误信息，
@@ -190,6 +191,7 @@ def build_user_prompt(request: RouteRequest) -> str:
         "userMessage": request.userMessage,
         "optionCatalog": request.optionCatalog,
         "pending": request.pending.model_dump() if request.pending else None,
+        "sessionSummary": request.sessionSummary,
     }
     return "请基于以下输入做路由决策，只输出 JSON：\n" + json.dumps(
         payload, ensure_ascii=False, indent=2

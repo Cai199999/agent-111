@@ -91,6 +91,12 @@ Content-Type: application/json
 - `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
 - Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
 
+## 会话摘要
+
+- `/internal/v1/ai/summarize`：接收当前会话 `previousSummary` + 最近消息，返回当前会话摘要；
+- 只针对当前会话，不跨会话检索、不写知识库；
+- 失败时保留 `previousSummary`，不清空已有摘要。
+
 ## 结果解释
 
 - `/internal/v1/ai/explain`：接收 `userMessage/capabilityId/output`，返回简短中文解释；

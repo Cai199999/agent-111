@@ -37,6 +37,14 @@
   - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
 - 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
 
+## 会话级记忆 MVP
+
+- `wa_chat_session.summary` 保存当前会话摘要；
+- 每轮对话后异步调用 Python `/internal/v1/ai/summarize` 更新；
+- 摘要只用于当前会话的路由上下文，不跨会话检索；
+- 不写入知识库，不构建全局记忆；
+- 用户画像/长期记忆/RAG 尚未接入。
+
 ## 限流、CI 与备份
 
 - 限流：`RateLimitFilter` 按用户/IP 每分钟计数，默认 300，`RATE_LIMIT_PER_MINUTE` 可配；超限返回 `429 RATE_LIMITED` + `Retry-After: 60`。
@@ -96,7 +104,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 33/33 passed（Python AI 另 9/9）
+# 当前：Java 33/33 passed（Python AI 另 10/10）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

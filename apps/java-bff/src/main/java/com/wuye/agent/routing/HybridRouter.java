@@ -36,11 +36,16 @@ public class HybridRouter implements Router {
 
     @Override
     public RouteDecision route(String message, PendingIntent pending) {
+        return route(message, pending, null);
+    }
+
+    @Override
+    public RouteDecision route(String message, PendingIntent pending, String sessionSummary) {
         RouteDecision rule = ruleRouter.route(message);
         if (!properties.isEnabled()) {
             return rule;
         }
-        Optional<RouteDecision> llm = llmRouterClient.route(message, pending);
+        Optional<RouteDecision> llm = llmRouterClient.route(message, pending, sessionSummary);
         return llm.orElse(rule);
     }
 }

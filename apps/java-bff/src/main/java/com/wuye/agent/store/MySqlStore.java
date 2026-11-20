@@ -56,8 +56,9 @@ public class MySqlStore implements Store {
         String safeTitle = title == null || title.isBlank() ? "新会话" : title;
         jdbc.update("""
                 INSERT INTO wa_chat_session
-                    (session_no, user_id, tenant_id, title, message_count, created_at, last_message_at)
-                VALUES (?, ?, '0', ?, 0, ?, ?)
+                    (session_no, user_id, tenant_id, title, summary, summary_updated_at,
+                     message_count, created_at, last_message_at)
+                VALUES (?, ?, '0', ?, NULL, NULL, 0, ?, ?)
                 """, sessionNo, userId, safeTitle, ts(now), ts(now));
         return new SessionState(sessionNo, userId, safeTitle, now);
     }
@@ -65,7 +66,8 @@ public class MySqlStore implements Store {
     @Override
     public SessionState getSession(String sessionNo) {
         List<SessionState> rows = jdbc.query("""
-                        SELECT session_no, user_id, title, message_count, created_at, last_message_at
+                        SELECT session_no, user_id, title, summary, summary_updated_at,
+                               message_count, created_at, last_message_at
                         FROM wa_chat_session WHERE session_no = ?
                         """,
                 (rs, rowNum) -> mapSession(rs), sessionNo);
@@ -75,10 +77,21 @@ public class MySqlStore implements Store {
     @Override
     public List<SessionState> listSessions(long userId) {
         return jdbc.query("""
-                        SELECT session_no, user_id, title, message_count, created_at, last_message_at
+                        SELECT session_no, user_id, title, summary, summary_updated_at,
+                               message_count, created_at, last_message_at
                         FROM wa_chat_session WHERE user_id = ? ORDER BY last_message_at DESC
                         """,
                 (rs, rowNum) -> mapSession(rs), userId);
+    }
+
+    @Override
+    public void updateSessionSummary(String sessionNo, String summary) {
+        jdbc.update("""
+                        UPDATE wa_chat_session
+                        SET summary = ?, summary_updated_at = ?
+                        WHERE session_no = ?
+                        """,
+                summary, ts(Instant.now()), sessionNo);
     }
 
     @Override
@@ -287,6 +300,8 @@ public class MySqlStore implements Store {
                 rs.getString("title"),
                 instant(rs.getTimestamp("created_at")));
         session.messageCount = rs.getInt("message_count");
+        session.summary = rs.getString("summary");
+        session.summaryUpdatedAt = instant(rs.getTimestamp("summary_updated_at"));
         session.lastMessageAt = instant(rs.getTimestamp("last_message_at"));
         return session;
     }

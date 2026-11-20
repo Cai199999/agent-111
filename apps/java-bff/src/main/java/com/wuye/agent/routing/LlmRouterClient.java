@@ -14,6 +14,15 @@ public interface LlmRouterClient {
         return route(message);
     }
 
+    default Optional<RouteDecision> route(String message, PendingIntent pending, String sessionSummary) {
+        return route(message, pending);
+    }
+
+    default Optional<String> summarize(String sessionNo, String previousSummary,
+                                       java.util.List<java.util.Map<String, String>> messages) {
+        return Optional.empty();
+    }
+
     default Optional<RepairOutcome> repair(String userMessage, String capabilityId,
                                            Map<String, Object> args,
                                            String errorCode, String errorMessage) {

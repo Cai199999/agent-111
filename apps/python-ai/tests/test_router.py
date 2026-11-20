@@ -4,9 +4,17 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.core.config import Settings
-from app.schemas import CapabilityIn, ExplainRequest, PendingContext, RepairRequest, RouteRequest
+from app.schemas import (
+    CapabilityIn,
+    ExplainRequest,
+    PendingContext,
+    RepairRequest,
+    RouteRequest,
+    SummarizeRequest,
+)
 from app.services.explain import ExplainService
 from app.services.router import RouteService
+from app.services.summarize import SummarizeService
 
 
 class FakeClient:
@@ -165,6 +173,25 @@ def test_explain_returns_natural_language():
     prompt = client.calls[0][1]
     assert "PENDING" in prompt and "待处理" in prompt
     assert "普通" in prompt
+
+
+def test_summarize_keeps_current_session_only():
+    client = FakeClient({"summary": "用户在建单，已确认 PUMP 类型，等待楼栋。"})
+    service = SummarizeService(client)
+    from app.schemas import TurnIn
+
+    response = service.summarize(
+        SummarizeRequest(
+            sessionNo="ws-1",
+            previousSummary="用户在报修",
+            messages=[TurnIn(role="USER", content="A栋，1单元101")],
+        )
+    )
+
+    assert "PUMP" in response.summary
+    prompt = client.calls[0][1]
+    assert "previousSummary" in prompt
+    assert "ws-1" in prompt
 
 
 def test_repair_returns_corrected_args():

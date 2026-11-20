@@ -9,6 +9,7 @@ import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
+import com.wuye.agent.memory.MemoryService;
 import com.wuye.agent.routing.LlmRouterClient;
 import com.wuye.agent.routing.PendingIntent;
 import com.wuye.agent.routing.RepairOutcome;
@@ -50,19 +51,22 @@ public class ChatService {
     private final LlmRouterClient llmRouterClient;
     private final TaskService taskService;
     private final PolicyService policyService;
+    private final MemoryService memoryService;
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
 
     public ChatService(Store store, AdapterRegistry registry,
                        Router router, LlmRouterClient llmRouterClient,
-                       TaskService taskService, PolicyService policyService, Ids ids) {
+                       TaskService taskService, PolicyService policyService,
+                       MemoryService memoryService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
         this.llmRouterClient = llmRouterClient;
         this.taskService = taskService;
         this.policyService = policyService;
+        this.memoryService = memoryService;
         this.ids = ids;
     }
 
@@ -105,7 +109,7 @@ public class ChatService {
                 pendingIntents.remove(sessionNo);
                 pending = null;
             }
-            RouteDecision route = router.route(content, pending);
+            RouteDecision route = router.route(content, pending, session.summary);
             Map<String, Object> routeEvent = new LinkedHashMap<>();
             routeEvent.put("capabilityId", route.capabilityId());
             routeEvent.put("confidence", route.confidence());
@@ -133,6 +137,7 @@ public class ChatService {
                 emit(emitter, "delta", Map.of("content", route.clarification()));
                 emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "CLARIFIED"));
                 emitter.complete();
+                memoryService.updateAsync(sessionNo);
                 return;
             }
             pendingIntents.remove(sessionNo);
@@ -193,6 +198,7 @@ public class ChatService {
                     "taskNo", task.taskNo,
                     "status", doneStatus));
             emitter.complete();
+            memoryService.updateAsync(sessionNo);
         } catch (Exception ex) {
             log.warn("chat send failed traceId={} sessionNo={}", traceId, sessionNo, ex);
             try {

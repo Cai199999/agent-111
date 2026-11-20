@@ -10,4 +10,8 @@ public interface Router {
     default RouteDecision route(String message, PendingIntent pending) {
         return route(message);
     }
+
+    default RouteDecision route(String message, PendingIntent pending, String sessionSummary) {
+        return route(message, pending);
+    }
 }

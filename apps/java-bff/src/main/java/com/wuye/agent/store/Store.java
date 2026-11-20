@@ -18,6 +18,11 @@ public interface Store {
     List<SessionState> listSessions(long userId);
 
     /**
+     * 更新会话级摘要。只用于当前会话上下文，不做跨会话检索。
+     */
+    void updateSessionSummary(String sessionNo, String summary);
+
+    /**
      * 硬删除会话及其消息、任务、事件、确认令牌。
      *
      * @return 会话是否存在并被删除
