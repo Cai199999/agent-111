@@ -55,6 +55,8 @@ wuye:
     admin-password: ${DEV_ADMIN_PASSWORD:admin123}
     worker-password: ${DEV_WORKER_PASSWORD:worker123}
     user-password: ${DEV_USER_PASSWORD:user123}
+  rate-limit:
+    per-minute: ${RATE_LIMIT_PER_MINUTE:300}
 
 logging:
   level:

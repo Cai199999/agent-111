@@ -58,8 +58,9 @@
 - `TASK_CONFIRM`
 - `TASK_CANCEL`
 - `SESSION_DELETE`
+- `TOOL_EXECUTE`
 
-查询：`GET /api/v1/admin/audit-logs`（ADMIN）。后续需补 `TOOL_EXECUTE`、Agent 管理、配置变更等动作，达到 100% 覆盖。
+查询：`GET /api/v1/admin/audit-logs`（ADMIN）。后续需补 Agent 注册/启停/Manifest 同步、配置变更等动作，达到 100% 覆盖。
 
 ## 5. 采集与展示原则
 

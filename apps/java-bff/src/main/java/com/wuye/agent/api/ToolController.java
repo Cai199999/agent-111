@@ -4,6 +4,7 @@ import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.AgentCatalogService;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.model.Capability;
+import com.wuye.agent.audit.AuditService;
 import com.wuye.agent.auth.AuthContext;
 import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
@@ -38,16 +39,18 @@ public class ToolController {
     private final CapabilitySchemaService schemaService;
     private final PolicyService policyService;
     private final TaskService taskService;
+    private final AuditService auditService;
     private final Ids ids;
 
     public ToolController(AdapterRegistry registry, AgentCatalogService catalogService,
                           CapabilitySchemaService schemaService, PolicyService policyService,
-                          TaskService taskService, Ids ids) {
+                          TaskService taskService, AuditService auditService, Ids ids) {
         this.registry = registry;
         this.catalogService = catalogService;
         this.schemaService = schemaService;
         this.policyService = policyService;
         this.taskService = taskService;
+        this.auditService = auditService;
         this.ids = ids;
     }
 
@@ -91,6 +94,8 @@ public class ToolController {
         Capability capability = requireTool(user, toolName);
         TaskRecord task = taskService.submit("tool:" + user.id(), capability,
                 input == null ? Map.of() : input, user.actorId(), trace(traceId));
+        auditService.record("TOOL_EXECUTE", "TOOL", toolName, capability.agentKey(),
+                capability.capabilityId(), task.status.name(), Map.of("taskNo", task.taskNo));
         return ApiResponse.ok(TaskView.from(task), trace(traceId));
     }
 

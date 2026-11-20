@@ -37,10 +37,16 @@
   - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
 - 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
 
+## 限流、CI 与备份
+
+- 限流：`RateLimitFilter` 按用户/IP 每分钟计数，默认 300，`RATE_LIMIT_PER_MINUTE` 可配；超限返回 `429 RATE_LIMITED` + `Retry-After: 60`。
+- CI：`bash scripts/ci.sh` 执行 JS 语法检查、Java 测试、Python 测试。
+- 备份：`bash scripts/backup.sh` 使用 `mysqldump --single-transaction` 备份 `wuye_agent_db` 到 `backups/`（已 gitignore）。
+
 ## 操作审计
 
 - 表：`wa_audit_log`（V6）；
-- 记录：`LOGIN`、`TASK_SUBMIT`、`TASK_CONFIRM`、`TASK_CANCEL`、`SESSION_DELETE`；
+- 记录：`LOGIN`、`TASK_SUBMIT`、`TASK_CONFIRM`、`TASK_CANCEL`、`SESSION_DELETE`、`TOOL_EXECUTE`；
 - 字段：traceId、user、action、resource、resourceId、agentKey、capabilityId、status、detail、createdAt；
 - 查询：`GET /api/v1/admin/audit-logs?limit=50&action=...`（ADMIN）；
 - 前端：用户菜单 → 审计日志（仅 ADMIN）。
@@ -90,7 +96,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 32/32 passed（Python AI 另 9/9）
+# 当前：Java 33/33 passed（Python AI 另 9/9）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh
