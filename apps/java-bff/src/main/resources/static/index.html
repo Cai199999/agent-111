@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
   <title>物业主 Agent · 单对话框原型</title>
-  <link rel="stylesheet" href="/css/app.css?v=20261120-auth3"/>
+  <link rel="stylesheet" href="/css/app.css?v=20261120-auth4"/>
 </head>
 <body>
 <div id="loginView" class="login-view" hidden>
@@ -21,7 +21,7 @@
       <button class="btn primary block" type="submit">登录</button>
       <div id="loginError" class="login-error"></div>
     </form>
-    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth3</div>
+    <div class="demo-accounts">演示账号：admin/admin123 · worker/worker123 · user/user123<br/>前端版本：20261120-auth4</div>
   </div>
 </div>
 
@@ -155,14 +155,20 @@
         });
         const body = await response.json();
         if (!response.ok || body.code !== 'OK') throw new Error(body.message || '登录失败');
-        try { localStorage.setItem('wuye_token', body.data.accessToken); } catch (e) {}
-        window.location.href = '/?v=20261120-auth3';
+        let stored = false;
+        try { localStorage.setItem('wuye_token', body.data.accessToken); stored = true; } catch (e) {}
+        try { sessionStorage.setItem('wuye_token', body.data.accessToken); stored = true; } catch (e) {}
+        if (!stored) {
+          error.textContent = '浏览器禁止本地存储，请允许站点存储或换普通窗口打开';
+          return;
+        }
+        window.location.href = '/?v=20261120-auth4';
       } catch (e) {
         error.textContent = e.message || '登录失败';
       }
     });
   });
 </script>
-<script type="module" src="/js/app.js?v=20261120-auth3"></script>
+<script type="module" src="/js/app.js?v=20261120-auth4"></script>
 </body>
 </html>

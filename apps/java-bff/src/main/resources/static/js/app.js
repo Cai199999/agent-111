@@ -1,28 +1,48 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth3';
+const UI_VERSION = '20261120-auth4';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
 
 function readToken() {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const value = localStorage.getItem(TOKEN_KEY);
+    if (value) return value;
+  } catch {
+    // ignore
+  }
+  try {
+    return sessionStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
 function writeToken(token) {
+  let stored = false;
   try {
     localStorage.setItem(TOKEN_KEY, token);
+    stored = true;
   } catch {
-    // 隐私模式/存储被禁用时仍允许本次会话登录
+    // ignore
   }
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    stored = true;
+  } catch {
+    // ignore
+  }
+  return stored;
 }
 
 function clearToken() {
   try {
     localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     // ignore
   }
