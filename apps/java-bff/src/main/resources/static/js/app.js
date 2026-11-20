@@ -537,6 +537,16 @@ function handleEvent(event, data, assistant) {
     case 'task':
       renderTaskCard(assistant.cards, data);
       break;
+    case 'result': {
+      const task = state.taskData.get(data.taskNo);
+      if (task) {
+        task.output = data.output;
+        updateTaskCard(task);
+      } else {
+        renderRawResult(assistant.cards, data.output);
+      }
+      break;
+    }
     case 'task_event': {
       const task = state.taskData.get(data.taskNo);
       if (task) {
@@ -695,12 +705,34 @@ function renderTaskCard(container, task) {
     body.append(events);
   }
 
+  if (task.output !== undefined && task.output !== null) {
+    body.append(rawResultElement(task.output));
+  }
+
   card.append(head, body);
   container.append(card);
 
   if (['PENDING', 'RUNNING'].includes(task.status)) {
     startPolling(taskNo);
   }
+}
+
+function renderRawResult(container, output) {
+  if (!container || output === undefined || output === null) return;
+  container.append(rawResultElement(output));
+}
+
+function rawResultElement(output) {
+  const box = el('details', 'raw-result');
+  box.append(el('summary', '', '子 Agent 原始返回（未经主 Agent 改写）'));
+  const pre = el('pre', 'raw-json');
+  try {
+    pre.textContent = JSON.stringify(output, null, 2);
+  } catch {
+    pre.textContent = String(output);
+  }
+  box.append(pre);
+  return box;
 }
 
 function renderConfirm(task) {

@@ -109,8 +109,20 @@ class PrototypeSmokeTest {
 
         assertTrue(sse.contains("event:route"), sse);
         assertTrue(sse.contains("property.ticket.query"), sse);
+        assertTrue(sse.contains("event:result"), sse);
         assertTrue(sse.contains("GD20261119000107"), sse);
         assertTrue(sse.contains("event:done"), sse);
+    }
+
+    @Test
+    void toolCatalogAndExecuteReturnRawOutput() throws Exception {
+        String tools = getWithToken("/api/v1/tools", adminToken);
+        assertTrue(tools.contains("property.ticket.query"), tools);
+        assertTrue(tools.contains("inputSchema"), tools);
+
+        JsonNode task = postForData("/api/v1/tools/property.ticket.query/execute", Map.of());
+        assertEquals("SUCCEEDED", task.path("status").asText(), task.toString());
+        assertTrue(task.path("output").isArray(), task.toString());
     }
 
     @Test

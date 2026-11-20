@@ -144,7 +144,13 @@ public class ChatService {
                 contentType = "TASK";
                 answer = "任务已提交，正在执行，稍后可在任务卡片查看进度。";
             } else if (task.status == TaskStatus.SUCCEEDED) {
-                answer = formatOutput(capability, task.output);
+                contentType = "RESULT";
+                answer = "子 Agent 返回结果如下。";
+                // 原样透传子 Agent 的 output，不在主 Agent 侧改写/生成内容
+                emit(emitter, "result", Map.of(
+                        "taskNo", task.taskNo,
+                        "capabilityId", capability.capabilityId(),
+                        "output", task.output == null ? Map.of() : task.output));
             } else {
                 answer = task.error == null ? "任务未成功完成。" : task.error.message();
             }

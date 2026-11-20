@@ -13,6 +13,16 @@
       → 内存存储
 ```
 
+## 原始结果与工具接口
+
+- 子 Agent 成功结果通过 SSE `event:result` 原样返回 `output`，主 Agent 不再改写/生成展示文本；
+- 前端以“子 Agent 原始返回”折叠 JSON 呈现；
+- 子 Agent 能力同时作为工具暴露：
+  - `GET /api/v1/tools`：当前用户可用工具 + `inputSchema`
+  - `GET /api/v1/tools/{toolName}`：单个工具定义
+  - `POST /api/v1/tools/{toolName}/execute`：执行并返回 `TaskView`（写操作仍返回 `WAITING_CONFIRM`）
+- 工具调用同样走 `PolicyService` 权限校验；MCP bridge 可直接包这组工具接口。
+
 ## 登录与权限
 
 - 登录页 + JWT；演示账号：`admin/admin123`、`worker/worker123`、`user/user123`（开发默认，生产必须改）。
@@ -49,7 +59,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 28/28 passed（Python AI 另 7/7）
+# 当前：Java 29/29 passed（Python AI 另 7/7）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

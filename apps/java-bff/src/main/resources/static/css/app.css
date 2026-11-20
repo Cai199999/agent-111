@@ -166,6 +166,20 @@ body {
 .event-row .seq { color: #9aa7ba; min-width: 22px; }
 .event-row .type { color: #526078; font-weight: 600; min-width: 98px; }
 
+.raw-result {
+  margin-top: 10px; border: 1px solid #1e293b; border-radius: 10px;
+  background: #0f172a; color: #dbeafe; overflow: hidden;
+}
+.raw-result summary {
+  cursor: pointer; padding: 8px 10px; font-size: 12px;
+  color: #cbd5e1; background: #111c33; user-select: none;
+}
+.raw-result pre {
+  margin: 0; padding: 12px; overflow: auto; max-height: 340px;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap; word-break: break-word;
+}
+
 .confirm-box {
   border: 1px solid #f0d9a8; background: var(--amber-weak); border-radius: 10px;
   padding: 12px; display: flex; flex-direction: column; gap: 8px;
