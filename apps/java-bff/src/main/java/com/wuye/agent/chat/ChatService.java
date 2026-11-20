@@ -7,7 +7,10 @@ import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
+import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
+import com.wuye.agent.routing.LlmRouterClient;
+import com.wuye.agent.routing.RepairOutcome;
 import com.wuye.agent.routing.RouteDecision;
 import com.wuye.agent.routing.Router;
 import com.wuye.agent.store.ChatMessage;
@@ -21,6 +24,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,16 +45,18 @@ public class ChatService {
     private final Store store;
     private final AdapterRegistry registry;
     private final Router router;
+    private final LlmRouterClient llmRouterClient;
     private final TaskService taskService;
     private final PolicyService policyService;
     private final Ids ids;
 
     public ChatService(Store store, AdapterRegistry registry,
-                       Router router, TaskService taskService,
-                       PolicyService policyService, Ids ids) {
+                       Router router, LlmRouterClient llmRouterClient,
+                       TaskService taskService, PolicyService policyService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
+        this.llmRouterClient = llmRouterClient;
         this.taskService = taskService;
         this.policyService = policyService;
         this.ids = ids;
@@ -107,29 +113,18 @@ public class ChatService {
                 return;
             }
 
-            Capability capability = registry.capability(route.capabilityId()).orElse(null);
-            if (capability == null) {
-                String message = "当前没有可用的能力：" + route.capabilityId();
-                ChatMessage assistant = store.addMessage(session, "ASSISTANT", message, "TEXT",
-                        Map.of("error", "CAPABILITY_NOT_FOUND"), null);
-                emit(emitter, "error", Map.of("code", "CAPABILITY_NOT_FOUND", "message", message, "retryable", false));
-                emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "FAILED"));
-                emitter.complete();
-                return;
+            if (route.hasPlan() && route.plan().size() > 1) {
+                emit(emitter, "plan", Map.of(
+                        "steps", route.plan().stream()
+                                .map(step -> Map.of(
+                                        "capabilityId", step.capabilityId(),
+                                        "args", step.args() == null ? Map.of() : step.args()))
+                                .toList()));
             }
 
-            if (!policyService.canUseCapability(user, capability.capabilityId())) {
-                String message = "当前账号没有权限使用该能力。";
-                ChatMessage assistant = store.addMessage(session, "ASSISTANT", message, "TEXT",
-                        Map.of("error", "AUTH_FORBIDDEN"), null);
-                emit(emitter, "error", Map.of(
-                        "code", "AUTH_FORBIDDEN", "message", message, "retryable", false));
-                emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "FAILED"));
-                emitter.complete();
-                return;
-            }
-
-            TaskRecord task = taskService.submit(sessionNo, capability, route.args(), user.actorId(), traceId);
+            ExecutionResult execution = executePlan(sessionNo, content, route, user, traceId);
+            Capability capability = execution.capability();
+            TaskRecord task = execution.task();
             emit(emitter, "task", taskEvent(task));
             for (TaskEvent event : task.events) {
                 emit(emitter, "task_event", eventView(task.taskNo, event));
@@ -203,6 +198,83 @@ public class ChatService {
             log.info("session deleted sessionNo={}", sessionNo);
         }
         return deleted;
+    }
+
+    private ExecutionResult executePlan(String sessionNo, String content, RouteDecision route,
+                                        AuthUser user, String traceId) {
+        List<RouteDecision.PlanStep> steps = route.plan();
+        if (steps == null || steps.isEmpty()) {
+            if (route.capabilityId() == null) {
+                throw ApiException.badRequest("CAPABILITY_NOT_FOUND", "没有可执行的最终能力");
+            }
+            steps = List.of(new RouteDecision.PlanStep(route.capabilityId(), route.args()));
+        }
+
+        Map<String, Object> args = new LinkedHashMap<>(route.args() == null ? Map.of() : route.args());
+
+        // 先执行只读前置步骤（如 profile.get），把结果合并进最终参数
+        for (int i = 0; i < steps.size() - 1; i++) {
+            RouteDecision.PlanStep step = steps.get(i);
+            Capability pre = registry.capability(step.capabilityId())
+                    .orElseThrow(() -> ApiException.notFound("CAPABILITY_NOT_FOUND",
+                            "规划能力不存在：" + step.capabilityId()));
+            policyService.requireCapability(user, pre.capabilityId());
+            if (!pre.readOnly()) {
+                throw ApiException.badRequest("PLAN_STEP_INVALID",
+                        "规划的前置步骤必须是只读能力：" + pre.capabilityId());
+            }
+            TaskRecord preTask = taskService.submit(sessionNo, pre,
+                    step.args() == null ? Map.of() : step.args(), user.actorId(), traceId);
+            if (preTask.status != TaskStatus.SUCCEEDED) {
+                String message = preTask.error == null ? "前置步骤失败" : preTask.error.message();
+                throw new ApiException("PLAN_STEP_FAILED", 503,
+                        "前置步骤 " + pre.capabilityId() + " 失败：" + message);
+            }
+            mergeOutput(args, preTask.output);
+        }
+
+        RouteDecision.PlanStep finalStep = steps.get(steps.size() - 1);
+        Capability capability = registry.capability(finalStep.capabilityId())
+                .orElseThrow(() -> ApiException.notFound("CAPABILITY_NOT_FOUND",
+                        "能力不存在：" + finalStep.capabilityId()));
+        policyService.requireCapability(user, capability.capabilityId());
+        if (finalStep.args() != null) {
+            args.putAll(finalStep.args());
+        }
+
+        TaskRecord task = taskService.submit(sessionNo, capability, args, user.actorId(), traceId);
+
+        // 子 Agent 明确返回 VALIDATION 时，把错误回传 LLM 修正参数，最多重试一次
+        if (task.status == TaskStatus.FAILED && task.error != null
+                && "VALIDATION".equals(task.error.category())) {
+            Optional<RepairOutcome> repaired = llmRouterClient.repair(
+                    content, capability.capabilityId(), args,
+                    task.error.code(), task.error.message());
+            if (repaired.isPresent()
+                    && !repaired.get().needClarification()
+                    && repaired.get().args() != null
+                    && !repaired.get().args().isEmpty()) {
+                task = taskService.submit(sessionNo, capability, repaired.get().args(),
+                        user.actorId(), traceId);
+            }
+        }
+        return new ExecutionResult(capability, task);
+    }
+
+    private void mergeOutput(Map<String, Object> args, Object output) {
+        if (!(output instanceof Map<?, ?> map)) {
+            return;
+        }
+        for (String key : List.of("contactName", "contactPhone", "projectId", "buildingId",
+                "roomId", "customerId", "ticketNo", "description", "locationText")) {
+            Object value = map.get(key);
+            if (value != null) {
+                args.putIfAbsent(key, value);
+            }
+        }
+    }
+
+    private record ExecutionResult(Capability capability, TaskRecord task) {
     }
 
     private Map<String, Object> taskEvent(TaskRecord task) {

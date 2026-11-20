@@ -13,6 +13,7 @@ class CapabilityIn(BaseModel):
     description: str | None = None
     readOnly: bool = False
     requiresConfirmation: bool = False
+    inputSchema: dict[str, Any] | None = None
 
 
 class TurnIn(BaseModel):
@@ -29,11 +30,36 @@ class RouteRequest(BaseModel):
     currentDomain: str | None = None
 
 
+class PlanStep(BaseModel):
+    capabilityId: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
 class RouteResponse(BaseModel):
     intent: str | None = None
     capabilityId: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     confidence: float = 0.0
+    needClarification: bool = False
+    clarification: str | None = None
+    reason: str | None = None
+    plan: list[PlanStep] = Field(default_factory=list)
+    missingFields: list[str] = Field(default_factory=list)
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class RepairRequest(BaseModel):
+    userMessage: str
+    capabilityId: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    errorCode: str | None = None
+    errorMessage: str | None = None
+    capabilities: list[CapabilityIn] = Field(default_factory=list)
+
+
+class RepairResponse(BaseModel):
+    capabilityId: str
+    args: dict[str, Any] = Field(default_factory=dict)
     needClarification: bool = False
     clarification: str | None = None
     reason: str | None = None

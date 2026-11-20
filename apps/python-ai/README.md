@@ -45,7 +45,7 @@ curl http://127.0.0.1:8700/ready
 ```bash
 cd apps/python-ai
 .venv/bin/python -m pytest -q
-# 5/5 passed
+# 7/7 passed
 ```
 
 ## API
@@ -90,6 +90,15 @@ Content-Type: application/json
 - `1栋大堂的灯不亮了` → `property.ticket.create`，经确认后 `SUCCEEDED`；
 - `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
 - Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
+
+## 计划与修正
+
+- `/internal/v1/ai/route` 返回 `plan`（最多 3 步）、`missingFields`，并接收能力 `inputSchema`；
+- 前置步骤只允许只读能力（如 `profile.get`），Java 执行后把结果合并进最终参数；
+- 必填字段缺失时返回追问，不猜测；
+- `/internal/v1/ai/repair` 接收子 Agent 的 `VALIDATION` 错误和原始参数，返回修正后的参数或追问；
+- Java 在最终任务校验失败时调用 repair，最多重试一次；
+- LLM 不可用时 Java 回退规则路由。
 
 ## 行为与安全
 

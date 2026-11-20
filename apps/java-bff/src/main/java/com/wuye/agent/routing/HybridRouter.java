@@ -6,10 +6,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
- * 规则优先、LLM 兜底：
- * - 规则高置信度：直接使用，省 token/延迟；
- * - 规则歧义/低置信度：调用 Python LLM；
- * - LLM 不可用/超时：回退规则结果，不阻塞对话。
+ * LLM 主导、规则兜底：
+ * - 正常情况优先使用 Python LLM 的路由/规划结果；
+ * - LLM 未启用/超时/不可用：回退规则结果，不阻塞对话。
  */
 @Component
 @Primary
@@ -29,13 +28,6 @@ public class HybridRouter implements Router {
     public RouteDecision route(String message) {
         RouteDecision rule = ruleRouter.route(message);
         if (!properties.isEnabled()) {
-            return rule;
-        }
-        if (!rule.needClarification() && rule.confidence() >= properties.getRuleConfidenceThreshold()) {
-            return rule;
-        }
-        // 裸“创建工单/新建工单”必须先追问描述，不能交给 LLM 直接建空单
-        if (rule.needClarification() && RuleRouter.isGenericCreate(message)) {
             return rule;
         }
         Optional<RouteDecision> llm = llmRouterClient.route(message);

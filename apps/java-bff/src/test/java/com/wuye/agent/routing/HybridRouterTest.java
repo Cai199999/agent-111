@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class HybridRouterTest {
 
     @Test
-    void highConfidenceRuleSkipsLlm() {
+    void llmDecisionIsPreferredOverRule() {
         AtomicInteger calls = new AtomicInteger();
         LlmRouterClient llm = message -> {
             calls.incrementAndGet();
@@ -23,9 +23,9 @@ class HybridRouterTest {
 
         RouteDecision decision = router.route("我有哪些待处理工单？");
 
-        assertEquals("property.ticket.query", decision.capabilityId());
-        assertEquals("RULE", decision.router());
-        assertEquals(0, calls.get());
+        assertEquals("contract.rule.list", decision.capabilityId());
+        assertEquals("LLM", decision.router());
+        assertEquals(1, calls.get());
     }
 
     @Test
@@ -42,11 +42,11 @@ class HybridRouterTest {
     }
 
     @Test
-    void genericCreateAsksForDetailsWithoutCallingLlm() {
+    void llmCanAskForClarification() {
         AtomicInteger calls = new AtomicInteger();
         LlmRouterClient llm = message -> {
             calls.incrementAndGet();
-            return Optional.of(RouteDecision.route("property.ticket.create", Map.of(), 0.95, "llm")
+            return Optional.of(RouteDecision.clarify("请提供工单类型", "缺少必填字段")
                     .withRouter("LLM"));
         };
         HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
@@ -54,8 +54,8 @@ class HybridRouterTest {
         RouteDecision decision = router.route("创建工单");
 
         assertTrue(decision.needClarification());
-        assertEquals("RULE", decision.router());
-        assertEquals(0, calls.get());
+        assertEquals("LLM", decision.router());
+        assertEquals(1, calls.get());
     }
 
     @Test

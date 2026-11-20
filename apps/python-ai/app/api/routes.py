@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import settings
 from app.llm.client import DeepSeekClient, LlmUnavailable
-from app.schemas import RouteRequest, RouteResponse
+from app.schemas import RepairRequest, RepairResponse, RouteRequest, RouteResponse
 from app.services.router import RouteService
 
 logger = logging.getLogger(__name__)
@@ -58,4 +58,24 @@ def route(request: RouteRequest) -> RouteResponse:
         return response
     except LlmUnavailable as exc:
         logger.warning("llm unavailable traceId=%s error=%s", request.traceId, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/internal/v1/ai/repair",
+    response_model=RepairResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def repair(request: RepairRequest) -> RepairResponse:
+    try:
+        response = service.repair(request)
+        logger.info(
+            "repair capability=%s clarify=%s usage=%s",
+            response.capabilityId,
+            response.needClarification,
+            response.usage,
+        )
+        return response
+    except LlmUnavailable as exc:
+        logger.warning("llm repair unavailable error=%s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc

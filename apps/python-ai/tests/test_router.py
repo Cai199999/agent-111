@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.core.config import Settings
-from app.schemas import CapabilityIn, RouteRequest
+from app.schemas import CapabilityIn, RepairRequest, RouteRequest
 from app.services.router import RouteService
 
 
@@ -78,6 +78,70 @@ def test_unknown_capability_requires_clarification():
     assert response.capabilityId is None
     assert response.needClarification is True
     assert response.clarification
+
+
+def test_plan_and_missing_fields_are_parsed():
+    client = FakeClient(
+        {
+            "capabilityId": "property.ticket.create",
+            "confidence": 0.9,
+            "needClarification": False,
+            "plan": [
+                {"capabilityId": "property.profile.get", "args": {}},
+                {
+                    "capabilityId": "property.ticket.create",
+                    "args": {"description": "水管漏水", "locationText": "3栋2单元"},
+                },
+            ],
+            "missingFields": ["ticketTypeCode"],
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    create_request = RouteRequest(
+        traceId="trc-test",
+        sessionNo="ws-test",
+        userMessage="创建工单：3栋2单元水管漏水",
+        capabilities=[
+            capability("property.profile.get"),
+            capability("property.ticket.create", read_only=False),
+        ],
+    )
+
+    response = service.route(create_request)
+
+    assert [step.capabilityId for step in response.plan] == [
+        "property.profile.get",
+        "property.ticket.create",
+    ]
+    assert response.missingFields == ["ticketTypeCode"]
+    assert response.needClarification is True
+    assert "ticketTypeCode" in response.clarification
+
+
+def test_repair_returns_corrected_args():
+    client = FakeClient(
+        {
+            "capabilityId": "property.ticket.create",
+            "args": {"ticketTypeCode": "PLUMBING", "description": "水管漏水"},
+            "needClarification": False,
+            "reason": "补充必填字段",
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    request_data = RepairRequest(
+        userMessage="创建工单：3栋2单元水管漏水",
+        capabilityId="property.ticket.create",
+        args={"description": "水管漏水"},
+        errorCode="60001",
+        errorMessage="ticketTypeCode不能为空",
+        capabilities=[capability("property.ticket.create", read_only=False)],
+    )
+
+    response = service.repair(request_data)
+
+    assert response.args["ticketTypeCode"] == "PLUMBING"
+    assert response.needClarification is False
+    assert "ticketTypeCode" in client.calls[0][1]
 
 
 def test_low_confidence_requires_clarification():

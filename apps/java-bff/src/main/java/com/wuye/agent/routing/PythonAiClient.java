@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
+import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.model.Capability;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -34,14 +35,17 @@ public class PythonAiClient implements LlmRouterClient {
 
     private final AiProperties properties;
     private final AdapterRegistry registry;
+    private final CapabilitySchemaService schemaService;
     private final ObjectMapper mapper;
     private final HttpClient http;
     /** 简单熔断：LLM 失败后 30s 内直接回退规则，避免每轮都等超时。 */
     private volatile long nextRetryAt = 0;
 
-    public PythonAiClient(AiProperties properties, AdapterRegistry registry, ObjectMapper mapper) {
+    public PythonAiClient(AiProperties properties, AdapterRegistry registry,
+                          CapabilitySchemaService schemaService, ObjectMapper mapper) {
         this.properties = properties;
         this.registry = registry;
+        this.schemaService = schemaService;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -115,12 +119,97 @@ public class PythonAiClient implements LlmRouterClient {
                 clarification = "我不太确定你指的是哪类操作，能再说具体一点吗？";
             }
         }
+
+        List<RouteDecision.PlanStep> plan = new ArrayList<>();
+        JsonNode planNode = data.get("plan");
+        if (planNode != null && planNode.isArray()) {
+            for (JsonNode item : planNode) {
+                String stepCapability = text(item, "capabilityId");
+                if (stepCapability == null || registry.capability(stepCapability).isEmpty()) {
+                    continue;
+                }
+                plan.add(new RouteDecision.PlanStep(stepCapability, args(item.get("args"))));
+            }
+        }
+        List<String> missing = new ArrayList<>();
+        JsonNode missingNode = data.get("missingFields");
+        if (missingNode != null && missingNode.isArray()) {
+            for (JsonNode item : missingNode) {
+                if (!item.asText().isBlank()) {
+                    missing.add(item.asText());
+                }
+            }
+        }
+        if (!missing.isEmpty()) {
+            clarify = true;
+            if (clarification == null) {
+                clarification = "还需要补充：" + String.join("、", missing);
+            }
+        }
+        if (plan.isEmpty() && capabilityId != null) {
+            plan.add(new RouteDecision.PlanStep(capabilityId, args));
+        }
+
         if (capabilityId == null) {
             return new RouteDecision(null, args, confidence, true,
-                    clarification == null ? "能再说具体一点吗？" : clarification, reason, "LLM");
+                    clarification == null ? "能再说具体一点吗？" : clarification,
+                    reason, plan, missing, "LLM");
         }
         return new RouteDecision(capabilityId, args, confidence, clarify,
-                clarification, reason, "LLM");
+                clarification, reason, plan, missing, "LLM");
+    }
+
+    @Override
+    public Optional<RepairOutcome> repair(String userMessage, String capabilityId,
+                                          Map<String, Object> args,
+                                          String errorCode, String errorMessage) {
+        if (!properties.isEnabled() || isBlank(properties.getBaseUrl())
+                || System.currentTimeMillis() < nextRetryAt) {
+            return Optional.empty();
+        }
+        try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("userMessage", userMessage);
+            body.put("capabilityId", capabilityId);
+            body.put("args", args);
+            body.put("errorCode", errorCode);
+            body.put("errorMessage", errorMessage);
+            body.put("capabilities", capabilityPayload());
+
+            HttpRequest.Builder builder = HttpRequest.newBuilder(
+                            URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/repair"))
+                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            mapper.writeValueAsString(body), StandardCharsets.UTF_8));
+            if (!isBlank(properties.getInternalToken())) {
+                builder.header("X-Internal-Token", properties.getInternalToken());
+            }
+            HttpResponse<String> response = http.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                nextRetryAt = System.currentTimeMillis() + 30_000;
+                log.warn("LLM 参数修正不可用 status={}", response.statusCode());
+                return Optional.empty();
+            }
+            JsonNode data = mapper.readTree(response.body());
+            if (data.has("data")) {
+                data = data.get("data");
+            }
+            nextRetryAt = 0;
+            String repairedCapability = text(data, "capabilityId");
+            return Optional.of(new RepairOutcome(
+                    repairedCapability == null ? capabilityId : repairedCapability,
+                    args(data.get("args")),
+                    data.path("needClarification").asBoolean(false),
+                    text(data, "clarification"),
+                    text(data, "reason")));
+        } catch (Exception ex) {
+            nextRetryAt = System.currentTimeMillis() + 30_000;
+            log.warn("LLM 参数修正失败：{}", ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     private List<Map<String, Object>> capabilityPayload() {
@@ -132,6 +221,10 @@ public class PythonAiClient implements LlmRouterClient {
             item.put("description", capability.description());
             item.put("readOnly", capability.readOnly());
             item.put("requiresConfirmation", capability.requiresConfirmation());
+            Map<String, Object> schema = schemaService.schemaFor(capability.capabilityId());
+            if (schema != null) {
+                item.put("inputSchema", schema);
+            }
             payload.add(item);
         }
         return payload;

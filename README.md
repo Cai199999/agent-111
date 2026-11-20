@@ -28,13 +28,13 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 22/22 passed；Python AI 5/5
+# 当前：Java 28/28 passed；Python AI 7/7
 
 # 启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
 bash scripts/start-prototype.sh
 ```
 
-已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、两域规则路由、知识库消歧、写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400；Python AI 路由服务（DeepSeek/OpenAI 兼容，规则优先 + LLM 兜底）。
+已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、LLM 主导路由（DeepSeek/OpenAI 兼容）、计划拆解（只读前置步骤 + 最终写操作）、子 Agent 校验失败回传 LLM 自动修正参数、规则仅作 LLM 不可用时兜底；写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
 
 演示账号：`admin/admin123`、`worker/worker123`、`user/user123`。合同 Agent 仅管理员可见；普通用户只能建单/查自己的工单；工人可接单/处理/解决，不能建单；管理员全部。
 

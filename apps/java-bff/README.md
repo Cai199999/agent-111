@@ -5,7 +5,7 @@
 ```text
 浏览器（原生 HTML/JS/CSS）
   → Java BFF（Spring Boot）
-      → RuleRouter（规则路由）
+      → HybridRouter（LLM 主导，规则兜底）
       → AgentAdapter SPI
           → MockPropertyAdapter（property-v08 方言）
           → MockContractAdapter（contract-v07 方言）
@@ -49,7 +49,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 22/22 passed（Python AI 另 5/5）
+# 当前：Java 28/28 passed（Python AI 另 7/7）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh
@@ -144,7 +144,9 @@ export AGENT_CONTRACT_INTERNAL_TOKEN=...
 | `persistence/MysqlPersistenceConfig.java` | 手工 DataSource/Flyway 装配 |
 | `agent/http/HttpAgentSupport.java` | 真实 HTTP 请求、委托令牌缓存 |
 | `agent/http/AbstractHttpAdapter.java` | 两种方言的提交/查询/确认/取消/事件/健康 |
-| `routing/RuleRouter.java` | 规则优先路由，含 `知识库` 消歧 |
+| `routing/HybridRouter.java` | LLM 主导，规则兜底 |
+| `routing/RuleRouter.java` | 规则兜底路由，含 `知识库` 消歧 |
+| `routing/PythonAiClient.java` | Python 路由/计划/修正客户端 |
 | `chat/ChatService.java` | SSE 编排，确认令牌不出服务端 |
 | `resources/static/` | 原生单对话框 UI |
 
@@ -156,7 +158,7 @@ export AGENT_CONTRACT_INTERNAL_TOKEN=...
 | 确认令牌 | Redis + TTL | MySQL AES-GCM 加密列 | 不引入 Redis 依赖；生产建议迁回 Redis |
 | 表范围 | 16 张完整表 | 4 张核心表 | 先覆盖会话/消息/任务/事件；管理/审计表后续 |
 | Manifest | 自动同步/版本校验 | 静态描述 | 子 Agent 未启动；后续接同步 |
-| 路由 | 规则 + Python LLM | 已实现规则 + LLM 兜底 | 需用户填 `DEEPSEEK_API_KEY` 后启用 |
+| 路由 | LLM 主导 + 规则兜底 | 已实现；支持计划和参数修正 | 需用户填 `DEEPSEEK_API_KEY` |
 | LLM 生成/成本 | 自然语言生成 + usage 落库 | 目前只用 LLM 做路由，usage 写日志 | 先验证路由，再扩展生成 |
 
 ## 原型边界
