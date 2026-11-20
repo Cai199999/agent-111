@@ -30,6 +30,7 @@ body {
   display: grid;
   grid-template-columns: 280px 1fr;
   height: 100vh;
+  height: 100dvh;
   min-height: 0;
   overflow: hidden;
 }
@@ -42,6 +43,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
+  overflow: hidden;
 }
 .brand { display: flex; gap: 12px; align-items: center; padding: 4px 6px 10px; }
 .brand-mark {
@@ -93,6 +96,7 @@ body {
   height: 72px; padding: 0 28px; background: rgba(255,255,255,.86);
   border-bottom: 1px solid var(--line); backdrop-filter: blur(10px);
   display: flex; align-items: center; justify-content: space-between;
+  flex: 0 0 auto;
 }
 .chat-title { font-weight: 700; font-size: 16px; }
 .chat-sub { color: var(--muted); font-size: 12px; }
@@ -225,7 +229,11 @@ body {
 .btn.small { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
 
 /* 输入区 */
-.composer { padding: 14px 28px 20px; background: linear-gradient(180deg, rgba(242,245,249,0), var(--bg) 30%); }
+.composer {
+  padding: 14px 28px 20px;
+  background: linear-gradient(180deg, rgba(242,245,249,0), var(--bg) 30%);
+  flex: 0 0 auto;
+}
 .composer-box {
   max-width: 900px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line);
   border-radius: 16px; padding: 10px; display: flex; gap: 10px; align-items: flex-end;
@@ -260,7 +268,9 @@ body {
 
 /* 登录页 */
 .login-view {
-  min-height: 100vh; display: grid; place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid; place-items: center;
   background: radial-gradient(circle at 20% 10%, #e8f0ff, transparent 40%),
               radial-gradient(circle at 80% 90%, #e7f7f1, transparent 45%), var(--bg);
   padding: 24px;
