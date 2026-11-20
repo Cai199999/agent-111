@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261120-auth2';
+const UI_VERSION = '20261120-auth3';
+window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
 
