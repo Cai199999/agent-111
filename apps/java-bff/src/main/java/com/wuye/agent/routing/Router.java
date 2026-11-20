@@ -6,4 +6,8 @@ package com.wuye.agent.routing;
 public interface Router {
 
     RouteDecision route(String message);
+
+    default RouteDecision route(String message, PendingIntent pending) {
+        return route(message);
+    }
 }

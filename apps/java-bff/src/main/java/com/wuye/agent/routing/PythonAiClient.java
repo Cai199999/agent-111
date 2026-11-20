@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
+import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.model.Capability;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -36,16 +37,19 @@ public class PythonAiClient implements LlmRouterClient {
     private final AiProperties properties;
     private final AdapterRegistry registry;
     private final CapabilitySchemaService schemaService;
+    private final OptionCatalogService optionCatalogService;
     private final ObjectMapper mapper;
     private final HttpClient http;
     /** 简单熔断：LLM 失败后 30s 内直接回退规则，避免每轮都等超时。 */
     private volatile long nextRetryAt = 0;
 
     public PythonAiClient(AiProperties properties, AdapterRegistry registry,
-                          CapabilitySchemaService schemaService, ObjectMapper mapper) {
+                          CapabilitySchemaService schemaService,
+                          OptionCatalogService optionCatalogService, ObjectMapper mapper) {
         this.properties = properties;
         this.registry = registry;
         this.schemaService = schemaService;
+        this.optionCatalogService = optionCatalogService;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -55,6 +59,11 @@ public class PythonAiClient implements LlmRouterClient {
 
     @Override
     public Optional<RouteDecision> route(String message) {
+        return route(message, null);
+    }
+
+    @Override
+    public Optional<RouteDecision> route(String message, PendingIntent pending) {
         if (!properties.isEnabled() || isBlank(properties.getBaseUrl())) {
             return Optional.empty();
         }
@@ -66,6 +75,14 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("userMessage", message);
             body.put("recentTurns", List.of());
             body.put("capabilities", capabilityPayload());
+            body.put("optionCatalog", optionCatalogService.options());
+            if (pending != null) {
+                Map<String, Object> pendingBody = new LinkedHashMap<>();
+                pendingBody.put("capabilityId", pending.capabilityId());
+                pendingBody.put("args", pending.args());
+                pendingBody.put("missingFields", pending.missingFields());
+                body.put("pending", pendingBody);
+            }
 
             HttpRequest.Builder builder = HttpRequest.newBuilder(
                             URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/route"))
@@ -175,6 +192,7 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("errorCode", errorCode);
             body.put("errorMessage", errorMessage);
             body.put("capabilities", capabilityPayload());
+            body.put("optionCatalog", optionCatalogService.options());
 
             HttpRequest.Builder builder = HttpRequest.newBuilder(
                             URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/repair"))

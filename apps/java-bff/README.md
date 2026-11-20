@@ -13,6 +13,18 @@
       → 内存存储
 ```
 
+## 多轮补参与枚举
+
+- 建单缺少 `ticketTypeCode` 时，主 Agent 从物业 `masterdata.options` 读取：
+  - `ticketTypes`（如 `PUMP`=水泵故障）
+  - `priorities`（如 `NORMAL`=普通）
+  - `locationTypes`、`indoorPublicAreas`
+- 这些选项作为 `optionCatalog` 传给 LLM，由中文名映射到 code，不再向用户抛裸编码；
+- LLM 追问后，主 Agent 暂存 `PendingIntent`（能力/已填参数/缺失字段）；
+- 下一轮用户回答会合并到 pending，继续追问剩余字段，不重新开始；
+- 只有必填字段齐全且不歧义时才提交子 Agent；
+- 无法匹配选项（如“3栋”不存在于 A-F 栋）时继续追问，不猜 ID。
+
 ## 原始结果与工具接口
 
 - 子 Agent 成功结果通过 SSE `event:result` 原样返回 `output`，主 Agent 不再改写/生成展示文本；
@@ -59,7 +71,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 29/29 passed（Python AI 另 7/7）
+# 当前：Java 29/29 passed（Python AI 另 8/8）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh

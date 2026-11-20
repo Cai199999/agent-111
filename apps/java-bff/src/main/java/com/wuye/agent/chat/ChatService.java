@@ -10,6 +10,7 @@ import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.routing.LlmRouterClient;
+import com.wuye.agent.routing.PendingIntent;
 import com.wuye.agent.routing.RepairOutcome;
 import com.wuye.agent.routing.RouteDecision;
 import com.wuye.agent.routing.Router;
@@ -25,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,8 @@ public class ChatService {
     private final TaskService taskService;
     private final PolicyService policyService;
     private final Ids ids;
+    /** 多轮补参状态，按会话隔离；10 分钟过期。 */
+    private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
 
     public ChatService(Store store, AdapterRegistry registry,
                        Router router, LlmRouterClient llmRouterClient,
@@ -96,7 +100,12 @@ public class ChatService {
                     "messageNo", userMessage.messageNo(),
                     "traceId", traceId));
 
-            RouteDecision route = router.route(content);
+            PendingIntent pending = pendingIntents.get(sessionNo);
+            if (pending != null && pending.expired()) {
+                pendingIntents.remove(sessionNo);
+                pending = null;
+            }
+            RouteDecision route = router.route(content, pending);
             Map<String, Object> routeEvent = new LinkedHashMap<>();
             routeEvent.put("capabilityId", route.capabilityId());
             routeEvent.put("confidence", route.confidence());
@@ -105,6 +114,20 @@ public class ChatService {
             emit(emitter, "route", routeEvent);
 
             if (route.needClarification()) {
+                String pendingCapability = route.capabilityId() != null
+                        ? route.capabilityId()
+                        : (pending == null ? null : pending.capabilityId());
+                if (pendingCapability != null) {
+                    Map<String, Object> pendingArgs = new LinkedHashMap<>(
+                            pending == null ? Map.of() : pending.args());
+                    if (route.args() != null) {
+                        pendingArgs.putAll(route.args());
+                    }
+                    pendingIntents.put(sessionNo, new PendingIntent(
+                            pendingCapability, pendingArgs,
+                            route.missingFields() == null ? List.of() : route.missingFields(),
+                            Instant.now()));
+                }
                 ChatMessage assistant = store.addMessage(session, "ASSISTANT", route.clarification(),
                         "TEXT", Map.of("clarification", true), null);
                 emit(emitter, "delta", Map.of("content", route.clarification()));
@@ -112,6 +135,7 @@ public class ChatService {
                 emitter.complete();
                 return;
             }
+            pendingIntents.remove(sessionNo);
 
             if (route.hasPlan() && route.plan().size() > 1) {
                 emit(emitter, "plan", Map.of(

@@ -21,6 +21,12 @@ class TurnIn(BaseModel):
     content: str
 
 
+class PendingContext(BaseModel):
+    capabilityId: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+    missingFields: list[str] = Field(default_factory=list)
+
+
 class RouteRequest(BaseModel):
     traceId: str | None = None
     sessionNo: str | None = None
@@ -28,6 +34,8 @@ class RouteRequest(BaseModel):
     recentTurns: list[TurnIn] = Field(default_factory=list)
     capabilities: list[CapabilityIn] = Field(default_factory=list)
     currentDomain: str | None = None
+    optionCatalog: dict[str, Any] | None = None
+    pending: PendingContext | None = None
 
 
 class PlanStep(BaseModel):
@@ -55,6 +63,7 @@ class RepairRequest(BaseModel):
     errorCode: str | None = None
     errorMessage: str | None = None
     capabilities: list[CapabilityIn] = Field(default_factory=list)
+    optionCatalog: dict[str, Any] | None = None
 
 
 class RepairResponse(BaseModel):

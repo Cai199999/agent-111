@@ -32,7 +32,14 @@ JSON 字段：
 4) 不确定时宁可追问，不要猜错域或编造 ID。
 5) 必须检查能力 inputSchema.required：缺必填字段时写入 missingFields 并追问，不要猜。
 6) 可以拆分任务：例如建单前先 profile.get 读取项目/楼宇/房间，再 ticket.create；
-   但不要拆出无意义的步骤。"""
+   但不要拆出无意义的步骤。
+7) 如果 optionCatalog 提供了对应枚举（如 ticketTypeCode 对应 ticketTypes、
+   priorityCode 对应 priorities、locationType 对应 locationTypes、
+   indoorPublicArea 对应 indoorPublicAreas），必须使用 optionCatalog 里的 code；
+   用户用中文描述时映射到最匹配的 name，无法确定时追问候选值，不要猜。
+8) 如果输入里有 pending（上一轮追问状态），当前用户消息很可能是对追问的回答：
+   把回答合并进 pending.args，继续检查 missingFields；
+   不要重复询问已经回答过的字段；如果用户明显切换话题，则按新话题处理。"""
 
 REPAIR_PROMPT = """你是"物业主 Agent"的参数修正器。
 子 Agent 拒绝了上一次调用。请根据能力 inputSchema、原始参数和错误信息，
@@ -123,6 +130,7 @@ class RouteService:
             "errorCode": request.errorCode,
             "errorMessage": request.errorMessage,
             "userMessage": request.userMessage,
+            "optionCatalog": request.optionCatalog,
         }
         data, usage = self.client.chat_json(
             REPAIR_PROMPT,
@@ -180,6 +188,8 @@ def build_user_prompt(request: RouteRequest) -> str:
         "capabilities": capabilities,
         "recentTurns": turns,
         "userMessage": request.userMessage,
+        "optionCatalog": request.optionCatalog,
+        "pending": request.pending.model_dump() if request.pending else None,
     }
     return "请基于以下输入做路由决策，只输出 JSON：\n" + json.dumps(
         payload, ensure_ascii=False, indent=2

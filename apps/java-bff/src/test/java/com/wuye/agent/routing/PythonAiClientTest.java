@@ -11,8 +11,10 @@ import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.adapter.MockContractAdapter;
 import com.wuye.agent.agent.adapter.MockPropertyAdapter;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
+import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.http.AgentHttpProperties;
 import com.wuye.agent.agent.http.HttpAgentSupport;
+import com.wuye.agent.common.Ids;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -51,9 +53,13 @@ class PythonAiClientTest {
                 new MockPropertyAdapter(), new MockContractAdapter()));
         ObjectMapper mapper = new ObjectMapper();
         AgentHttpProperties agentProperties = new AgentHttpProperties();
+        HttpAgentSupport agentSupport = new HttpAgentSupport(agentProperties, mapper);
         CapabilitySchemaService schemaService = new CapabilitySchemaService(
-                agentProperties, new HttpAgentSupport(agentProperties, mapper), mapper);
-        client = new PythonAiClient(properties, registry, schemaService, mapper);
+                agentProperties, agentSupport, mapper);
+        OptionCatalogService optionCatalogService = new OptionCatalogService(
+                agentProperties, agentSupport, mapper, new Ids());
+        client = new PythonAiClient(properties, registry, schemaService,
+                optionCatalogService, mapper);
     }
 
     @AfterEach

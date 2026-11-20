@@ -91,6 +91,13 @@ Content-Type: application/json
 - `付款节点一般怎么审` → 低置信度，LLM 主动追问消歧；
 - Java → Python 使用 HTTP/1.1（避免 Uvicorn 对 h2c 升级返回 400）。
 
+## 多轮与枚举
+
+- 请求可带 `pending`（上一轮的能力/参数/缺失字段），LLM 会合并本轮回答，不重复追问；
+- 请求可带 `optionCatalog`（ticketTypes/priorities/locationTypes 等），LLM 必须用其中的 `code`；
+- 中文名（如“水泵故障”“普通”）映射到 code（`PUMP`/`NORMAL`），匹配不到则追问候选；
+- 可选值来自物业 `masterdata.options`，不在 Python 侧硬编码。
+
 ## 计划与修正
 
 - `/internal/v1/ai/route` 返回 `plan`（最多 3 步）、`missingFields`，并接收能力 `inputSchema`；

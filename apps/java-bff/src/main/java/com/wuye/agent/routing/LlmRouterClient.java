@@ -10,6 +10,10 @@ public interface LlmRouterClient {
 
     Optional<RouteDecision> route(String message);
 
+    default Optional<RouteDecision> route(String message, PendingIntent pending) {
+        return route(message);
+    }
+
     default Optional<RepairOutcome> repair(String userMessage, String capabilityId,
                                            Map<String, Object> args,
                                            String errorCode, String errorMessage) {

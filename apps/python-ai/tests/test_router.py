@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.core.config import Settings
-from app.schemas import CapabilityIn, RepairRequest, RouteRequest
+from app.schemas import CapabilityIn, PendingContext, RepairRequest, RouteRequest
 from app.services.router import RouteService
 
 
@@ -116,6 +116,35 @@ def test_plan_and_missing_fields_are_parsed():
     assert response.missingFields == ["ticketTypeCode"]
     assert response.needClarification is True
     assert "ticketTypeCode" in response.clarification
+
+
+def test_pending_context_is_sent_to_llm():
+    client = FakeClient(
+        {
+            "capabilityId": "property.ticket.create",
+            "args": {"description": "水管漏水", "ticketTypeCode": "PUMP"},
+            "confidence": 0.9,
+            "needClarification": False,
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    request_data = RouteRequest(
+        traceId="trc-test",
+        sessionNo="ws-test",
+        userMessage="工单类型选水泵故障",
+        capabilities=[capability("property.ticket.create", read_only=False)],
+        pending=PendingContext(
+            capabilityId="property.ticket.create",
+            args={"description": "水管漏水"},
+            missingFields=["ticketTypeCode"],
+        ),
+    )
+
+    response = service.route(request_data)
+
+    assert response.capabilityId == "property.ticket.create"
+    assert "pending" in client.calls[0][1]
+    assert "ticketTypeCode" in client.calls[0][1]
 
 
 def test_repair_returns_corrected_args():
