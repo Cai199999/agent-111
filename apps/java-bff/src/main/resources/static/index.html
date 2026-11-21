@@ -43,7 +43,10 @@
     </div>
 
     <div class="sidebar-section agent-section">
-      <div class="section-label">Agent 状态</div>
+      <div class="section-head">
+        <div class="section-label">Agent 状态</div>
+        <button id="installAgent" class="icon-btn" type="button" title="安装 Agent" hidden>＋</button>
+      </div>
       <div id="agentStatus" class="agent-status"></div>
     </div>
 
@@ -155,6 +158,34 @@
     <div id="humanList" class="audit-list"></div>
     <div class="modal-actions">
       <button id="humanClose" class="btn" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="installAgentModal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="installAgentTitle">
+    <div id="installAgentTitle" class="modal-title">安装 Agent</div>
+
+    <div class="install-block">
+      <div class="install-title">快速安装：完整示例 Agent</div>
+      <div class="install-desc">巡检报告 Agent：查询、巡检计划、报告生成、导出、异步事件、人工确认。</div>
+      <button id="installTemplateAgent" class="btn primary" type="button">安装巡检报告 Agent</button>
+    </div>
+
+    <div class="install-block">
+      <div class="install-title">从 Agent Card URL 安装</div>
+      <label class="install-field">Agent Card URL
+        <input id="installAgentUrl" placeholder="http://127.0.0.1:8900/.well-known/agent-card.json"/>
+      </label>
+      <label class="install-field">Internal Token（可选）
+        <input id="installAgentToken" type="password" placeholder="外部 Agent 需要时填写"/>
+      </label>
+      <button id="installFromUrl" class="btn" type="button">从 URL 安装</button>
+    </div>
+
+    <div id="installAgentError" class="login-error"></div>
+    <div class="modal-actions">
+      <button id="installAgentClose" class="btn" type="button">关闭</button>
     </div>
   </div>
 </div>

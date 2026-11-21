@@ -344,6 +344,43 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void dynamicInspectionAgentCanBeInstalledUsedAndUninstalled() throws Exception {
+        try {
+            JsonNode installed = postForData("/api/v1/admin/agents/install",
+                    Map.of("template", "inspection"));
+            assertEquals("inspection-agent", installed.path("agentKey").asText(), installed.toString());
+            assertTrue(installed.path("capabilities").toString().contains("inspect.report.generate"),
+                    installed.toString());
+
+            String agents = getWithToken("/api/v1/agents", adminToken);
+            assertTrue(agents.contains("inspection-agent"), agents);
+
+            String session = createSession();
+            String querySse = send(session, "查询巡检报告");
+            assertTrue(querySse.contains("inspect.report.query"), querySse);
+            assertTrue(querySse.contains("IR-2026-001"), querySse);
+
+            String generateSse = send(session, "生成今天的巡检报告");
+            assertTrue(generateSse.contains("inspect.report.generate"), generateSse);
+            assertTrue(generateSse.contains("WAITING_CONFIRM"), generateSse);
+            String taskNo = extractTaskNo(generateSse);
+
+            JsonNode confirmed = postForData("/api/v1/tasks/" + taskNo + "/confirm",
+                    Map.of("decision", "APPROVE", "comment", "同意生成"));
+            assertTrue(List.of("PENDING", "RUNNING", "SUCCEEDED")
+                    .contains(confirmed.path("status").asText()), confirmed.toString());
+
+            JsonNode done = pollUntil(taskNo, "SUCCEEDED", 6000);
+            assertEquals("IR-2026-001", done.path("output").path("reportNo").asText());
+        } finally {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(adminToken);
+            rest.exchange(url("/api/v1/admin/agents/inspection-agent"), HttpMethod.DELETE,
+                    new HttpEntity<>(headers), String.class);
+        }
+    }
+
+    @Test
     void a2aCardsExposeProtocolAndCapabilities() throws Exception {
         // 公开 Agent Card：无需登录、脱敏、可发现
         ResponseEntity<String> publicCard = rest.getForEntity(

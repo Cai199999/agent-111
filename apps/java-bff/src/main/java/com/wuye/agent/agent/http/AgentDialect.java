@@ -5,5 +5,7 @@ package com.wuye.agent.agent.http;
  */
 public enum AgentDialect {
     PROPERTY,
-    CONTRACT
+    CONTRACT,
+    /** 标准裸对象契约；运行时安装的外部 Agent 默认走这个方言。 */
+    CANONICAL
 }

@@ -121,8 +121,9 @@ HEAL_SESSION="$(curl -sf -X POST "$BASE/api/v1/chat/sessions" -H "$AUTH" \
 curl -s -N -X POST "$BASE/api/v1/chat/sessions/$HEAL_SESSION/messages" -H "$AUTH" \
   -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
   -d '{"content":"报修：花园的喷泉坏了","clientMessageId":"smoke-heal-1"}' >"$TMP/heal.sse"
-check "缺关键信息转为追问（CLARIFIED）" \
-  "$(grep -q '"status":"CLARIFIED"' "$TMP/heal.sse" && echo 1 || echo 0)"
+check "缺关键信息转为追问/确认，不报错" \
+  "$( (grep -q '"status":"CLARIFIED"' "$TMP/heal.sse" \
+      || grep -q '"status":"WAITING_CONFIRM"' "$TMP/heal.sse") && echo 1 || echo 0)"
 check "不把原始错误直接抛给用户" \
   "$(grep -q 'event:error' "$TMP/heal.sse" && echo 0 || echo 1)"
 

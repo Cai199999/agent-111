@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261121-sidebar1';
+const UI_VERSION = '20261121-install1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -61,6 +61,14 @@ const FIELD_LABELS = {
   patrolNo: '巡查任务号',
   patrolType: '巡查类型',
   deadline: '截止时间',
+  reportNo: '报告编号',
+  reportType: '报告类型',
+  period: '统计周期',
+  planNo: '计划编号',
+  planName: '计划名称',
+  fileName: '文件名',
+  rows: '记录数',
+  downloadUrl: '下载地址',
   code: '编码',
   preferredProjectId: '默认项目',
   preferredBuildingId: '默认楼栋',
@@ -193,6 +201,14 @@ const els = {
   a2aSummary: document.getElementById('a2aSummary'),
   a2aList: document.getElementById('a2aList'),
   a2aClose: document.getElementById('a2aClose'),
+  installAgent: document.getElementById('installAgent'),
+  installAgentModal: document.getElementById('installAgentModal'),
+  installTemplateAgent: document.getElementById('installTemplateAgent'),
+  installFromUrl: document.getElementById('installFromUrl'),
+  installAgentUrl: document.getElementById('installAgentUrl'),
+  installAgentToken: document.getElementById('installAgentToken'),
+  installAgentError: document.getElementById('installAgentError'),
+  installAgentClose: document.getElementById('installAgentClose'),
   auditMenuItem: document.getElementById('auditMenuItem'),
   auditModal: document.getElementById('auditModal'),
   auditList: document.getElementById('auditList'),
@@ -308,6 +324,12 @@ function bindEvents() {
   els.a2aClose.addEventListener('click', () => {
     els.a2aModal.hidden = true;
   });
+  els.installAgent.addEventListener('click', openInstallAgent);
+  els.installAgentClose.addEventListener('click', () => {
+    els.installAgentModal.hidden = true;
+  });
+  els.installTemplateAgent.addEventListener('click', installTemplateAgent);
+  els.installFromUrl.addEventListener('click', installAgentFromUrl);
   els.auditClose.addEventListener('click', () => {
     els.auditModal.hidden = true;
   });
@@ -380,6 +402,9 @@ function renderCurrentUser() {
   }
   if (els.a2aMenuItem) {
     els.a2aMenuItem.hidden = !isAdmin;
+  }
+  if (els.installAgent) {
+    els.installAgent.hidden = !isAdmin;
   }
   if (els.auditMenuItem) {
     els.auditMenuItem.hidden = !isAdmin;
@@ -1098,6 +1123,10 @@ function capabilityLabel(capabilityId) {
     'gis.parcel.query': '时空 · 查询地块',
     'gis.change.query': '时空 · 变化图斑',
     'gis.patrol.create': '时空 · 创建巡查',
+    'inspect.report.query': '巡检 · 查询报告',
+    'inspect.plan.create': '巡检 · 创建计划',
+    'inspect.report.generate': '巡检 · 生成报告',
+    'inspect.report.export': '巡检 · 导出报告',
   };
   return labels[capabilityId] || capabilityId || '任务';
 }
@@ -1503,6 +1532,69 @@ function a2aCard(card, kind, health) {
     `${features.sse ? 'SSE' : '事件轮询'} · 人工确认 ${confirmation ? '✓' : '—'}`
     + ` · 取消 ${features.cancel ? '✓' : '—'} · 流式 ${features.streaming ? '✓' : '—'}`));
   return box;
+}
+
+function openInstallAgent() {
+  els.installAgentError.textContent = '';
+  els.installAgentModal.hidden = false;
+  setTimeout(() => els.installAgentUrl.focus(), 0);
+}
+
+async function installTemplateAgent() {
+  els.installAgentError.textContent = '';
+  els.installTemplateAgent.disabled = true;
+  try {
+    const result = await api('/api/v1/admin/agents/install', {
+      method: 'POST',
+      body: JSON.stringify({ template: 'inspection' }),
+    });
+    await refreshCatalog();
+    els.installAgentModal.hidden = true;
+    showToast(`已安装：${result.displayName || result.agentKey}`);
+  } catch (error) {
+    els.installAgentError.textContent = error.message || '安装失败';
+  } finally {
+    els.installTemplateAgent.disabled = false;
+  }
+}
+
+async function installAgentFromUrl() {
+  const cardUrl = els.installAgentUrl.value.trim();
+  if (!cardUrl) {
+    els.installAgentError.textContent = '请输入 Agent Card URL';
+    return;
+  }
+  els.installAgentError.textContent = '';
+  els.installFromUrl.disabled = true;
+  try {
+    const result = await api('/api/v1/admin/agents/install', {
+      method: 'POST',
+      body: JSON.stringify({
+        cardUrl,
+        internalToken: els.installAgentToken.value || undefined,
+      }),
+    });
+    await refreshCatalog();
+    els.installAgentModal.hidden = true;
+    els.installAgentUrl.value = '';
+    els.installAgentToken.value = '';
+    showToast(`已安装：${result.displayName || result.agentKey}`);
+  } catch (error) {
+    els.installAgentError.textContent = error.message || '安装失败';
+  } finally {
+    els.installFromUrl.disabled = false;
+  }
+}
+
+async function refreshCatalog() {
+  const me = await api('/api/v1/auth/me');
+  state.me = me.user;
+  state.agents = me.agents || [];
+  state.capabilities = new Set(
+    state.agents.flatMap((agent) => (agent.capabilities || []).map((cap) => cap.capabilityId)),
+  );
+  renderCurrentUser();
+  renderAgents();
 }
 
 async function openHumanTasks() {

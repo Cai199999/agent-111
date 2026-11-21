@@ -77,7 +77,30 @@ public class RuleRouter implements Router {
             }
         }
 
-        // 3. 时空资产域（第三个演示 Agent）
+        // 3. 运行时安装的巡检报告 Agent（未安装时由 ChatService 做友好兜底）
+        if (containsAny(text, "巡检")) {
+            if (containsAny(text, "导出")) {
+                return RouteDecision.route("inspect.report.export",
+                        Map.of("query", text), 0.9, "命中巡检报告导出");
+            }
+            if (containsAny(text, "生成", "创建", "新建") && text.contains("报告")) {
+                Map<String, Object> args = new LinkedHashMap<>();
+                args.put("reportType", text);
+                args.put("region", "全部区域");
+                args.put("period", "最近 7 天");
+                return RouteDecision.route("inspect.report.generate", args, 0.9, "命中巡检报告生成");
+            }
+            if (containsAny(text, "计划", "安排")) {
+                Map<String, Object> args = new LinkedHashMap<>();
+                args.put("planName", text);
+                args.put("region", "全部区域");
+                return RouteDecision.route("inspect.plan.create", args, 0.9, "命中巡检计划");
+            }
+            return RouteDecision.route("inspect.report.query",
+                    Map.of("query", text), 0.9, "命中巡检报告查询");
+        }
+
+        // 4. 时空资产域（第三个演示 Agent）
         Matcher parcel = PARCEL_NO.matcher(text);
         String parcelNo = parcel.find() ? parcel.group() : null;
         boolean patrolIntent = containsAny(text, "巡查", "执法", "外业")
@@ -107,7 +130,7 @@ public class RuleRouter implements Router {
             return RouteDecision.route("gis.parcel.query", args, 0.9, "命中地块查询");
         }
 
-        // 4. 物业域
+        // 5. 物业域
         Matcher ticket = TICKET_NO.matcher(text);
         String ticketNo = ticket.find() ? ticket.group() : null;
 

@@ -151,6 +151,26 @@ public class ChatService {
             }
             pendingIntents.remove(sessionNo);
 
+            // 规则路由可能命中“尚未安装”的动态 Agent 能力：友好提示安装，不抛技术错误。
+            if (route.capabilityId() != null
+                    && !MainAgentTools.isMainTool(route.capabilityId())
+                    && registry.capability(route.capabilityId()).isEmpty()) {
+                String message = "这个能力还没有安装或暂不可用。可以到侧边栏「Agent 状态」安装对应 Agent 后再试。";
+                ChatMessage assistant = store.addMessage(session, "ASSISTANT", message,
+                        "TEXT", Map.of("noCapability", true), null);
+                emit(emitter, "feedback", Map.of(
+                        "action", "NO_CAPABILITY",
+                        "message", message,
+                        "retryable", false));
+                emit(emitter, "delta", Map.of("content", message));
+                emit(emitter, "done", Map.of(
+                        "messageNo", assistant.messageNo(),
+                        "status", "CLARIFIED"));
+                emitter.complete();
+                memoryService.updateAsync(sessionNo);
+                return;
+            }
+
             if (route.capabilityId() != null && MainAgentTools.isMainTool(route.capabilityId())) {
                 handleMainTool(route, user, session, emitter);
                 return;

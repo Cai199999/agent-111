@@ -129,6 +129,26 @@ public class CapabilitySchemaService {
                         "parcelNo", Map.of("type", "string"),
                         "patrolType", Map.of("type", "string"),
                         "deadline", Map.of("type", "string"))));
+        result.put("inspect.report.query", Map.of(
+                "type", "object",
+                "properties", Map.of("query", Map.of("type", "string"))));
+        result.put("inspect.report.generate", Map.of(
+                "type", "object",
+                "required", List.of("reportType"),
+                "properties", Map.of(
+                        "reportType", Map.of("type", "string"),
+                        "region", Map.of("type", "string"),
+                        "period", Map.of("type", "string"))));
+        result.put("inspect.plan.create", Map.of(
+                "type", "object",
+                "required", List.of("planName"),
+                "properties", Map.of(
+                        "planName", Map.of("type", "string"),
+                        "region", Map.of("type", "string"),
+                        "deadline", Map.of("type", "string"))));
+        result.put("inspect.report.export", Map.of(
+                "type", "object",
+                "properties", Map.of("query", Map.of("type", "string"))));
         return result;
     }
 }
