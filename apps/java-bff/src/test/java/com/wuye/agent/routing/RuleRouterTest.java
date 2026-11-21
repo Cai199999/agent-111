@@ -35,4 +35,24 @@ class RuleRouterTest {
         RouteDecision decision = router.route("我有哪些待处理工单？");
         assertEquals("property.ticket.query", decision.capabilityId());
     }
+
+    @Test
+    void parcelQueryRoutesToGisAgent() {
+        RouteDecision decision = router.route("查询地块 P-2026-001");
+        assertEquals("gis.parcel.query", decision.capabilityId());
+        assertEquals("P-2026-001", decision.args().get("parcelNo"));
+    }
+
+    @Test
+    void changePatchesRouteToGisAgent() {
+        RouteDecision decision = router.route("有哪些遥感变化图斑？");
+        assertEquals("gis.change.query", decision.capabilityId());
+    }
+
+    @Test
+    void patrolCreateRoutesToGisAgent() {
+        RouteDecision decision = router.route("为地块 P-2026-001 创建巡查任务");
+        assertEquals("gis.patrol.create", decision.capabilityId());
+        assertEquals("P-2026-001", decision.args().get("parcelNo"));
+    }
 }

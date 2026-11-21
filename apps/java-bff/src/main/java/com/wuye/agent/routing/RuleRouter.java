@@ -21,6 +21,7 @@ public class RuleRouter implements Router {
     private static final Pattern ASSIGNEE = Pattern.compile("(?:派给|分配给|给)\\s*(\\d{3,})");
     private static final Pattern CONTRACT_ID = Pattern.compile("(\\d{4,})");
     private static final Pattern LOCATION = Pattern.compile("(\\d+栋[^，,。\\s]*)");
+    private static final Pattern PARCEL_NO = Pattern.compile("P-\\d{4}-\\d+");
 
     public RouteDecision route(String raw) {
         String text = raw == null ? "" : raw.strip();
@@ -76,7 +77,37 @@ public class RuleRouter implements Router {
             }
         }
 
-        // 3. 物业域
+        // 3. 时空资产域（第三个演示 Agent）
+        Matcher parcel = PARCEL_NO.matcher(text);
+        String parcelNo = parcel.find() ? parcel.group() : null;
+        boolean patrolIntent = containsAny(text, "巡查", "执法", "外业")
+                || (text.contains("核查") && containsAny(text, "创建", "新建", "派发", "安排", "任务"));
+        if (patrolIntent) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            if (parcelNo != null) {
+                args.put("parcelNo", parcelNo);
+            }
+            args.put("patrolType", text);
+            return RouteDecision.route("gis.patrol.create", args, 0.9, "命中巡查任务");
+        }
+        if (containsAny(text, "遥感", "变化图斑", "图斑", "影像", "变化检测")) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("keyword", text);
+            if (parcelNo != null) {
+                args.put("parcelNo", parcelNo);
+            }
+            return RouteDecision.route("gis.change.query", args, 0.9, "命中变化图斑查询");
+        }
+        if (containsAny(text, "地块", "宗地", "地籍", "不动产单元")) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("keyword", text);
+            if (parcelNo != null) {
+                args.put("parcelNo", parcelNo);
+            }
+            return RouteDecision.route("gis.parcel.query", args, 0.9, "命中地块查询");
+        }
+
+        // 4. 物业域
         Matcher ticket = TICKET_NO.matcher(text);
         String ticketNo = ticket.find() ? ticket.group() : null;
 

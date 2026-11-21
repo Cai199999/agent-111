@@ -51,6 +51,35 @@ check "Agent Card 不泄露内部令牌" \
 check "管理端 A2A 总览" \
   "$(curl -sf "$BASE/api/v1/admin/a2a/summary" -H "$AUTH" >/dev/null && echo 1 || echo 0)"
 
+echo "== 可扩展多 Agent：时空资产 Agent =="
+check "Agent 目录自动出现 geo-asset-agent" \
+  "$(curl -sf "$BASE/api/v1/agents" -H "$AUTH" | grep -q 'geo-asset-agent' && echo 1 || echo 0)"
+GIS_SESSION="$(curl -sf -X POST "$BASE/api/v1/chat/sessions" -H "$AUTH" \
+  -H 'Content-Type: application/json' -d '{"title":"demo-gis-smoke"}' \
+  | json_get 'd["data"]["sessionNo"]')"
+curl -s -N -X POST "$BASE/api/v1/chat/sessions/$GIS_SESSION/messages" -H "$AUTH" \
+  -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  -d '{"content":"查询地块 P-2026-001","clientMessageId":"smoke-gis-1"}' >"$TMP/gis-query.sse"
+check "地块查询路由 gis.parcel.query" \
+  "$(grep -q 'gis.parcel.query' "$TMP/gis-query.sse" && echo 1 || echo 0)"
+check "地块查询返回 P-2026-001" \
+  "$(grep -q 'P-2026-001' "$TMP/gis-query.sse" && echo 1 || echo 0)"
+curl -s -N -X POST "$BASE/api/v1/chat/sessions/$GIS_SESSION/messages" -H "$AUTH" \
+  -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  -d '{"content":"为地块 P-2026-001 创建巡查任务","clientMessageId":"smoke-gis-2"}' >"$TMP/gis-patrol.sse"
+check "巡查任务进入 WAITING_CONFIRM" \
+  "$(grep -q 'WAITING_CONFIRM' "$TMP/gis-patrol.sse" && echo 1 || echo 0)"
+GIS_TASK="$(grep -o 'wt_[0-9_]*' "$TMP/gis-patrol.sse" | head -1 || true)"
+if [[ -n "$GIS_TASK" ]]; then
+  curl -sf -X POST "$BASE/api/v1/tasks/$GIS_TASK/confirm" -H "$AUTH" \
+    -H 'Content-Type: application/json' -d '{"decision":"APPROVE","comment":"smoke"}' \
+    >"$TMP/gis-confirm.json" || true
+  check "巡查任务确认后 SUCCEEDED" \
+    "$(json_get 'd["data"]["status"]' <"$TMP/gis-confirm.json" | grep -q SUCCEEDED && echo 1 || echo 0)"
+else
+  check "巡查任务生成任务号" 0
+fi
+
 echo "== 工单查询 =="
 SESSION="$(curl -sf -X POST "$BASE/api/v1/chat/sessions" -H "$AUTH" \
   -H 'Content-Type: application/json' -d '{"title":"demo-smoke"}' \

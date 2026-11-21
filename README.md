@@ -18,6 +18,7 @@
 | [`docs/demo/平台能力评估.md`](docs/demo/平台能力评估.md) | A2A / 前端 / 后端能力评估、设计 vs 实现差距、面试话术、提分动作 |
 | [`docs/demo/A2A自修复与记忆.md`](docs/demo/A2A自修复与记忆.md) | A2A 失败反馈、自修复决策矩阵、Schema 校验、Actor/Trace、记忆系统边界 |
 | [`docs/demo/A2A渐进架构.md`](docs/demo/A2A渐进架构.md) | 核心稳定 + 协议 facade、Agent Card、A2A 标准映射、分阶段演进路线 |
+| [`docs/demo/可扩展多Agent演示.md`](docs/demo/可扩展多Agent演示.md) | 第三个 Agent 接入三步法、自动复用清单、完整 GIS 演示链路 |
 
 ## 输入依据
 
@@ -33,7 +34,7 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 45/45 passed；Python AI 15/15；端到端 smoke 21 项
+# 当前：Java 49/49 passed；Python AI 15/15；端到端 smoke 26 项
 
 # 一键演示（强制 mock 子 Agent，自动重打包；默认开启 LLM）
 bash scripts/start-demo.sh
@@ -46,7 +47,7 @@ DEMO_AI=0 bash scripts/start-demo.sh
 bash scripts/start-prototype.sh
 ```
 
-已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、LLM 主导路由（DeepSeek/OpenAI 兼容）、计划拆解（只读前置步骤 + 最终写操作）、**多轮补参状态**、**主数据枚举映射（ticketTypes/priorities 等）**、**A2A 失败自修复（schema 前置校验 + 追问/修正/只读重试/换能力/无能力兜底）**、**Actor/Trace 透传到子 Agent**、**Agent Card 发现层（`/.well-known/agent-card.json` + 管理端 A2A 总览）**、子 Agent 校验失败回传 LLM 自动修正参数、规则仅作 LLM 不可用时兜底；**子 Agent 原始 output 保留在任务 API/事件中，聊天区按中文字段名与中文枚举展示，并附 LLM 自然语言解释（不改写数据）**；**子 Agent 能力以工具形式暴露**（`GET /api/v1/tools`、`POST /api/v1/tools/{name}/execute`）；**ADMIN 数据看板**（任务总数/成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本）；**操作审计**（登录/任务提交/确认/取消/会话删除/工具调用，写入 `wa_audit_log`，ADMIN 可查）；**进程内限流**（每用户/IP 每分钟 300 次，可配置）；**本地 CI 门禁与备份脚本**；**会话级摘要记忆**（落库、仅当前会话使用，不跨会话检索）；**全局用户画像**（稳定偏好，独立于子 Agent 个人资料，可在个人中心查看/清除）；**人工介入队列**（待确认/失败/拒绝任务自动入队，工人/管理员可认领、处理、关闭）；写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
+已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、LLM 主导路由（DeepSeek/OpenAI 兼容）、计划拆解（只读前置步骤 + 最终写操作）、**多轮补参状态**、**主数据枚举映射（ticketTypes/priorities 等）**、**A2A 失败自修复（schema 前置校验 + 追问/修正/只读重试/换能力/无能力兜底）**、**Actor/Trace 透传到子 Agent**、**Agent Card 发现层（`/.well-known/agent-card.json` + 管理端 A2A 总览）**、**第三个演示 Agent（时空资产：地块/遥感变化图斑/巡查任务，验证“新增 Agent 不改主流程”）**、子 Agent 校验失败回传 LLM 自动修正参数、规则仅作 LLM 不可用时兜底；**子 Agent 原始 output 保留在任务 API/事件中，聊天区按中文字段名与中文枚举展示，并附 LLM 自然语言解释（不改写数据）**；**子 Agent 能力以工具形式暴露**（`GET /api/v1/tools`、`POST /api/v1/tools/{name}/execute`）；**ADMIN 数据看板**（任务总数/成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本）；**操作审计**（登录/任务提交/确认/取消/会话删除/工具调用，写入 `wa_audit_log`，ADMIN 可查）；**进程内限流**（每用户/IP 每分钟 300 次，可配置）；**本地 CI 门禁与备份脚本**；**会话级摘要记忆**（落库、仅当前会话使用，不跨会话检索）；**全局用户画像**（稳定偏好，独立于子 Agent 个人资料，可在个人中心查看/清除）；**人工介入队列**（待确认/失败/拒绝任务自动入队，工人/管理员可认领、处理、关闭）；写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
 
 演示账号：`admin/admin123`、`worker/worker123`、`user/user123`。合同 Agent 仅管理员可见；普通用户只能建单/查自己的工单；工人可接单/处理/解决，不能建单；管理员全部。
 
@@ -67,7 +68,7 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 
 - 设计文档已同步到子 Agent 最新契约：物业 `0.8.0`、合同 `0.7.0`。
 - 子 Agent P0 整改已落地：委托令牌签发、Manifest 元数据、健康/就绪、`clientTaskId` 回查、取消、事件 `seq/afterSeq`。
-- 两个子 Agent 当前均未启动；主 Agent 端口/库/前缀/bucket 待登记确认。
+- 两个真实子 Agent（物业 8402 / 合同 8400）当前均未启动；演示默认使用 Mock，并新增第三个 Mock `geo-asset-agent` 验证扩展性。
 - 主 Agent 候选端口：`8600`（Java BFF）、`8700`（Python AI）、`5182`（Web dev）。
 - 物业子 Agent 已改为 `AGENT_SERVICE_PORT` 必填，登记 `8402`；需手动补 `RESOURCES.md`。
 - 合同 `contract.resolve` 已上线；`contract.import` 仍为 `enabled=false`。

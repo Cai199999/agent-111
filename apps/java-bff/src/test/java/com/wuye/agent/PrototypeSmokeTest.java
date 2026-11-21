@@ -312,6 +312,38 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void gisAgentIsDiscoverableAndRoutable() throws Exception {
+        String adminAgents = getWithToken("/api/v1/agents", adminToken);
+        assertTrue(adminAgents.contains("geo-asset-agent"), adminAgents);
+        assertTrue(adminAgents.contains("gis.parcel.query"), adminAgents);
+
+        String card = getWithToken("/api/v1/agents/geo-asset-agent/card", adminToken);
+        assertTrue(card.contains("gis.change.query"), card);
+        assertTrue(card.contains("gis-v01"), card);
+
+        String userToken = login("user", "user123");
+        String userAgents = getWithToken("/api/v1/agents", userToken);
+        assertTrue(userAgents.contains("geo-asset-agent"), userAgents);
+        assertTrue(userAgents.contains("gis.parcel.query"), userAgents);
+        assertTrue(!userAgents.contains("gis.patrol.create"), userAgents);
+
+        String session = createSession();
+        String parcelSse = send(session, "查询地块 P-2026-001");
+        assertTrue(parcelSse.contains("gis.parcel.query"), parcelSse);
+        assertTrue(parcelSse.contains("P-2026-001"), parcelSse);
+        assertTrue(parcelSse.contains("SUCCEEDED"), parcelSse);
+
+        String patrolSse = send(session, "为地块 P-2026-001 创建巡查任务");
+        assertTrue(patrolSse.contains("gis.patrol.create"), patrolSse);
+        assertTrue(patrolSse.contains("WAITING_CONFIRM"), patrolSse);
+        String taskNo = extractTaskNo(patrolSse);
+        JsonNode confirmed = postForData("/api/v1/tasks/" + taskNo + "/confirm",
+                Map.of("decision", "APPROVE", "comment", "同意巡查"));
+        assertEquals("SUCCEEDED", confirmed.path("status").asText(), confirmed.toString());
+        assertEquals("PT-2026-001", confirmed.path("output").path("patrolNo").asText());
+    }
+
+    @Test
     void a2aCardsExposeProtocolAndCapabilities() throws Exception {
         // 公开 Agent Card：无需登录、脱敏、可发现
         ResponseEntity<String> publicCard = rest.getForEntity(

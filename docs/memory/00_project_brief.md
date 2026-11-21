@@ -84,8 +84,9 @@
 - 新增 `docs/demo/平台能力评估.md`：A2A 编排 4/5、标准互操作 1.5/5、前端 Demo 4/5、后端原型 3.5/5；明确“设计有、代码未实现”的差距（动态注册、Manifest 同步、Agent Card、streamEvents、附件）。
 - 2026-11-21 A2A 自修复落地：Python `/internal/v1/ai/recover`（CLARIFY/RETRY/ALTERNATIVE/NO_CAPABILITY）、Java `TaskRecoveryService`/`AgentErrorTranslator`/`RecoveryOutcome`、`InputSchemaValidator` 前置校验、`AgentAdapter` Actor/Trace 透传、人工队列中间失败自动关闭、前端 `feedback` 事件与错误脱敏。
 - 2026-11-21 A2A 发现层：`GET /.well-known/agent-card.json`（公开脱敏）、`GET /api/v1/agents/{key}/card`（权限裁剪）、`GET /api/v1/admin/a2a/summary`（总览 + 健康）；前端头像菜单“A2A 能力”。只做 discovery-only，不实现 JSON-RPC；渐进架构见 `docs/demo/A2A渐进架构.md`。
+- 2026-11-21 第三个演示 Agent：`geo-asset-agent`（Mock，GIS/遥感演示）。能力：`gis.parcel.query`、`gis.change.query`、`gis.patrol.create`（写操作需确认）。新增 `MockGisAdapter` + V10 权限迁移 + 规则关键词 + 前端字段/快捷入口；主流程未改，验证“新增 Agent 只做领域适配”。
 - 记忆系统现状：会话摘要 `wa_chat_session.summary`（仅当前会话）+ 全局画像 `wa_user_memory_profile`（稳定偏好，可查看/清除）；无向量长期记忆/跨会话 RAG。
-- 测试：Java 45/45、Python 15/15、端到端 smoke 21/21。
+- 测试：Java 49/49、Python 15/15、端到端 smoke 26/26。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
 ## 下一步

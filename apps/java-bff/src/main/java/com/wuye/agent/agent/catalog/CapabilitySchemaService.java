@@ -112,6 +112,23 @@ public class CapabilitySchemaService {
                         "buildingId", Map.of("type", "integer"),
                         "roomId", Map.of("type", "integer"),
                         "customerId", Map.of("type", "integer"))));
+        result.put("gis.parcel.query", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "keyword", Map.of("type", "string"),
+                        "parcelNo", Map.of("type", "string"))));
+        result.put("gis.change.query", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "keyword", Map.of("type", "string"),
+                        "parcelNo", Map.of("type", "string"))));
+        result.put("gis.patrol.create", Map.of(
+                "type", "object",
+                "required", List.of("parcelNo"),
+                "properties", Map.of(
+                        "parcelNo", Map.of("type", "string"),
+                        "patrolType", Map.of("type", "string"),
+                        "deadline", Map.of("type", "string"))));
         return result;
     }
 }

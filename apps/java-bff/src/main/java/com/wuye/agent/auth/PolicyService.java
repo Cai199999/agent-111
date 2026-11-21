@@ -20,7 +20,9 @@ public class PolicyService {
         return switch (agentKey) {
             case "property-maintenance" -> user != null && user.hasPermission("agent:property:use");
             case "contract-review" -> user != null && user.hasPermission("agent:contract:use");
-            default -> user != null && user.isAdmin();
+            // 新 Agent 默认走约定权限 agent:<agentKey>:use，避免每接一个 Agent 就改这里。
+            default -> user != null && (user.isAdmin()
+                    || user.hasPermission("agent:" + agentKey + ":use"));
         };
     }
 

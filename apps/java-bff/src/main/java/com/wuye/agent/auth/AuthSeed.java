@@ -29,11 +29,14 @@ public final class AuthSeed {
     static {
         ROLE_PERMISSIONS.put("BASE", Set.of(
                 "agent:property:use",
+                "agent:geo-asset-agent:use",
                 "notification:read",
                 "capability:property.masterdata.options",
                 "capability:property.profile.get",
                 "capability:property.knowledge.search",
-                "capability:property.ticket.similar"));
+                "capability:property.ticket.similar",
+                "capability:gis.parcel.query",
+                "capability:gis.change.query"));
         ROLE_PERMISSIONS.put("USER", Set.of(
                 "capability:property.profile.update",
                 "capability:property.ticket.create",
@@ -41,6 +44,7 @@ public final class AuthSeed {
                 "capability:property.ticket.detail"));
         ROLE_PERMISSIONS.put("WORKER", Set.of(
                 "human:manage",
+                "capability:gis.patrol.create",
                 "capability:property.ticket.query",
                 "capability:property.ticket.detail",
                 "capability:property.ticket.accept",
