@@ -66,9 +66,14 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
 
     @Override
     public AdapterResult getTask(String childTaskId) {
+        return getTask(childTaskId, endpoint.getActorId(), null);
+    }
+
+    @Override
+    public AdapterResult getTask(String childTaskId, String actorId, String traceId) {
         try {
             HttpAgentSupport.HttpResult result = support.get(endpoint,
-                    "/agent/v1/tasks/" + childTaskId, endpoint.getActorId(), null, true);
+                    "/agent/v1/tasks/" + childTaskId, actor(actorId), traceId, true);
             AdapterResult parsed = parseTask(result, childTaskId);
             if (parsed.events() == null || parsed.events().isEmpty()) {
                 List<TaskEvent> events = events(childTaskId, 0);
@@ -86,6 +91,12 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
 
     @Override
     public AdapterResult confirm(String childTaskId, String token, Decision decision, String comment) {
+        return confirm(childTaskId, token, decision, comment, endpoint.getActorId(), null);
+    }
+
+    @Override
+    public AdapterResult confirm(String childTaskId, String token, Decision decision,
+                                 String comment, String actorId, String traceId) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("confirmationToken", token);
@@ -95,7 +106,7 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
             }
             HttpAgentSupport.HttpResult result = support.post(endpoint,
                     "/agent/v1/tasks/" + childTaskId + "/confirm", body,
-                    endpoint.getActorId(), null, true);
+                    actor(actorId), traceId, true);
             return parseTask(result, childTaskId);
         } catch (Exception ex) {
             return failure(childTaskId, AgentError.dependency("确认失败：" + ex.getMessage()));
@@ -104,16 +115,25 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
 
     @Override
     public AdapterResult cancel(String childTaskId, String reason) {
+        return cancel(childTaskId, reason, endpoint.getActorId(), null);
+    }
+
+    @Override
+    public AdapterResult cancel(String childTaskId, String reason, String actorId, String traceId) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("reason", reason == null ? "用户取消" : reason);
             HttpAgentSupport.HttpResult result = support.post(endpoint,
                     "/agent/v1/tasks/" + childTaskId + "/cancel", body,
-                    endpoint.getActorId(), null, true);
+                    actor(actorId), traceId, true);
             return parseTask(result, childTaskId);
         } catch (Exception ex) {
             return failure(childTaskId, AgentError.dependency("取消失败：" + ex.getMessage()));
         }
+    }
+
+    private String actor(String actorId) {
+        return actorId == null || actorId.isBlank() ? endpoint.getActorId() : actorId;
     }
 
     @Override

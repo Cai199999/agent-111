@@ -110,6 +110,11 @@ public class RuleRouter implements Router {
             if (location.find()) {
                 args.put("locationText", location.group(1));
             }
+            // 规则兜底也做最小枚举映射；映射不出来就不猜，交给 schema 校验触发追问。
+            String ticketType = inferTicketType(text);
+            if (ticketType != null) {
+                args.put("ticketTypeCode", ticketType);
+            }
             return RouteDecision.route("property.ticket.create", args, 0.9, "命中建单/报修");
         }
 
@@ -143,6 +148,26 @@ public class RuleRouter implements Router {
                 || normalized.equals("报修")
                 || normalized.equals("帮我建单")
                 || normalized.equals("帮我创建工单");
+    }
+
+    /** 规则路由的最小枚举映射；不确定时返回 null，让 schema 校验走“追问用户”。 */
+    private static String inferTicketType(String text) {
+        if (containsAny(text, "灯", "照明", "不亮")) {
+            return "LIGHTING";
+        }
+        if (containsAny(text, "水", "漏水", "管", "泵", "堵")) {
+            return "PLUMBING";
+        }
+        if (containsAny(text, "电梯", "升降")) {
+            return "ELEVATOR";
+        }
+        if (containsAny(text, "门禁", "安防", "监控", "道闸")) {
+            return "SECURITY";
+        }
+        if (containsAny(text, "保洁", "垃圾", "卫生", "清扫")) {
+            return "CLEANING";
+        }
+        return null;
     }
 
     private static boolean containsAny(String text, String... keywords) {

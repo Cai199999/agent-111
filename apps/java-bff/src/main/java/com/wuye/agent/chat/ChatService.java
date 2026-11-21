@@ -14,13 +14,14 @@ import com.wuye.agent.memory.MemoryService;
 import com.wuye.agent.memory.UserProfileService;
 import com.wuye.agent.routing.LlmRouterClient;
 import com.wuye.agent.routing.PendingIntent;
-import com.wuye.agent.routing.RepairOutcome;
 import com.wuye.agent.routing.RouteDecision;
 import com.wuye.agent.routing.Router;
 import com.wuye.agent.store.ChatMessage;
 import com.wuye.agent.store.SessionState;
 import com.wuye.agent.store.Store;
 import com.wuye.agent.store.TaskRecord;
+import com.wuye.agent.task.RecoveryOutcome;
+import com.wuye.agent.task.TaskRecoveryService;
 import com.wuye.agent.task.TaskService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -52,6 +53,7 @@ public class ChatService {
     private final Router router;
     private final LlmRouterClient llmRouterClient;
     private final TaskService taskService;
+    private final TaskRecoveryService recoveryService;
     private final PolicyService policyService;
     private final MemoryService memoryService;
     private final UserProfileService userProfileService;
@@ -61,13 +63,15 @@ public class ChatService {
 
     public ChatService(Store store, AdapterRegistry registry,
                        Router router, LlmRouterClient llmRouterClient,
-                       TaskService taskService, PolicyService policyService,
-                       MemoryService memoryService, UserProfileService userProfileService, Ids ids) {
+                       TaskService taskService, TaskRecoveryService recoveryService,
+                       PolicyService policyService, MemoryService memoryService,
+                       UserProfileService userProfileService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.router = router;
         this.llmRouterClient = llmRouterClient;
         this.taskService = taskService;
+        this.recoveryService = recoveryService;
         this.policyService = policyService;
         this.memoryService = memoryService;
         this.userProfileService = userProfileService;
@@ -164,9 +168,37 @@ public class ChatService {
             ExecutionResult execution = executePlan(sessionNo, content, route, user, traceId);
             Capability capability = execution.capability();
             TaskRecord task = execution.task();
+            RecoveryOutcome recovery = execution.recovery();
             emit(emitter, "task", taskEvent(task));
             for (TaskEvent event : task.events) {
                 emit(emitter, "task_event", eventView(task.taskNo, event));
+            }
+
+            // 自修复要求追问：保留 pending 上下文，下一轮用户补充后继续，不把技术错误抛给用户。
+            if (recovery != null && recovery.clarification()) {
+                String pendingCapability = recovery.pendingCapabilityId() != null
+                        ? recovery.pendingCapabilityId() : capability.capabilityId();
+                pendingIntents.put(sessionNo, new PendingIntent(
+                        pendingCapability,
+                        recovery.pendingArgs(),
+                        recovery.missingFields(),
+                        Instant.now()));
+                ChatMessage assistant = store.addMessage(session, "ASSISTANT", recovery.message(),
+                        "TEXT", Map.of("clarification", true, "recovery", recovery.action()), null);
+                emit(emitter, "feedback", Map.of(
+                        "taskNo", task.taskNo,
+                        "action", recovery.action(),
+                        "message", recovery.message(),
+                        "missingFields", recovery.missingFields(),
+                        "retryable", false));
+                emit(emitter, "delta", Map.of("content", recovery.message()));
+                emit(emitter, "done", Map.of(
+                        "messageNo", assistant.messageNo(),
+                        "taskNo", task.taskNo,
+                        "status", "CLARIFIED"));
+                emitter.complete();
+                memoryService.updateAsync(sessionNo);
+                return;
             }
 
             String answer;
@@ -184,6 +216,14 @@ public class ChatService {
                 answer = "任务已提交，正在执行，稍后可在任务卡片查看进度。";
             } else if (task.status == TaskStatus.SUCCEEDED) {
                 contentType = "RESULT";
+                if (recovery != null && ("RETRIED".equals(recovery.action())
+                        || "ALTERNATIVE".equals(recovery.action()))) {
+                    emit(emitter, "feedback", Map.of(
+                            "taskNo", task.taskNo,
+                            "action", "RECOVERED",
+                            "message", "第一次调用没有成功，已自动修复并重试成功。",
+                            "retryable", false));
+                }
                 // 自然语言只做“解释”，原始 output 仍然原样透传
                 answer = llmRouterClient.explain(content, capability.capabilityId(), task.output)
                         .orElse("子 Agent 返回结果如下。");
@@ -192,7 +232,15 @@ public class ChatService {
                         "capabilityId", capability.capabilityId(),
                         "output", task.output == null ? Map.of() : task.output));
             } else {
-                answer = task.error == null ? "任务未成功完成。" : task.error.message();
+                // 失败/转人工：只给用户可行动的反馈，原始错误保留在任务事件/审计里。
+                answer = recovery != null && recovery.message() != null
+                        ? recovery.message()
+                        : "这次没有处理成功，我已经记录了问题，并转人工跟进。";
+                emit(emitter, "feedback", Map.of(
+                        "taskNo", task.taskNo,
+                        "action", recovery == null ? "TRANSFERRED" : recovery.action(),
+                        "message", answer,
+                        "retryable", false));
             }
 
             Map<String, Object> assistantMeta = new LinkedHashMap<>();
@@ -303,9 +351,13 @@ public class ChatService {
             TaskRecord preTask = taskService.submit(sessionNo, pre,
                     step.args() == null ? Map.of() : step.args(), user.actorId(), traceId);
             if (preTask.status != TaskStatus.SUCCEEDED) {
-                String message = preTask.error == null ? "前置步骤失败" : preTask.error.message();
-                throw new ApiException("PLAN_STEP_FAILED", 503,
-                        "前置步骤 " + pre.capabilityId() + " 失败：" + message);
+                RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, pre,
+                        step.args() == null ? Map.of() : step.args(), preTask, user.actorId(), traceId);
+                if (recovery.clarification() || recovery.task().status != TaskStatus.SUCCEEDED) {
+                    return new ExecutionResult(recovery.capability(), recovery.task(), recovery);
+                }
+                mergeOutput(args, recovery.task().output);
+                continue;
             }
             mergeOutput(args, preTask.output);
         }
@@ -320,22 +372,9 @@ public class ChatService {
         }
 
         TaskRecord task = taskService.submit(sessionNo, capability, args, user.actorId(), traceId);
-
-        // 子 Agent 明确返回 VALIDATION 时，把错误回传 LLM 修正参数，最多重试一次
-        if (task.status == TaskStatus.FAILED && task.error != null
-                && "VALIDATION".equals(task.error.category())) {
-            Optional<RepairOutcome> repaired = llmRouterClient.repair(
-                    content, capability.capabilityId(), args,
-                    task.error.code(), task.error.message());
-            if (repaired.isPresent()
-                    && !repaired.get().needClarification()
-                    && repaired.get().args() != null
-                    && !repaired.get().args().isEmpty()) {
-                task = taskService.submit(sessionNo, capability, repaired.get().args(),
-                        user.actorId(), traceId);
-            }
-        }
-        return new ExecutionResult(capability, task);
+        RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, capability,
+                args, task, user.actorId(), traceId);
+        return new ExecutionResult(recovery.capability(), recovery.task(), recovery);
     }
 
     private void mergeOutput(Map<String, Object> args, Object output) {
@@ -351,7 +390,7 @@ public class ChatService {
         }
     }
 
-    private record ExecutionResult(Capability capability, TaskRecord task) {
+    private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery) {
     }
 
     private Map<String, Object> taskEvent(TaskRecord task) {

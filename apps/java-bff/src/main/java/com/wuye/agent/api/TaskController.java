@@ -66,7 +66,7 @@ public class TaskController {
             throw ApiException.badRequest("VALIDATION_ERROR", "decision 必须是 APPROVE 或 REJECT");
         }
         TaskRecord task = taskService.confirm(taskNo, decision, request.comment(),
-                user.actorId(), user.isAdmin());
+                user.actorId(), user.isAdmin(), traceId);
         return ApiResponse.ok(TaskView.from(task), trace(traceId));
     }
 
@@ -77,7 +77,7 @@ public class TaskController {
         AuthUser user = AuthContext.require();
         requireTaskAccess(taskService.get(taskNo));
         TaskRecord task = taskService.cancel(taskNo, request == null ? null : request.reason(),
-                user.actorId(), user.isAdmin());
+                user.actorId(), user.isAdmin(), traceId);
         return ApiResponse.ok(TaskView.from(task), trace(traceId));
     }
 

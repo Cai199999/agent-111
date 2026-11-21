@@ -235,6 +235,17 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void missingCriticalInfoAsksUserInsteadOfRawError() throws Exception {
+        String session = createSession();
+        String sse = send(session, "报修：花园的喷泉坏了");
+
+        // 缺工单类型 -> 自修复应追问用户，而不是把 VALIDATION 原始错误抛给用户。
+        assertTrue(sse.contains("CLARIFIED"), sse);
+        assertTrue(sse.contains("确认一下") || sse.contains("工单类型"), sse);
+        assertTrue(!sse.contains("event:error"), sse);
+    }
+
+    @Test
     void contractReviewRunsAsyncAndSucceeds() throws Exception {
         String session = createSession();
         String sse = send(session, "审查合同 10001");

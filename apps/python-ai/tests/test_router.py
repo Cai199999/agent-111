@@ -8,6 +8,7 @@ from app.schemas import (
     CapabilityIn,
     ExplainRequest,
     PendingContext,
+    RecoveryRequest,
     RepairRequest,
     RouteRequest,
     SummarizeRequest,
@@ -245,6 +246,105 @@ def test_repair_returns_corrected_args():
     assert response.args["ticketTypeCode"] == "PLUMBING"
     assert response.needClarification is False
     assert "ticketTypeCode" in client.calls[0][1]
+
+
+def test_recovery_clarifies_missing_critical_info():
+    client = FakeClient(
+        {
+            "action": "CLARIFY",
+            "capabilityId": "property.ticket.create",
+            "args": {"description": "水管漏水"},
+            "clarification": "请问是哪个楼栋和房间？",
+            "missingFields": ["locationText"],
+            "reason": "缺少位置",
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    response = service.recover(
+        RecoveryRequest(
+            userMessage="报修：水管漏水",
+            capabilityId="property.ticket.create",
+            args={"description": "水管漏水"},
+            errorCode="60001",
+            errorMessage="locationText不能为空",
+            errorCategory="VALIDATION",
+            capabilities=[capability("property.ticket.create", read_only=False)],
+        )
+    )
+
+    assert response.action == "CLARIFY"
+    assert response.clarification == "请问是哪个楼栋和房间？"
+    assert response.missingFields == ["locationText"]
+    assert "locationText不能为空" in client.calls[0][1]
+
+
+def test_recovery_can_choose_alternative_capability():
+    client = FakeClient(
+        {
+            "action": "ALTERNATIVE",
+            "capabilityId": "property.ticket.query",
+            "args": {"status": "PENDING"},
+            "reason": "用户其实想查询",
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    response = service.recover(
+        RecoveryRequest(
+            userMessage="查一下我的工单",
+            capabilityId="property.ticket.create",
+            errorCode="CAPABILITY_NOT_FOUND",
+            errorCategory="NOT_FOUND",
+            capabilities=[
+                capability("property.ticket.query"),
+                capability("property.ticket.create", read_only=False),
+            ],
+        )
+    )
+
+    assert response.action == "ALTERNATIVE"
+    assert response.capabilityId == "property.ticket.query"
+
+
+def test_recovery_falls_back_to_no_capability():
+    client = FakeClient(
+        {
+            "action": "NO_CAPABILITY",
+            "clarification": "目前没有这个功能，我可以帮你查工单或建单。",
+            "reason": "超出能力范围",
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    response = service.recover(
+        RecoveryRequest(
+            userMessage="帮我订一张机票",
+            capabilities=[capability("property.ticket.query")],
+        )
+    )
+
+    assert response.action == "NO_CAPABILITY"
+    assert "没有这个功能" in response.clarification
+
+
+def test_recovery_rejects_hallucinated_capability():
+    client = FakeClient(
+        {
+            "action": "ALTERNATIVE",
+            "capabilityId": "property.ticket.delete_all",
+            "args": {},
+        }
+    )
+    service = RouteService(client, Settings(deepseek_api_key="fake"))
+    response = service.recover(
+        RecoveryRequest(
+            userMessage="删掉所有工单",
+            capabilityId="property.ticket.query",
+            capabilities=[capability("property.ticket.query")],
+        )
+    )
+
+    # 编造的能力必须被丢弃；回退到原能力或 NO_CAPABILITY，不能执行。
+    assert response.capabilityId != "property.ticket.delete_all"
+    assert response.action in {"RETRY", "NO_CAPABILITY"}
 
 
 def test_low_confidence_requires_clarification():

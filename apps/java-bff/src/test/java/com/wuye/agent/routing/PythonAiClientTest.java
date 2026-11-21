@@ -42,6 +42,7 @@ class PythonAiClientTest {
         port = server.getAddress().getPort();
         server.createContext("/internal/v1/ai/route", this::handle);
         server.createContext("/internal/v1/ai/repair", this::handleRepair);
+        server.createContext("/internal/v1/ai/recover", this::handleRecover);
         server.createContext("/internal/v1/ai/explain", this::handleExplain);
         server.start();
 
@@ -93,6 +94,16 @@ class PythonAiClientTest {
     }
 
     @Test
+    void recoverReturnsClarificationOrAlternative() {
+        var recovered = client.recover("报修：水管漏水", "property.ticket.create",
+                Map.of("description", "水管漏水"), "60001", "locationText不能为空", "VALIDATION");
+        assertTrue(recovered.isPresent());
+        assertEquals("CLARIFY", recovered.get().action());
+        assertTrue(recovered.get().isClarify());
+        assertEquals(List.of("locationText"), recovered.get().missingFields());
+    }
+
+    @Test
     void explainReturnsNaturalLanguageWithoutChangingOutput() {
         var explanation = client.explain("我有哪些工单？", "property.ticket.query",
                 java.util.List.of(Map.of("ticketNo", "GD1")));
@@ -103,6 +114,20 @@ class PythonAiClientTest {
     private void handleExplain(HttpExchange exchange) throws IOException {
         byte[] bytes = "{\"explanation\":\"子 Agent 返回 1 条工单记录，原始数据见下方。\"}"
                 .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, bytes.length);
+        try (OutputStream output = exchange.getResponseBody()) {
+            output.write(bytes);
+        }
+    }
+
+    private void handleRecover(HttpExchange exchange) throws IOException {
+        String body = """
+                {"action":"CLARIFY","capabilityId":"property.ticket.create",
+                 "args":{"description":"水管漏水"},"clarification":"请问是哪个楼栋和房间？",
+                 "missingFields":["locationText"],"reason":"缺少位置","usage":{"totalTokens":20}}
+                """;
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) {

@@ -11,6 +11,8 @@ from app.llm.client import DeepSeekClient, LlmUnavailable
 from app.schemas import (
     ExplainRequest,
     ExplainResponse,
+    RecoveryRequest,
+    RecoveryResponse,
     RepairRequest,
     RepairResponse,
     RouteRequest,
@@ -76,6 +78,27 @@ def route(request: RouteRequest) -> RouteResponse:
         return response
     except LlmUnavailable as exc:
         logger.warning("llm unavailable traceId=%s error=%s", request.traceId, exc)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/internal/v1/ai/recover",
+    response_model=RecoveryResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def recover(request: RecoveryRequest) -> RecoveryResponse:
+    try:
+        response = service.recover(request)
+        logger.info(
+            "recover capability=%s action=%s clarify=%s usage=%s",
+            request.capabilityId,
+            response.action,
+            response.action == "CLARIFY",
+            response.usage,
+        )
+        return response
+    except LlmUnavailable as exc:
+        logger.warning("llm recover unavailable error=%s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 

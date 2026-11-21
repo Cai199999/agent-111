@@ -114,3 +114,28 @@ class RepairResponse(BaseModel):
     clarification: str | None = None
     reason: str | None = None
     usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class RecoveryRequest(BaseModel):
+    """A2A 调用失败后的自修复请求：由主 Agent 把失败反馈回传。"""
+
+    userMessage: str = Field(min_length=1, max_length=4000)
+    capabilityId: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+    errorCode: str | None = None
+    errorMessage: str | None = None
+    errorCategory: str | None = None
+    capabilities: list[CapabilityIn] = Field(default_factory=list)
+    optionCatalog: dict[str, Any] | None = None
+
+
+class RecoveryResponse(BaseModel):
+    """自修复动作：CLARIFY 问用户，RETRY 修正后重试，ALTERNATIVE 换能力，NO_CAPABILITY 兜底。"""
+
+    action: str = "NO_CAPABILITY"
+    capabilityId: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+    clarification: str | None = None
+    missingFields: list[str] = Field(default_factory=list)
+    reason: str | None = None
+    usage: dict[str, Any] = Field(default_factory=dict)

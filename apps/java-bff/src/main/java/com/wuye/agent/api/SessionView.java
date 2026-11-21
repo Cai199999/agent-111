@@ -8,10 +8,11 @@ public record SessionView(
         String title,
         Instant createdAt,
         Instant lastMessageAt,
-        int messageCount
+        int messageCount,
+        String summary
 ) {
     public static SessionView from(SessionState session) {
         return new SessionView(session.sessionNo, session.title, session.createdAt,
-                session.lastMessageAt, session.messageCount);
+                session.lastMessageAt, session.messageCount, session.summary);
     }
 }

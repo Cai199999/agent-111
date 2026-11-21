@@ -81,7 +81,10 @@
 - 演示文档：`docs/demo/面试演示脚本.md`（流程、苍穹场景映射、Q&A、风险兜底、两天计划）。
 - 新增叙事文档 `docs/demo/业务发现与AI全栈叙事.md`：以“业务发现 × AI 全栈交付”为主线，含 10 分钟结构、四个苍穹场景机会地图、30/60/90 天计划、AI 协作话术。
 - 数据看板新增“业务价值”区：自动化完成率、预计节省工时（8 分钟/单假设）、单任务 LLM 成本。
-- 新增 `docs/demo/平台能力评估.md`：A2A 编排 3.5/5、标准互操作 1.5/5、前端 Demo 4/5、后端原型 3.5/5；明确“设计有、代码未实现”的差距（动态注册、Manifest 同步、Agent Card、streamEvents、附件、身份透传）。
+- 新增 `docs/demo/平台能力评估.md`：A2A 编排 4/5、标准互操作 1.5/5、前端 Demo 4/5、后端原型 3.5/5；明确“设计有、代码未实现”的差距（动态注册、Manifest 同步、Agent Card、streamEvents、附件）。
+- 2026-11-21 A2A 自修复落地：Python `/internal/v1/ai/recover`（CLARIFY/RETRY/ALTERNATIVE/NO_CAPABILITY）、Java `TaskRecoveryService`/`AgentErrorTranslator`/`RecoveryOutcome`、`InputSchemaValidator` 前置校验、`AgentAdapter` Actor/Trace 透传、人工队列中间失败自动关闭、前端 `feedback` 事件与错误脱敏。
+- 记忆系统现状：会话摘要 `wa_chat_session.summary`（仅当前会话）+ 全局画像 `wa_user_memory_profile`（稳定偏好，可查看/清除）；无向量长期记忆/跨会话 RAG。
+- 测试：Java 44/44、Python 15/15、端到端 smoke 18/18。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
 ## 下一步

@@ -2,6 +2,7 @@ package com.wuye.agent.task;
 
 import com.wuye.agent.agent.adapter.AgentAdapter;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
+import com.wuye.agent.agent.catalog.InputSchemaValidator;
 import com.wuye.agent.agent.model.AdapterResult;
 import com.wuye.agent.agent.model.AdapterTaskRequest;
 import com.wuye.agent.agent.model.AgentError;
@@ -34,14 +35,17 @@ public class TaskService {
 
     private final Store store;
     private final AdapterRegistry registry;
+    private final InputSchemaValidator schemaValidator;
     private final AuditService auditService;
     private final HumanInterventionService humanInterventionService;
     private final Ids ids;
 
-    public TaskService(Store store, AdapterRegistry registry, AuditService auditService,
-                       HumanInterventionService humanInterventionService, Ids ids) {
+    public TaskService(Store store, AdapterRegistry registry, InputSchemaValidator schemaValidator,
+                       AuditService auditService, HumanInterventionService humanInterventionService,
+                       Ids ids) {
         this.store = store;
         this.registry = registry;
+        this.schemaValidator = schemaValidator;
         this.auditService = auditService;
         this.humanInterventionService = humanInterventionService;
         this.ids = ids;
@@ -61,6 +65,25 @@ public class TaskService {
                 clientTaskId, actorId, executionMode,
                 input == null ? Map.of() : input, Instant.now());
         store.putTask(task);
+
+        // LLM/用户参数先过最小 schema：缺必填/类型不对时不调用子 Agent，
+        // 由上层自修复服务转成追问或修正，而不是把技术错误抛给用户。
+        InputSchemaValidator.Result validation =
+                schemaValidator.validate(capability.capabilityId(), task.input);
+        if (!validation.valid()) {
+            task.status = TaskStatus.FAILED;
+            task.error = AgentError.validation(validation.message());
+            task.currentStep = "VALIDATION_FAILED";
+            task.finishedAt = Instant.now();
+            addSystemEvent(task, "ERROR", TaskStatus.FAILED, Map.of(
+                    "message", validation.message(),
+                    "missingFields", validation.fields()));
+            store.putTask(task);
+            humanInterventionService.upsertPending(task.taskNo);
+            auditService.record("TASK_SUBMIT", "TASK", task.taskNo, task.agentKey, task.capabilityId,
+                    task.status.name(), Map.of("executionMode", executionMode, "validation", "FAILED"));
+            return task;
+        }
 
         AdapterTaskRequest request = new AdapterTaskRequest(
                 capability.capabilityId(), capability.taskType(), task.input, clientTaskId,
@@ -87,7 +110,7 @@ public class TaskService {
     }
 
     public TaskRecord confirm(String taskNo, Decision decision, String comment,
-                              String actorId, boolean admin) {
+                              String actorId, boolean admin, String traceId) {
         TaskRecord task = get(taskNo);
         if (!admin && !task.actorId.equals(actorId)) {
             throw new ApiException("AUTH_FORBIDDEN", 403, "只能由任务发起人确认");
@@ -116,7 +139,8 @@ public class TaskService {
             throw ApiException.notFound("AGENT_NOT_FOUND", "子 Agent 未注册：" + task.agentKey);
         }
 
-        AdapterResult result = adapter.confirm(task.childTaskId, confirmation.token(), decision, comment);
+        AdapterResult result = adapter.confirm(task.childTaskId, confirmation.token(), decision,
+                comment, task.actorId, traceId);
         apply(task, result);
         task.confirmationStatus = decision == Decision.APPROVE ? "APPROVED" : "REJECTED";
         if (task.confirmation != null) {
@@ -132,7 +156,7 @@ public class TaskService {
         return task;
     }
 
-    public TaskRecord cancel(String taskNo, String reason, String actorId, boolean admin) {
+    public TaskRecord cancel(String taskNo, String reason, String actorId, boolean admin, String traceId) {
         TaskRecord task = get(taskNo);
         if (!admin && !task.actorId.equals(actorId)) {
             throw new ApiException("AUTH_FORBIDDEN", 403, "只能由任务发起人取消");
@@ -147,7 +171,7 @@ public class TaskService {
         if (adapter == null) {
             throw ApiException.notFound("AGENT_NOT_FOUND", "子 Agent 未注册：" + task.agentKey);
         }
-        AdapterResult result = adapter.cancel(task.childTaskId, reason);
+        AdapterResult result = adapter.cancel(task.childTaskId, reason, task.actorId, traceId);
         apply(task, result);
         task.cancelReason = reason;
         if (task.confirmation != null) {
@@ -174,7 +198,7 @@ public class TaskService {
         if (adapter == null) {
             return;
         }
-        AdapterResult result = adapter.getTask(task.childTaskId);
+        AdapterResult result = adapter.getTask(task.childTaskId, task.actorId, null);
         if (result != null) {
             apply(task, result);
         }

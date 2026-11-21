@@ -677,6 +677,11 @@ function handleEvent(event, data, assistant) {
       }
       break;
     }
+    case 'feedback':
+      if (data.action === 'RECOVERED') showToast('已自动修复并重试成功');
+      if (data.action === 'TRANSFERRED') showToast('已转人工跟进');
+      if (data.action === 'NO_CAPABILITY') showToast('目前没有这个功能');
+      break;
     case 'confirm': {
       const task = state.taskData.get(data.taskNo) || {
         taskNo: data.taskNo,
@@ -814,10 +819,14 @@ function renderTaskCard(container, task) {
     const events = el('div', 'events');
     for (const event of task.events.slice(-4)) {
       const row = el('div', 'event-row');
+      // 技术错误只保留在事件 API/审计里；用户看到的是“已自动处理/转人工”的反馈。
+      const detail = event.type === 'ERROR'
+        ? '处理遇到问题，已自动分析或转人工'
+        : (event.payload?.message || event.payload?.step || statusLabel(event.status));
       row.append(
         el('span', 'seq', `#${event.seq}`),
         el('span', 'type', event.type || 'EVENT'),
-        el('span', '', event.payload?.message || event.payload?.step || statusLabel(event.status)),
+        el('span', '', detail),
       );
       events.append(row);
     }

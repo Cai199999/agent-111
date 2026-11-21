@@ -403,6 +403,78 @@ public class PythonAiClient implements LlmRouterClient {
         }
     }
 
+    @Override
+    public Optional<RecoveryDecision> recover(String userMessage, String capabilityId,
+                                              Map<String, Object> args,
+                                              String errorCode, String errorMessage,
+                                              String errorCategory) {
+        if (!properties.isEnabled() || isBlank(properties.getBaseUrl())
+                || System.currentTimeMillis() < nextRetryAt) {
+            return Optional.empty();
+        }
+        try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("userMessage", userMessage);
+            body.put("capabilityId", capabilityId);
+            body.put("args", args);
+            body.put("errorCode", errorCode);
+            body.put("errorMessage", errorMessage);
+            body.put("errorCategory", errorCategory);
+            body.put("capabilities", capabilityPayload());
+            body.put("optionCatalog", optionCatalogService.options());
+
+            HttpRequest.Builder builder = HttpRequest.newBuilder(
+                            URI.create(stripTrailingSlash(properties.getBaseUrl()) + "/internal/v1/ai/recover"))
+                    .timeout(Duration.ofMillis(properties.getTimeoutMs()))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            mapper.writeValueAsString(body), StandardCharsets.UTF_8));
+            if (!isBlank(properties.getInternalToken())) {
+                builder.header("X-Internal-Token", properties.getInternalToken());
+            }
+            HttpResponse<String> response = http.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                nextRetryAt = System.currentTimeMillis() + 30_000;
+                log.warn("LLM 自修复不可用 status={}", response.statusCode());
+                return Optional.empty();
+            }
+            JsonNode data = mapper.readTree(response.body());
+            if (data.has("data")) {
+                data = data.get("data");
+            }
+            nextRetryAt = 0;
+            recordUsage("RECOVER", data);
+
+            String action = text(data, "action");
+            action = action == null ? "NO_CAPABILITY" : action.toUpperCase();
+            if (!List.of("CLARIFY", "RETRY", "ALTERNATIVE", "NO_CAPABILITY").contains(action)) {
+                action = "NO_CAPABILITY";
+            }
+            List<String> missing = new ArrayList<>();
+            JsonNode missingNode = data.get("missingFields");
+            if (missingNode != null && missingNode.isArray()) {
+                for (JsonNode item : missingNode) {
+                    if (!item.asText().isBlank()) {
+                        missing.add(item.asText());
+                    }
+                }
+            }
+            return Optional.of(new RecoveryDecision(
+                    action,
+                    text(data, "capabilityId"),
+                    args(data.get("args")),
+                    text(data, "clarification"),
+                    missing,
+                    text(data, "reason")));
+        } catch (Exception ex) {
+            nextRetryAt = System.currentTimeMillis() + 30_000;
+            log.warn("LLM 自修复失败：{}", ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
     private List<Map<String, Object>> capabilityPayload() {
         List<Map<String, Object>> payload = new ArrayList<>();
         for (Capability capability : registry.capabilities()) {

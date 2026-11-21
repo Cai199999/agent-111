@@ -40,6 +40,16 @@ public interface LlmRouterClient {
         return Optional.empty();
     }
 
+    /**
+     * A2A 失败反馈后的自修复：CLARIFY / RETRY / ALTERNATIVE / NO_CAPABILITY。
+     */
+    default Optional<RecoveryDecision> recover(String userMessage, String capabilityId,
+                                               Map<String, Object> args,
+                                               String errorCode, String errorMessage,
+                                               String errorCategory) {
+        return Optional.empty();
+    }
+
     default Optional<String> explain(String userMessage, String capabilityId, Object output) {
         return Optional.empty();
     }

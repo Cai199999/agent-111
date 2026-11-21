@@ -22,9 +22,27 @@ public interface AgentAdapter {
 
     AdapterResult getTask(String childTaskId);
 
+    /**
+     * 带真实 Actor/Trace 的查询。默认回退到旧方法，方言 Adapter 可按需覆盖，
+     * 避免后续调用使用配置里的固定 Actor，导致子 Agent 审计/授权失真。
+     */
+    default AdapterResult getTask(String childTaskId, String actorId, String traceId) {
+        return getTask(childTaskId);
+    }
+
     AdapterResult confirm(String childTaskId, String token, Decision decision, String comment);
 
+    default AdapterResult confirm(String childTaskId, String token, Decision decision,
+                                  String comment, String actorId, String traceId) {
+        return confirm(childTaskId, token, decision, comment);
+    }
+
     AdapterResult cancel(String childTaskId, String reason);
+
+    default AdapterResult cancel(String childTaskId, String reason,
+                                 String actorId, String traceId) {
+        return cancel(childTaskId, reason);
+    }
 
     List<TaskEvent> events(String childTaskId, long afterSeq);
 

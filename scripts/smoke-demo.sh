@@ -76,6 +76,18 @@ if [[ -n "$TASK" ]]; then
     "$(json_get 'd["data"]["status"]' <"$TMP/confirm.json" | grep -q SUCCEEDED && echo 1 || echo 0)"
 fi
 
+echo "== 自修复：缺关键信息先追问 =="
+HEAL_SESSION="$(curl -sf -X POST "$BASE/api/v1/chat/sessions" -H "$AUTH" \
+  -H 'Content-Type: application/json' -d '{"title":"demo-heal-smoke"}' \
+  | json_get 'd["data"]["sessionNo"]')"
+curl -s -N -X POST "$BASE/api/v1/chat/sessions/$HEAL_SESSION/messages" -H "$AUTH" \
+  -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  -d '{"content":"报修：花园的喷泉坏了","clientMessageId":"smoke-heal-1"}' >"$TMP/heal.sse"
+check "缺关键信息转为追问（CLARIFIED）" \
+  "$(grep -q '"status":"CLARIFIED"' "$TMP/heal.sse" && echo 1 || echo 0)"
+check "不把原始错误直接抛给用户" \
+  "$(grep -q 'event:error' "$TMP/heal.sse" && echo 0 || echo 1)"
+
 echo "== 异步合同审查 =="
 curl -s -N -X POST "$BASE/api/v1/chat/sessions/$SESSION/messages" -H "$AUTH" \
   -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
