@@ -15,6 +15,7 @@
 | [`docs/memory/00_project_brief.md`](docs/memory/00_project_brief.md) | 项目 brief 与当前状态 |
 | [`docs/demo/面试演示脚本.md`](docs/demo/面试演示脚本.md) | 8 分钟演示流程、苍穹数码场景映射、高频问答、风险兜底 |
 | [`docs/demo/业务发现与AI全栈叙事.md`](docs/demo/业务发现与AI全栈叙事.md) | 以“业务发现 × AI 全栈交付”为主线的 10 分钟叙事、场景机会地图、30/60/90 天计划 |
+| [`docs/demo/平台能力评估.md`](docs/demo/平台能力评估.md) | A2A / 前端 / 后端能力评估、设计 vs 实现差距、面试话术、提分动作 |
 
 ## 输入依据
 
