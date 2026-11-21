@@ -96,6 +96,13 @@ body {
 }
 .agent-chip .name { display: flex; align-items: center; gap: 7px; }
 .agent-chip .ver { color: var(--muted); }
+.agent-actions { display: flex; align-items: center; gap: 6px; }
+.agent-remove {
+  width: 20px; height: 20px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: #9aa7ba; cursor: pointer; line-height: 1;
+  display: grid; place-items: center; font-size: 15px; padding: 0;
+}
+.agent-remove:hover { background: var(--red-weak); color: var(--red); border-color: #f3c7c7; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
 .sidebar-foot {
   flex: 0 0 auto; margin-top: auto; color: var(--muted); font-size: 11px;

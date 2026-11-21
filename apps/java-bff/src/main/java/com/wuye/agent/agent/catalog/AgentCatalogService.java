@@ -1,6 +1,7 @@
 package com.wuye.agent.agent.catalog;
 
 import com.wuye.agent.agent.adapter.AdapterRegistry;
+import com.wuye.agent.agent.install.DynamicAgentRegistry;
 import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.auth.AuthUser;
@@ -17,10 +18,13 @@ import org.springframework.stereotype.Service;
 public class AgentCatalogService {
 
     private final AdapterRegistry registry;
+    private final DynamicAgentRegistry dynamicAgentRegistry;
     private final PolicyService policyService;
 
-    public AgentCatalogService(AdapterRegistry registry, PolicyService policyService) {
+    public AgentCatalogService(AdapterRegistry registry, DynamicAgentRegistry dynamicAgentRegistry,
+                               PolicyService policyService) {
         this.registry = registry;
+        this.dynamicAgentRegistry = dynamicAgentRegistry;
         this.policyService = policyService;
     }
 
@@ -45,6 +49,7 @@ public class AgentCatalogService {
                     descriptor.contractVersion(),
                     descriptor.cancelSupported(),
                     descriptor.asyncDurability(),
+                    dynamicAgentRegistry.isDynamic(descriptor.agentKey()),
                     capabilities));
         }
         return result;
@@ -71,6 +76,7 @@ public class AgentCatalogService {
             String contractVersion,
             boolean cancelSupported,
             String asyncDurability,
+            boolean dynamic,
             List<CapabilityView> capabilities
     ) {
     }

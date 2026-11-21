@@ -423,6 +423,7 @@ class PrototypeSmokeTest {
 
             String agents = getWithToken("/api/v1/agents", adminToken);
             assertTrue(agents.contains("inspection-agent"), agents);
+            assertTrue(agents.contains("\"dynamic\":true"), agents);
 
             String session = createSession();
             String querySse = send(session, "查询巡检报告");

@@ -205,7 +205,9 @@ def main() -> int:
     status, text = root.get("/", raw=True, headers={"Accept": "text/html"})
     check("UI index 可访问", status == 200 and "物业主 Agent" in text, (status, text[:200]))
     status, text = root.get("/js/app.js", raw=True)
-    check("UI JS 版本 enterprise1", status == 200 and "20261121-enterprise1" in text)
+    check("UI JS 版本 uninstall1", status == 200 and "20261121-uninstall1" in text)
+    check("UI 含动态 Agent 卸载按钮逻辑",
+          status == 200 and "uninstallAgent" in text and "agent-remove" in text)
     check("UI CSS 可访问", root.get("/css/app.css")[0] == 200)
 
     section("登录 / RBAC")
@@ -378,8 +380,12 @@ def main() -> int:
     cleanup_dynamic(admin)
     installed = body_data(admin.post("/api/v1/admin/agents/install", {"template": "inspection"}))
     check("安装巡检 Agent", (installed or {}).get("agentKey") == "inspection-agent", installed)
-    check("巡检 Agent 出现在目录",
-          "inspection-agent" in json.dumps(body_data(admin.get("/api/v1/agents")), ensure_ascii=False))
+    installed_agents = body_data(admin.get("/api/v1/agents")) or []
+    inspection_view = next((a for a in installed_agents
+                            if a.get("agentKey") == "inspection-agent"), None)
+    check("巡检 Agent 出现在目录", inspection_view is not None)
+    check("巡检 Agent 标记 dynamic=true",
+          bool(inspection_view) and inspection_view.get("dynamic") is True, inspection_view)
 
     s = new_session(admin)
     e = sse(admin, s, "查询巡检报告")

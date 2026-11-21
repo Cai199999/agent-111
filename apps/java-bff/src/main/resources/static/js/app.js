@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261121-enterprise1';
+const UI_VERSION = '20261121-uninstall1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -438,11 +438,24 @@ function renderAgents() {
     els.agentStatus.replaceChildren(el('div', 'agent-chip', '无可用 Agent'));
     return;
   }
+  const isAdmin = (state.me?.roles || []).includes('ADMIN');
   els.agentStatus.replaceChildren(...state.agents.map((agent) => {
     const chip = el('div', 'agent-chip');
     const name = el('div', 'name');
     name.append(el('span', 'dot'), el('span', '', agent.displayName.replace('（Mock）', '')));
-    chip.append(name, el('span', 'ver', `v${agent.contractVersion}`));
+    const right = el('div', 'agent-actions');
+    right.append(el('span', 'ver', `v${agent.contractVersion}`));
+    if (agent.dynamic && isAdmin) {
+      const remove = el('button', 'agent-remove', '×');
+      remove.type = 'button';
+      remove.title = '卸载这个运行时安装的 Agent';
+      remove.addEventListener('click', (event) => {
+        event.stopPropagation();
+        uninstallAgent(agent.agentKey, agent.displayName);
+      });
+      right.append(remove);
+    }
+    chip.append(name, right);
     return chip;
   }));
 }
@@ -1619,6 +1632,21 @@ async function installAgentFromUrl() {
     els.installAgentError.textContent = error.message || '安装失败';
   } finally {
     els.installFromUrl.disabled = false;
+  }
+}
+
+async function uninstallAgent(agentKey, displayName) {
+  const ok = await askConfirm(
+    `确定卸载「${displayName}」吗？卸载后该 Agent 的能力会从目录移除。`,
+    { title: '卸载 Agent', confirmText: '卸载', danger: true },
+  );
+  if (!ok) return;
+  try {
+    await api(`/api/v1/admin/agents/${encodeURIComponent(agentKey)}`, { method: 'DELETE' });
+    await refreshCatalog();
+    showToast(`已卸载：${displayName}`);
+  } catch (error) {
+    showToast(error.message || '卸载失败');
   }
 }
 

@@ -40,6 +40,16 @@ Agent 状态   ＋
 - 后端：`POST /api/v1/admin/agents/install` `{"template":"inspection"}`
 - 结果：`inspection-agent` 立即注册，侧边栏多一个 Agent。
 
+### 卸载
+
+运行时安装的 Agent 在“Agent 状态”里会带一个 `×`：
+
+- 只有 ADMIN 可见；
+- 点击后二次确认；
+- 调用 `DELETE /api/v1/admin/agents/{agentKey}`；
+- 卸载后该 Agent 的能力立即从路由/目录/Agent Card 消失；
+- 内置 Agent（物业/合同/时空资产）没有 `×`，不允许卸载。
+
 ### 方式 B：从 Agent Card URL 安装
 
 - 输入：外部 Agent 的 Agent Card URL，例如 `http://127.0.0.1:8900`
