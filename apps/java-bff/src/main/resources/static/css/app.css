@@ -350,6 +350,9 @@ body {
 }
 .metric-card .label { color: var(--muted); font-size: 11px; }
 .metric-card .value { font-size: 21px; font-weight: 700; margin-top: 3px; }
+.metric-cards.business .metric-card { background: #f5f9ff; border-color: #dbe8fb; }
+.dashboard-section { color: var(--muted); font-size: 12px; font-weight: 700; margin: 2px 0 8px; }
+.dashboard-note { color: var(--muted); font-size: 11px; margin: -4px 0 12px; }
 .funnel { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .funnel-step {
   flex: 1; min-width: 88px; border: 1px solid var(--line); border-radius: 10px;

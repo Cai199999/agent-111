@@ -1319,6 +1319,8 @@ function saveSettings() {
 async function openDashboard() {
   els.dashboardModal.hidden = false;
   els.dashboardCards.textContent = '加载中…';
+  const businessContainer = document.getElementById('dashboardBusiness');
+  if (businessContainer) businessContainer.replaceChildren();
   els.dashboardFunnel.replaceChildren();
   els.dashboardTable.replaceChildren();
   try {
@@ -1333,6 +1335,21 @@ function renderDashboard(data) {
   const tasks = data.tasks || {};
   const human = data.humanIntervention || {};
   const llm = data.llmUsage || {};
+  const total = tasks.total || 0;
+  const succeeded = tasks.succeeded || 0;
+  const businessCards = [
+    ['自动化完成率', `${Math.round((tasks.successRate || 0) * 100)}%`],
+    ['预计节省工时', `${((succeeded * 8) / 60).toFixed(1)} h`],
+    ['单任务 LLM 成本', `¥${(total ? (llm.costCny || 0) / total : 0).toFixed(4)}`],
+  ];
+  const businessContainer = document.getElementById('dashboardBusiness');
+  if (businessContainer) {
+    businessContainer.replaceChildren(...businessCards.map(([label, value]) => {
+      const card = el('div', 'metric-card');
+      card.append(el('div', 'label', label), el('div', 'value', value));
+      return card;
+    }));
+  }
   const cards = [
     ['任务总数', String(tasks.total || 0)],
     ['成功率', `${Math.round((tasks.successRate || 0) * 100)}%`],

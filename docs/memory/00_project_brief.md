@@ -79,6 +79,8 @@
 - Mock 模式补齐主数据枚举（ticketTypes/priorities/locationTypes/indoorPublicAreas），自然语言“1栋大堂的灯不亮了”可直接映射 `LIGHTING` 并进入确认。
 - Mock 物业补齐接单/解决/验证/关闭/取消/挂起/恢复/结束/评论/材料/回访/导出，避免演示中因边缘能力中断。
 - 演示文档：`docs/demo/面试演示脚本.md`（流程、苍穹场景映射、Q&A、风险兜底、两天计划）。
+- 新增叙事文档 `docs/demo/业务发现与AI全栈叙事.md`：以“业务发现 × AI 全栈交付”为主线，含 10 分钟结构、四个苍穹场景机会地图、30/60/90 天计划、AI 协作话术。
+- 数据看板新增“业务价值”区：自动化完成率、预计节省工时（8 分钟/单假设）、单任务 LLM 成本。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
 ## 下一步
