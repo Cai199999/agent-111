@@ -36,12 +36,14 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 65/65 passed；Python AI 15/15；端到端 smoke 26 项
+# 当前：Java 66/66 passed；Python AI 15/15；端到端 smoke 26 项
 
 # 一键演示（强制 mock 子 Agent，自动重打包；默认开启 LLM）
 bash scripts/start-demo.sh
-# 演示链路冒烟：16 项检查
+# 演示链路冒烟：26 项检查
 bash scripts/smoke-demo.sh
+# 全功能 E2E：99 项真实 HTTP/SSE/异步/动态安装/记忆/RBAC 检查
+python3 -I scripts/e2e_full.py
 # 离线兜底：纯规则路由
 DEMO_AI=0 bash scripts/start-demo.sh
 

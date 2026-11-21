@@ -72,8 +72,12 @@ public class HybridRouter implements Router {
             return rule;
         }
         RouteDecision decision = llm.get();
-        boolean deterministic = "platform.catalog".equals(rule.capabilityId())
-                || "batch.execute".equals(rule.capabilityId());
+        String capabilityId = rule.capabilityId();
+        boolean deterministic = "platform.catalog".equals(capabilityId)
+                || "batch.execute".equals(capabilityId)
+                || (capabilityId != null && (capabilityId.startsWith("policy.")
+                || capabilityId.startsWith("customer.")
+                || capabilityId.startsWith("inspect.")));
         if (deterministic && !rule.needClarification() && decision.needClarification()) {
             return rule;
         }

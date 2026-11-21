@@ -72,6 +72,19 @@ class HybridRouterTest {
     }
 
     @Test
+    void dynamicCapabilityQueryPrefersRuleOverGenericClarification() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.clarify("请问是物业知识还是合同知识", "缺少域")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("查询政策：耕地保护");
+
+        assertEquals("policy.qa.ask", decision.capabilityId());
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
     void llmFailureFallsBackToRule() {
         LlmRouterClient llm = message -> Optional.empty();
         HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
