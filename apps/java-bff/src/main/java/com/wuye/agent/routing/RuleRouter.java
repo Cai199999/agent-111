@@ -1,5 +1,6 @@
 package com.wuye.agent.routing;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -184,6 +185,29 @@ public class RuleRouter implements Router {
         Matcher ticket = TICKET_NO.matcher(text);
         String ticketNo = ticket.find() ? ticket.group() : null;
 
+        // 一次派多个工单：拆成 batch.execute，每项一个 assign。
+        if (countOccurrences(text, "派给") >= 2 || countOccurrences(text, "分配给") >= 2) {
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (String clause : text.split("[，,；;]")) {
+                if (!clause.contains("派给") && !clause.contains("分配给")) {
+                    continue;
+                }
+                Map<String, Object> args = new LinkedHashMap<>();
+                args.put("keyword", clause);
+                String worker = inferWorker(clause);
+                if (worker != null) {
+                    args.put("assigneeId", worker);
+                }
+                items.add(Map.of(
+                        "capabilityId", "property.ticket.assign",
+                        "args", args));
+            }
+            if (items.size() > 1) {
+                return RouteDecision.route("batch.execute", Map.of("items", items),
+                        0.9, "命中批量派单");
+            }
+        }
+
         if (containsAny(text, "派单", "派给", "分配给") || (ticketNo != null && text.contains("派"))) {
             Matcher assignee = ASSIGNEE.matcher(text);
             String assigneeId = assignee.find() ? assignee.group(1) : inferWorker(text);
@@ -343,6 +367,16 @@ public class RuleRouter implements Router {
             return "CLEANING";
         }
         return null;
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static boolean containsAny(String text, String... keywords) {

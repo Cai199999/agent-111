@@ -27,6 +27,11 @@ public class HybridRouter implements Router {
     @Override
     public RouteDecision route(String message) {
         RouteDecision rule = ruleRouter.route(message);
+        // 多操作请求（如两个工单分别派两个人）优先走确定性 batch，
+        // 避免 LLM 把它压成一个 assign 后反复追问 ticketNo。
+        if ("batch.execute".equals(rule.capabilityId())) {
+            return rule;
+        }
         if (!properties.isEnabled()) {
             return rule;
         }
@@ -48,6 +53,9 @@ public class HybridRouter implements Router {
     public RouteDecision route(String message, PendingIntent pending, String sessionSummary,
                                String userProfile) {
         RouteDecision rule = ruleRouter.route(message);
+        if ("batch.execute".equals(rule.capabilityId())) {
+            return rule;
+        }
         if (!properties.isEnabled()) {
             return rule;
         }

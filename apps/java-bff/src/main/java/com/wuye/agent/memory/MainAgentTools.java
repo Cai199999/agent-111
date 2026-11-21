@@ -14,6 +14,7 @@ public final class MainAgentTools {
     public static final String PLATFORM_CATALOG = "platform.catalog";
     public static final String PLATFORM_A2A = "platform.a2a";
     public static final String PLATFORM_MEMORY = "platform.memory";
+    public static final String BATCH_EXECUTE = "batch.execute";
 
     private MainAgentTools() {
     }
@@ -23,7 +24,8 @@ public final class MainAgentTools {
                 || MEMORY_GET.equals(capabilityId)
                 || PLATFORM_CATALOG.equals(capabilityId)
                 || PLATFORM_A2A.equals(capabilityId)
-                || PLATFORM_MEMORY.equals(capabilityId);
+                || PLATFORM_MEMORY.equals(capabilityId)
+                || BATCH_EXECUTE.equals(capabilityId);
     }
 
     public static List<Map<String, Object>> payload() {
@@ -80,6 +82,28 @@ public final class MainAgentTools {
                         "readOnly", true,
                         "requiresConfirmation", false,
                         "executionModes", List.of("SYNC"),
-                        "inputSchema", Map.of("type", "object")));
+                        "inputSchema", Map.of("type", "object")),
+                Map.of(
+                        "capabilityId", BATCH_EXECUTE,
+                        "displayName", "批量执行",
+                        "description", "当用户一次要求多个独立操作（不同工单/不同对象/不同处理人）时使用。"
+                                + "items 每项一个操作，不要合并不同工单；每项 args 带 keyword/description "
+                                + "和 assigneeName/assigneeId，让主 Agent 解析内部 ID。",
+                        "readOnly", false,
+                        "requiresConfirmation", false,
+                        "executionModes", List.of("SYNC"),
+                        "inputSchema", Map.of(
+                                "type", "object",
+                                "required", List.of("items"),
+                                "properties", Map.of(
+                                        "items", Map.of(
+                                                "type", "array",
+                                                "items", Map.of(
+                                                        "type", "object",
+                                                        "required", List.of("capabilityId"),
+                                                        "properties", Map.of(
+                                                                "capabilityId", Map.of("type", "string"),
+                                                                "args", Map.of("type", "object")))))))
+        );
     }
 }

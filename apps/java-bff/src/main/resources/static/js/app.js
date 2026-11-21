@@ -719,8 +719,21 @@ function handleEvent(event, data, assistant) {
     case 'delta':
       appendDelta(assistant, data.content || '');
       break;
+    case 'batch':
+      break;
     case 'task':
-      renderTaskCard(assistant.cards, data);
+      if (data.batchIndex != null) {
+        const key = String(data.batchIndex);
+        let container = assistant.cards.querySelector(`[data-batch-index="${key}"]`);
+        if (!container) {
+          container = el('div');
+          container.dataset.batchIndex = key;
+          assistant.cards.append(container);
+        }
+        renderTaskCard(container, data);
+      } else {
+        renderTaskCard(assistant.cards, data);
+      }
       break;
     case 'result': {
       const task = state.taskData.get(data.taskNo);

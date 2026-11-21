@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuye.agent.memory.UserProfileService;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -345,6 +347,31 @@ class PrototypeSmokeTest {
                 Map.of("decision", "APPROVE", "comment", "同意巡查"));
         assertEquals("SUCCEEDED", confirmed.path("status").asText(), confirmed.toString());
         assertEquals("PT-2026-001", confirmed.path("output").path("patrolNo").asText());
+    }
+
+    @Test
+    void batchAssignCreatesTwoIndependentTasks() throws Exception {
+        String session = createSession();
+        String sse = send(session,
+                "把3栋2单元水管漏水那个工单派给张师傅，把地下车库道闸异常那个工单派给李师傅");
+
+        assertTrue(sse.contains("batch.execute"), sse);
+        assertTrue(sse.contains("GD20261119000107"), sse);
+        assertTrue(sse.contains("GD20261119000109"), sse);
+        assertTrue(sse.contains("10002"), sse);
+        assertTrue(sse.contains("10003"), sse);
+
+        Matcher matcher = TASK_NO.matcher(sse);
+        Set<String> taskNos = new LinkedHashSet<>();
+        while (matcher.find()) {
+            taskNos.add(matcher.group(1));
+        }
+        assertEquals(2, taskNos.size(), sse);
+        for (String taskNo : taskNos) {
+            JsonNode confirmed = postForData("/api/v1/tasks/" + taskNo + "/confirm",
+                    Map.of("decision", "APPROVE", "comment", "批量确认"));
+            assertEquals("SUCCEEDED", confirmed.path("status").asText(), confirmed.toString());
+        }
     }
 
     @Test

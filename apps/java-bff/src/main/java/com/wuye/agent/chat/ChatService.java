@@ -2,6 +2,7 @@ package com.wuye.agent.chat;
 
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.AgentCatalogService;
+import com.wuye.agent.agent.catalog.OptionCatalogService;
 import com.wuye.agent.agent.install.DynamicAgentRegistry;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.agent.model.Confirmation;
@@ -54,6 +55,7 @@ public class ChatService {
     private final Store store;
     private final AdapterRegistry registry;
     private final AgentCatalogService catalogService;
+    private final OptionCatalogService optionCatalogService;
     private final DynamicAgentRegistry dynamicAgentRegistry;
     private final Router router;
     private final LlmRouterClient llmRouterClient;
@@ -67,6 +69,7 @@ public class ChatService {
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
 
     public ChatService(Store store, AdapterRegistry registry, AgentCatalogService catalogService,
+                       OptionCatalogService optionCatalogService,
                        DynamicAgentRegistry dynamicAgentRegistry,
                        Router router, LlmRouterClient llmRouterClient,
                        TaskService taskService, TaskRecoveryService recoveryService,
@@ -75,6 +78,7 @@ public class ChatService {
         this.store = store;
         this.registry = registry;
         this.catalogService = catalogService;
+        this.optionCatalogService = optionCatalogService;
         this.dynamicAgentRegistry = dynamicAgentRegistry;
         this.router = router;
         this.llmRouterClient = llmRouterClient;
@@ -187,7 +191,7 @@ public class ChatService {
             }
 
             if (route.capabilityId() != null && MainAgentTools.isMainTool(route.capabilityId())) {
-                handleMainTool(route, user, session, emitter);
+                handleMainTool(route, user, session, content, emitter);
                 return;
             }
 
@@ -445,10 +449,14 @@ public class ChatService {
     }
 
     private void handleMainTool(RouteDecision route, AuthUser user, SessionState session,
-                                SseEmitter emitter) {
+                                String content, SseEmitter emitter) {
         String capabilityId = route.capabilityId();
         Object output;
         String answer;
+        if (MainAgentTools.BATCH_EXECUTE.equals(capabilityId)) {
+            handleBatchTool(route, user, session, content, emitter);
+            return;
+        }
         if (MainAgentTools.PLATFORM_CATALOG.equals(capabilityId)) {
             List<AgentCatalogService.AgentView> agents = catalogService.forUser(user);
             Map<String, Object> data = new LinkedHashMap<>();
@@ -512,6 +520,189 @@ public class ChatService {
         emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "SUCCEEDED"));
         emitter.complete();
         memoryService.updateAsync(session.sessionNo);
+    }
+
+    /**
+     * 批量执行：一次请求里包含多个独立操作时，逐项解析 ID、逐项建任务。
+     * 写操作仍然逐项人工确认；不会自动确认。
+     */
+    private void handleBatchTool(RouteDecision route, AuthUser user, SessionState session,
+                                 String content, SseEmitter emitter) {
+        Object rawItems = route.args() == null ? null : route.args().get("items");
+        List<?> source = rawItems instanceof List<?> list ? list : List.of();
+        if (source.isEmpty()) {
+            String message = "批量执行需要至少一个操作项。";
+            ChatMessage assistant = store.addMessage(session, "ASSISTANT", message,
+                    "TEXT", Map.of("batch", true), null);
+            emit(emitter, "delta", Map.of("content", message));
+            emit(emitter, "done", Map.of("messageNo", assistant.messageNo(), "status", "CLARIFIED"));
+            emitter.complete();
+            return;
+        }
+        List<?> items = source.size() > 5 ? source.subList(0, 5) : source;
+        List<TaskRecord> tasks = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        int index = 0;
+
+        for (Object rawItem : items) {
+            index++;
+            if (!(rawItem instanceof Map<?, ?> item)) {
+                failures.add("第" + index + "项格式不正确");
+                continue;
+            }
+            String capabilityId = str(item.get("capabilityId"));
+            Map<String, Object> args = mapOf(item.get("args"));
+            Capability capability = registry.capability(capabilityId).orElse(null);
+            if (capability == null) {
+                failures.add("第" + index + "项：能力不存在 " + capabilityId);
+                continue;
+            }
+            try {
+                policyService.requireCapability(user, capability.capabilityId());
+            } catch (Exception ex) {
+                failures.add("第" + index + "项：无权使用 " + capabilityId);
+                continue;
+            }
+
+            String keyword = first(args, "keyword", "description", "title", "query", content);
+            try {
+                if (capabilityId.startsWith("property.ticket.")
+                        && !"property.ticket.query".equals(capabilityId)
+                        && !"property.ticket.create".equals(capabilityId)
+                        && blank(args.get("ticketNo"))) {
+                    Lookup lookup = lookup("property.ticket.query",
+                            Map.of("keyword", keyword), user, ids.traceId());
+                    if (lookup.single() != null) {
+                        args.put("ticketNo", lookup.single().get("ticketNo"));
+                    } else if (lookup.items().size() > 1) {
+                        failures.add("第" + index + "项：找到多个工单候选 "
+                                + candidateNames(lookup.items()) + "，请明确");
+                        continue;
+                    } else {
+                        failures.add("第" + index + "项：没有找到对应工单");
+                        continue;
+                    }
+                }
+                if ("property.ticket.assign".equals(capabilityId) && blank(args.get("assigneeId"))) {
+                    String workerName = first(args, "assigneeName", "workerName", "assignee", "");
+                    String workerId = workerId(workerName);
+                    if (workerId != null) {
+                        args.put("assigneeId", workerId);
+                    }
+                }
+                if ("gis.patrol.create".equals(capabilityId) && blank(args.get("parcelNo"))) {
+                    Lookup lookup = lookup("gis.parcel.query",
+                            Map.of("keyword", keyword), user, ids.traceId());
+                    if (lookup.single() != null) {
+                        args.put("parcelNo", lookup.single().get("parcelNo"));
+                    } else {
+                        failures.add("第" + index + "项：没有唯一匹配的地块");
+                        continue;
+                    }
+                }
+                if ("contract.review".equals(capabilityId)
+                        && blank(args.get("contractId")) && blank(args.get("contractNo"))) {
+                    Lookup lookup = lookup("contract.resolve",
+                            Map.of("query", keyword), user, ids.traceId());
+                    if (lookup.single() != null && lookup.single().get("contractId") != null) {
+                        args.put("contractId", lookup.single().get("contractId"));
+                    } else {
+                        failures.add("第" + index + "项：没有解析到合同");
+                        continue;
+                    }
+                }
+
+                TaskRecord task = taskService.submit(session.sessionNo, capability, args,
+                        user.actorId(), ids.traceId());
+                RecoveryOutcome recovery = recoveryService.recover(session.sessionNo, content,
+                        capability, args, task, user.actorId(), ids.traceId());
+                task = recovery.task();
+                if (recovery.clarification()) {
+                    failures.add("第" + index + "项：" + recovery.message());
+                    continue;
+                }
+                tasks.add(task);
+            } catch (Exception ex) {
+                failures.add("第" + index + "项执行失败：" + ex.getMessage());
+            }
+        }
+
+        emit(emitter, "batch", Map.of(
+                "count", items.size(),
+                "created", tasks.size(),
+                "failed", failures.size()));
+
+        int taskIndex = 0;
+        for (TaskRecord task : tasks) {
+            taskIndex++;
+            Map<String, Object> view = taskEvent(task);
+            view.put("batchIndex", taskIndex);
+            view.put("batchCount", tasks.size());
+            emit(emitter, "task", view);
+            for (TaskEvent event : task.events) {
+                emit(emitter, "task_event", eventView(task.taskNo, event));
+            }
+            if (task.status == TaskStatus.WAITING_CONFIRM && task.confirmation != null) {
+                emit(emitter, "confirm", Map.of(
+                        "taskNo", task.taskNo,
+                        "confirmation", confirmationView(task),
+                        "batchIndex", taskIndex));
+            }
+            if (task.status == TaskStatus.SUCCEEDED) {
+                emit(emitter, "result", Map.of(
+                        "taskNo", task.taskNo,
+                        "capabilityId", task.capabilityId,
+                        "output", task.output == null ? Map.of() : task.output));
+            }
+        }
+
+        StringBuilder summary = new StringBuilder();
+        if (tasks.isEmpty()) {
+            summary.append("没有创建任务。");
+        } else {
+            summary.append("已创建 ").append(tasks.size()).append(" 个任务");
+            boolean waiting = tasks.stream().anyMatch(task -> task.status == TaskStatus.WAITING_CONFIRM);
+            summary.append(waiting ? "，请分别确认。" : "。");
+        }
+        if (!failures.isEmpty()) {
+            summary.append(" 有 ").append(failures.size()).append(" 项需要补充：")
+                    .append(String.join("；", failures));
+        }
+
+        ChatMessage assistant = store.addMessage(session, "ASSISTANT", summary.toString(),
+                "TASK", Map.of("batch", true, "created", tasks.size(),
+                        "failed", failures.size()), null);
+        emit(emitter, "delta", Map.of("content", summary.toString()));
+        emit(emitter, "done", Map.of(
+                "messageNo", assistant.messageNo(),
+                "status", tasks.isEmpty() ? "CLARIFIED" : "BATCH"));
+        emitter.complete();
+        memoryService.updateAsync(session.sessionNo);
+    }
+
+    private String workerId(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        for (Map<String, Object> worker : optionCatalogService.optionList("workers")) {
+            if (name.equals(String.valueOf(worker.get("name")))) {
+                return String.valueOf(worker.get("id"));
+            }
+        }
+        return null;
+    }
+
+    private static Map<String, Object> mapOf(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            map.forEach((key, item) -> result.put(String.valueOf(key), item));
+            return result;
+        }
+        return new LinkedHashMap<>();
+    }
+
+    private static String str(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private ExecutionResult executePlan(String sessionNo, String content, RouteDecision route,

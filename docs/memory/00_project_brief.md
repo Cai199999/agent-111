@@ -88,8 +88,9 @@
 - 2026-11-21 动态安装 Agent（演示版）：侧边栏「Agent 状态」＋ → 模板安装 `inspection-agent`（巡检报告：查询/计划/异步生成/异步导出）或从 Agent Card URL 安装 Canonical v1 HTTP Agent；`AdapterRegistry.register/unregister`、`AgentInstallService`、动态能力管理员授权；内存态，重启消失。
 - 2026-11-21 平台自省与企业 Agent：新增主 Agent 工具 `platform.catalog`/`platform.a2a`/`platform.memory`（真实注册表/记忆）；内置 `/demo-agents/policy`、`/demo-agents/customer` 两个真实 HTTP 企业 Agent，可从 Agent Card URL 安装；动态 Agent 调用时主 Agent 注入 `_memory`，子 Agent 输出 `memoryUsed`。
 - 2026-11-21 自然语言语义解析：用户不必输入内部编码；`ChatService.semanticResolve` 在缺 ticketNo/contractId/parcelNo 时先调只读查询，唯一命中自动合并、多个候选追问；`mergeOutput` 支持单候选列表；工单查询/派单/GIS 地块/图斑支持关键词过滤；选项目录补 workers（张师傅→10002）；LLM prompt 增加“不要索要内部编码，先语义检索”规则。
+- 2026-11-21 批量任务：新增主 Agent `batch.execute`（items 每项一个操作）；`handleBatchTool` 逐项解析 ID、逐项建任务、生成多张确认卡；`HybridRouter` 对多个“派给”优先走确定性 batch，避免 LLM 压成单任务反复追问；前端按 `batchIndex` 渲染多张任务卡。
 - 记忆系统现状：会话摘要 `wa_chat_session.summary`（仅当前会话）+ 全局画像 `wa_user_memory_profile`（稳定偏好，可查看/清除）；无向量长期记忆/跨会话 RAG。记忆由主 Agent 层统一注入动态 Agent，子 Agent 不各自维护记忆。
-- 测试：Java 60/60、Python 15/15、端到端 smoke 26/26。
+- 测试：Java 61/61、Python 15/15、端到端 smoke 26/26。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
 ## 下一步

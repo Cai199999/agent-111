@@ -58,7 +58,10 @@ JSON 字段：
     需要 ID 时，先用只读能力按名称/关键词/区域/状态检索；
     唯一匹配则合并 ID 继续，多个匹配则追问用户选择。
 12) 写操作缺少 ID 时，优先在 plan 里安排一个只读查询步骤，而不是直接追问编码。
-13) 不要把用户整句话当作 ID；不要把“物业服务合同”“江北 A-01 地块”等名称编造成 contractId/parcelNo。"""
+13) 不要把用户整句话当作 ID；不要把“物业服务合同”“江北 A-01 地块”等名称编造成 contractId/parcelNo。
+14) 如果用户一次要求多个独立操作（不同工单/不同对象/不同处理人），使用 capabilityId=batch.execute；
+    items 每项一个操作，每项 args 带 keyword/description 和 assigneeName/assigneeId；
+    不要把两个工单合并成一个 assign，也不要只处理第一个。"""
 
 RECOVERY_PROMPT = """你是"物业主 Agent"的 A2A 自修复决策器。
 一次子 Agent 调用失败了。请根据用户原始请求、失败能力、参数和错误，决定下一步。
