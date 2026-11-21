@@ -91,6 +91,7 @@
 - 2026-11-21 批量任务：新增主 Agent `batch.execute`（items 每项一个操作）；`handleBatchTool` 逐项解析 ID、逐项建任务、生成多张确认卡；`HybridRouter` 对多个“派给”优先走确定性 batch，避免 LLM 压成单任务反复追问；前端按 `batchIndex` 渲染多张任务卡。
 - 记忆系统现状：会话摘要 `wa_chat_session.summary`（仅当前会话）+ 全局画像 `wa_user_memory_profile`（稳定偏好，可查看/清除）；无向量长期记忆/跨会话 RAG。记忆由主 Agent 层统一注入动态 Agent，子 Agent 不各自维护记忆。
 - 测试：Java 66/66、Python 15/15、端到端 smoke 26/26、全功能 E2E 101/101（`scripts/e2e_full.py`，覆盖健康/静态资源/登录/RBAC/A2A/平台自省/物业/合同/GIS/自修复/动态安装/企业 Agent/记忆/看板/审计/工具/事件）。
+- 面试材料：`docs/demo/面试问答与技术选型.md`（技术栈全景、12 项选型取舍、12 个踩坑、40+ 问题、GIS/苍穹映射、边界话术）。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
 ## 下一步

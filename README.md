@@ -21,6 +21,7 @@
 | [`docs/demo/可扩展多Agent演示.md`](docs/demo/可扩展多Agent演示.md) | 第三个 Agent 接入三步法、自动复用清单、完整 GIS 演示链路 |
 | [`docs/demo/动态安装Agent.md`](docs/demo/动态安装Agent.md) | 运行时安装 Agent、完整巡检 Agent 能力、受控安装边界 |
 | [`docs/demo/演示预置问题.md`](docs/demo/演示预置问题.md) | 演示输入清单、面试官追问的自省问题、企业 Agent URL、记忆演示 |
+| [`docs/demo/面试问答与技术选型.md`](docs/demo/面试问答与技术选型.md) | 技术栈全景、选型取舍、踩坑与解决、40+ 面试问题、GIS/苍穹映射 |
 
 ## 输入依据
 
