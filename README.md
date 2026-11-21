@@ -36,7 +36,7 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 53/53 passed；Python AI 15/15；端到端 smoke 26 项
+# 当前：Java 60/60 passed；Python AI 15/15；端到端 smoke 26 项
 
 # 一键演示（强制 mock 子 Agent，自动重打包；默认开启 LLM）
 bash scripts/start-demo.sh
@@ -49,7 +49,7 @@ DEMO_AI=0 bash scripts/start-demo.sh
 bash scripts/start-prototype.sh
 ```
 
-已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、LLM 主导路由（DeepSeek/OpenAI 兼容）、计划拆解（只读前置步骤 + 最终写操作）、**多轮补参状态**、**主数据枚举映射（ticketTypes/priorities 等）**、**A2A 失败自修复（schema 前置校验 + 追问/修正/只读重试/换能力/无能力兜底）**、**Actor/Trace 透传到子 Agent**、**Agent Card 发现层（`/.well-known/agent-card.json` + 管理端 A2A 总览）**、**第三个演示 Agent（时空资产：地块/遥感变化图斑/巡查任务，验证“新增 Agent 不改主流程”）**、**运行时安装 Agent（侧边栏「Agent 状态」＋：安装完整巡检报告 Agent / 从 Agent Card URL 安装 / 内置政策问答与客服工单企业 Agent）**、**主 Agent 自省工具（`platform.catalog` / `platform.a2a` / `platform.memory`，返回真实注册表与记忆数据）**、**动态 Agent 记忆注入（主 Agent 注入 `_memory`，子 Agent 不各自维护记忆）**、子 Agent 校验失败回传 LLM 自动修正参数、规则仅作 LLM 不可用时兜底；**子 Agent 原始 output 保留在任务 API/事件中，聊天区按中文字段名与中文枚举展示，并附 LLM 自然语言解释（不改写数据）**；**子 Agent 能力以工具形式暴露**（`GET /api/v1/tools`、`POST /api/v1/tools/{name}/execute`）；**ADMIN 数据看板**（任务总数/成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本）；**操作审计**（登录/任务提交/确认/取消/会话删除/工具调用，写入 `wa_audit_log`，ADMIN 可查）；**进程内限流**（每用户/IP 每分钟 300 次，可配置）；**本地 CI 门禁与备份脚本**；**会话级摘要记忆**（落库、仅当前会话使用，不跨会话检索）；**全局用户画像**（稳定偏好，独立于子 Agent 个人资料，可在个人中心查看/清除）；**人工介入队列**（待确认/失败/拒绝任务自动入队，工人/管理员可认领、处理、关闭）；写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
+已实现：登录 + JWT + 三级 RBAC（用户/工人/管理员，权限表驱动）、个人中心动态表单（表单由子 Agent Manifest 提供）、按权限过滤 Agent/能力卡片；单对话框、SSE、LLM 主导路由（DeepSeek/OpenAI 兼容）、计划拆解（只读前置步骤 + 最终写操作）、**多轮补参状态**、**主数据枚举映射（ticketTypes/priorities 等）**、**A2A 失败自修复（schema 前置校验 + 追问/修正/只读重试/换能力/无能力兜底）**、**Actor/Trace 透传到子 Agent**、**Agent Card 发现层（`/.well-known/agent-card.json` + 管理端 A2A 总览）**、**第三个演示 Agent（时空资产：地块/遥感变化图斑/巡查任务，验证“新增 Agent 不改主流程”）**、**运行时安装 Agent（侧边栏「Agent 状态」＋：安装完整巡检报告 Agent / 从 Agent Card URL 安装 / 内置政策问答与客服工单企业 Agent）**、**主 Agent 自省工具（`platform.catalog` / `platform.a2a` / `platform.memory`，返回真实注册表与记忆数据）**、**动态 Agent 记忆注入（主 Agent 注入 `_memory`，子 Agent 不各自维护记忆）**、**自然语言语义解析（名称/描述 → ticketNo/contractId/parcelNo，唯一命中继续、多候选追问）**、子 Agent 校验失败回传 LLM 自动修正参数、规则仅作 LLM 不可用时兜底；**子 Agent 原始 output 保留在任务 API/事件中，聊天区按中文字段名与中文枚举展示，并附 LLM 自然语言解释（不改写数据）**；**子 Agent 能力以工具形式暴露**（`GET /api/v1/tools`、`POST /api/v1/tools/{name}/execute`）；**ADMIN 数据看板**（任务总数/成功率/待确认/平均耗时/人工介入率/工单漏斗/能力分布/LLM token 与成本）；**操作审计**（登录/任务提交/确认/取消/会话删除/工具调用，写入 `wa_audit_log`，ADMIN 可查）；**进程内限流**（每用户/IP 每分钟 300 次，可配置）；**本地 CI 门禁与备份脚本**；**会话级摘要记忆**（落库、仅当前会话使用，不跨会话检索）；**全局用户画像**（稳定偏好，独立于子 Agent 个人资料，可在个人中心查看/清除）；**人工介入队列**（待确认/失败/拒绝任务自动入队，工人/管理员可认领、处理、关闭）；写操作确认/拒绝、异步合同审查、取消、任务事件时间线、确认令牌不出服务端；会话删除（级联删除消息/任务/事件）；会话/消息/任务/事件落 MySQL 并跨重启保留；`WUYE_AGENT_MODE=http` 接真实物业 8402 / 合同 8400。
 
 演示账号：`admin/admin123`、`worker/worker123`、`user/user123`。合同 Agent 仅管理员可见；普通用户只能建单/查自己的工单；工人可接单/处理/解决，不能建单；管理员全部。
 

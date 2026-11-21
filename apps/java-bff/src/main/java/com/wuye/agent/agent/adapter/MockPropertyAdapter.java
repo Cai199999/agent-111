@@ -95,12 +95,21 @@ public class MockPropertyAdapter implements AgentAdapter {
 
         switch (request.capabilityId()) {
             case "property.ticket.query" -> {
-                Object data = List.of(
+                String keyword = string(request.input(), "keyword", "");
+                String status = string(request.input(), "status", "");
+                String ticketNo = string(request.input(), "ticketNo", "");
+                List<Map<String, Object>> all = List.of(
                         ticket("GD20261119000107", "3栋2单元水管漏水", "PENDING", "HIGH", "未派单"),
                         ticket("GD20261119000108", "1栋大堂照明故障", "ASSIGNED", "NORMAL", "10002"),
-                        ticket("GD20261119000109", "地下车库道闸异常", "PENDING", "LOW", "未派单")
-                );
-                return succeed(state, unwrapProperty(wrapProperty(data)));
+                        ticket("GD20261119000109", "地下车库道闸异常", "PENDING", "LOW", "未派单"));
+                List<Map<String, Object>> filtered = all.stream()
+                        .filter(item -> ticketNo.isBlank()
+                                || ticketNo.equals(String.valueOf(item.get("ticketNo"))))
+                        .filter(item -> status.isBlank()
+                                || status.equalsIgnoreCase(String.valueOf(item.get("status"))))
+                        .filter(item -> keyword.isBlank() || ticketMatches(keyword, item))
+                        .toList();
+                return succeed(state, unwrapProperty(wrapProperty(filtered)));
             }
             case "property.ticket.detail" -> {
                 String ticketNo = string(request.input(), "ticketNo", "GD20261119000107");
@@ -343,6 +352,37 @@ public class MockPropertyAdapter implements AgentAdapter {
         map.put("priority", priority);
         map.put("assignee", assignee);
         return map;
+    }
+
+    /** 自然语言关键词匹配：标题/工单号，支持“漏水”“1栋”“照明”等 token。 */
+    private static boolean ticketMatches(String keyword, Map<String, Object> item) {
+        String text = keyword == null ? "" : keyword.replaceAll("[\\s，。！？!?：:、]", "");
+        String title = String.valueOf(item.get("title"));
+        String no = String.valueOf(item.get("ticketNo"));
+        if (text.contains(title) || text.contains(no) || title.contains(text)) {
+            return true;
+        }
+        for (String token : keyword.split("[\\s，。！？!?：:、]+")) {
+            if (token.length() >= 2 && (title.contains(token) || no.contains(token))) {
+                return true;
+            }
+        }
+        // “把3栋2单元水管漏水那个工单派给张师傅”这类长句：用 >=3 字的公共片段匹配。
+        return sharesFragment(text, title, 3) || sharesFragment(text, no, 4);
+    }
+
+    private static boolean sharesFragment(String a, String b, int min) {
+        if (a == null || b == null || a.length() < min || b.length() < min) {
+            return false;
+        }
+        for (int length = Math.min(a.length(), b.length()); length >= min; length--) {
+            for (int i = 0; i + length <= a.length(); i++) {
+                if (b.contains(a.substring(i, i + length))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** 模拟物业的 {code,data} 包络。 */

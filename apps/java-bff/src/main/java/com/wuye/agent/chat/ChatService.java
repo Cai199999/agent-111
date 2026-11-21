@@ -28,6 +28,7 @@ import com.wuye.agent.task.TaskService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +127,13 @@ public class ChatService {
             }
             RouteDecision route = router.route(content, pending, session.summary,
                     userProfileService.contextFor(user.id()));
+            // 用户用名称/描述而不是内部编码时：先做一次只读语义解析，唯一命中就继续执行。
+            if (route.needClarification()) {
+                RouteDecision resolved = semanticResolve(route, content, user, traceId);
+                if (resolved != null) {
+                    route = resolved;
+                }
+            }
             Map<String, Object> routeEvent = new LinkedHashMap<>();
             routeEvent.put("capabilityId", route.capabilityId());
             routeEvent.put("confidence", route.confidence());
@@ -322,6 +330,120 @@ public class ChatService {
         return deleted;
     }
 
+    /**
+     * 名称/描述 -> 内部 ID 的只读解析。
+     *
+     * <p>用户不会输入 ticketNo/parcelNo/contractId。缺 ID 时先查：
+     * 唯一命中则合并继续；多个候选则让用户选；查不到才保留原追问。</p>
+     */
+    private RouteDecision semanticResolve(RouteDecision route, String content,
+                                          AuthUser user, String traceId) {
+        String capabilityId = route.capabilityId();
+        if (capabilityId == null) {
+            return route;
+        }
+        Map<String, Object> args = new LinkedHashMap<>(
+                route.args() == null ? Map.of() : route.args());
+        boolean changed = false;
+        List<?> candidates = null;
+        String candidateLabel = null;
+
+        if ("gis.patrol.create".equals(capabilityId) && blank(args.get("parcelNo"))) {
+            Lookup lookup = lookup("gis.parcel.query", Map.of("keyword", content), user, traceId);
+            if (lookup.single() != null) {
+                args.put("parcelNo", lookup.single().get("parcelNo"));
+                changed = true;
+            } else if (lookup.items().size() > 1) {
+                candidates = lookup.items();
+                candidateLabel = "地块";
+            }
+        }
+        if (capabilityId.startsWith("property.ticket.")
+                && !"property.ticket.query".equals(capabilityId)
+                && !"property.ticket.create".equals(capabilityId)
+                && blank(args.get("ticketNo"))) {
+            Lookup lookup = lookup("property.ticket.query", Map.of("keyword", content), user, traceId);
+            if (lookup.single() != null) {
+                args.put("ticketNo", lookup.single().get("ticketNo"));
+                changed = true;
+            } else if (lookup.items().size() > 1) {
+                candidates = lookup.items();
+                candidateLabel = "工单";
+            }
+        }
+        if ("contract.review".equals(capabilityId)
+                && blank(args.get("contractId")) && blank(args.get("contractNo"))) {
+            Lookup lookup = lookup("contract.resolve", Map.of("query", content), user, traceId);
+            if (lookup.single() != null && lookup.single().get("contractId") != null) {
+                args.put("contractId", lookup.single().get("contractId"));
+                changed = true;
+            }
+        }
+
+        if (candidates != null) {
+            String question = "找到多个" + candidateLabel + "候选："
+                    + candidateNames(candidates) + "。请明确是哪一个？";
+            return new RouteDecision(capabilityId, args, route.confidence(), true,
+                    question, route.reason(), List.of(), route.missingFields(), route.router());
+        }
+        if (!changed) {
+            return route;
+        }
+        // 只读解析已经补齐关键 ID；剩余字段交给 schema 校验/自修复，不在这里继续追问。
+        return new RouteDecision(capabilityId, args, Math.max(route.confidence(), 0.9),
+                false, null, route.reason(), List.of(), List.of(), route.router());
+    }
+
+    private Lookup lookup(String capabilityId, Map<String, Object> input,
+                          AuthUser user, String traceId) {
+        Capability capability = registry.capability(capabilityId).orElse(null);
+        if (capability == null) {
+            return Lookup.none();
+        }
+        try {
+            policyService.requireCapability(user, capability.capabilityId());
+        } catch (Exception ex) {
+            return Lookup.none();
+        }
+        TaskRecord task = taskService.submit("resolve:" + user.id(), capability,
+                input, user.actorId(), traceId);
+        if (task.status != TaskStatus.SUCCEEDED || task.output == null) {
+            return Lookup.none();
+        }
+        if (task.output instanceof List<?> list) {
+            if (list.size() == 1 && list.get(0) instanceof Map<?, ?> map) {
+                return new Lookup(map, list);
+            }
+            return new Lookup(null, list);
+        }
+        if (task.output instanceof Map<?, ?> map) {
+            return new Lookup(map, List.of(map));
+        }
+        return Lookup.none();
+    }
+
+    private String candidateNames(List<?> items) {
+        List<String> names = new ArrayList<>();
+        for (Object item : items.stream().limit(5).toList()) {
+            if (item instanceof Map<?, ?> map) {
+                Object no = map.get("parcelNo") != null ? map.get("parcelNo") : map.get("ticketNo");
+                Object name = map.get("parcelName") != null ? map.get("parcelName") : map.get("title");
+                names.add(String.valueOf(no) + (name == null ? "" : "（" + name + "）"));
+            }
+        }
+        return String.join("、", names);
+    }
+
+    private static boolean blank(Object value) {
+        return value == null || String.valueOf(value).isBlank();
+    }
+
+    private record Lookup(Map<?, ?> single, List<?> items) {
+        static Lookup none() {
+            return new Lookup(null, List.of());
+        }
+    }
+
     private void handleMainTool(RouteDecision route, AuthUser user, SessionState session,
                                 SseEmitter emitter) {
         String capabilityId = route.capabilityId();
@@ -462,11 +584,23 @@ public class ChatService {
     }
 
     private void mergeOutput(Map<String, Object> args, Object output) {
-        if (!(output instanceof Map<?, ?> map)) {
+        if (output instanceof Map<?, ?> map) {
+            mergeMap(args, map);
             return;
         }
+        // 只读查询返回唯一候选时，自动把业务 ID 合并进最终参数；
+        // 多个候选不猜，交给 LLM/追问。
+        if (output instanceof List<?> list && list.size() == 1
+                && list.get(0) instanceof Map<?, ?> map) {
+            mergeMap(args, map);
+        }
+    }
+
+    private void mergeMap(Map<String, Object> args, Map<?, ?> map) {
         for (String key : List.of("contactName", "contactPhone", "projectId", "buildingId",
-                "roomId", "customerId", "ticketNo", "description", "locationText")) {
+                "roomId", "customerId", "ticketNo", "description", "locationText",
+                "assigneeId", "contractId", "contractNo", "parcelNo", "reportNo", "planNo",
+                "changeNo")) {
             Object value = map.get(key);
             if (value != null) {
                 args.putIfAbsent(key, value);

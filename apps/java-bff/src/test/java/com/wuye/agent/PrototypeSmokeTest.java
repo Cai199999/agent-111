@@ -348,6 +348,22 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void naturalLanguageTicketActionsResolveIdsAutomatically() throws Exception {
+        String session = createSession();
+
+        String assign = send(session, "把3栋2单元水管漏水那个工单派给张师傅");
+        assertTrue(assign.contains("property.ticket.assign"), assign);
+        assertTrue(assign.contains("WAITING_CONFIRM"), assign);
+        assertTrue(assign.contains("GD20261119000107"), assign);
+        assertTrue(assign.contains("10002"), assign);
+
+        String close = send(session, "把1栋大堂照明故障那个工单关掉");
+        assertTrue(close.contains("property.ticket.close"), close);
+        assertTrue(close.contains("WAITING_CONFIRM"), close);
+        assertTrue(close.contains("GD20261119000108"), close);
+    }
+
+    @Test
     void dynamicInspectionAgentCanBeInstalledUsedAndUninstalled() throws Exception {
         try {
             JsonNode installed = postForData("/api/v1/admin/agents/install",

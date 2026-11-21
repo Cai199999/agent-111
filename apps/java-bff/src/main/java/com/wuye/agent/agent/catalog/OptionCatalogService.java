@@ -91,6 +91,9 @@ public class OptionCatalogService {
         options.put("buildings", List.of(
                 Map.of("id", 101, "name", "1栋", "projectId", 100),
                 Map.of("id", 102, "name", "3栋", "projectId", 100)));
+        options.put("workers", List.of(
+                Map.of("id", 10002, "name", "张师傅"),
+                Map.of("id", 10003, "name", "李师傅")));
         options.put("ticketTypes", List.of(
                 Map.of("code", "LIGHTING", "name", "照明"),
                 Map.of("code", "PLUMBING", "name", "给排水"),

@@ -94,6 +94,33 @@ public class CapabilitySchemaService {
 
     private Map<String, Map<String, Object>> fallback() {
         Map<String, Map<String, Object>> result = new LinkedHashMap<>();
+        result.put("property.ticket.query", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "status", Map.of("type", "string",
+                                "description", "工单状态：PENDING/ASSIGNED/ACCEPTED/RESOLVED/CLOSED"),
+                        "keyword", Map.of("type", "string",
+                                "description", "自然语言关键词，如地点/楼栋/故障描述"),
+                        "ticketNo", Map.of("type", "string"),
+                        "limit", Map.of("type", "integer"))));
+        result.put("property.ticket.assign", Map.of(
+                "type", "object",
+                "required", List.of("ticketNo", "assigneeId"),
+                "properties", Map.of(
+                        "ticketNo", Map.of("type", "string"),
+                        "assigneeId", Map.of("type", "string"))));
+        for (String id : List.of("property.ticket.detail", "property.ticket.close",
+                "property.ticket.accept", "property.ticket.resolve",
+                "property.ticket.verify", "property.ticket.hold",
+                "property.ticket.resume", "property.ticket.finish",
+                "property.ticket.cancel", "property.ticket.comment.add",
+                "property.ticket.material.add", "property.ticket.visit.add",
+                "property.ticket.export")) {
+            result.put(id, Map.of(
+                    "type", "object",
+                    "required", List.of("ticketNo"),
+                    "properties", Map.of("ticketNo", Map.of("type", "string"))));
+        }
         result.put("property.ticket.create", Map.of(
                 "type", "object",
                 "required", List.of("ticketTypeCode"),
@@ -121,7 +148,9 @@ public class CapabilitySchemaService {
                 "type", "object",
                 "properties", Map.of(
                         "keyword", Map.of("type", "string"),
-                        "parcelNo", Map.of("type", "string"))));
+                        "parcelNo", Map.of("type", "string"),
+                        "level", Map.of("type", "string",
+                                "description", "风险等级：HIGH/GENERAL"))));
         result.put("gis.patrol.create", Map.of(
                 "type", "object",
                 "required", List.of("parcelNo"),

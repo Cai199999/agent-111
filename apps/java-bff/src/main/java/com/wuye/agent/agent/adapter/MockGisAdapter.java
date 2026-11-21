@@ -78,23 +78,55 @@ public class MockGisAdapter implements AgentAdapter {
 
         switch (request.capabilityId()) {
             case "gis.parcel.query" -> {
-                String keyword = string(request.input(), "keyword",
-                        string(request.input(), "parcelNo", ""));
-                return succeed(state, List.of(
+                String keyword = string(request.input(), "keyword", "");
+                String parcelNo = string(request.input(), "parcelNo", "");
+                List<Map<String, Object>> all = List.of(
                         parcel("P-2026-001", "江北新区 A-01 地块", "江北新区",
-                                128.6, "商业用地", "已登记", keyword),
+                                128.6, "商业用地", "已登记"),
                         parcel("P-2026-002", "江北新区 B-07 地块", "江北新区",
-                                86.4, "住宅用地", "已登记", keyword),
+                                86.4, "住宅用地", "已登记"),
                         parcel("P-2026-003", "城南片区 C-12 地块", "城南片区",
-                                45.2, "公共服务用地", "待核查", keyword)
-                ));
+                                45.2, "公共服务用地", "待核查"));
+                if (!parcelNo.isBlank()) {
+                    all = all.stream()
+                            .filter(item -> parcelNo.equals(String.valueOf(item.get("parcelNo"))))
+                            .toList();
+                }
+                if (!keyword.isBlank()) {
+                    List<Map<String, Object>> strong = all.stream()
+                            .filter(item -> strongMatch(keyword, item))
+                            .toList();
+                    List<Map<String, Object>> weak = all.stream()
+                            .filter(item -> weakMatch(keyword, item))
+                            .toList();
+                    all = !strong.isEmpty() ? strong : weak;
+                }
+                return succeed(state, all);
             }
             case "gis.change.query" -> {
-                return succeed(state, List.of(
+                String keyword = string(request.input(), "keyword", "");
+                String parcelNo = string(request.input(), "parcelNo", "");
+                String level = string(request.input(), "level", "");
+                if (level.isBlank() && (keyword.contains("紧急") || keyword.contains("高"))) {
+                    level = "HIGH";
+                } else if ("高".equals(level) || "紧急".equals(level)) {
+                    level = "HIGH";
+                } else if ("一般".equals(level) || "普通".equals(level)) {
+                    level = "GENERAL";
+                }
+                List<Map<String, Object>> all = List.of(
                         change("CH-2026-001", "P-2026-001", "新增建设", 3.2, "HIGH", "待复核"),
                         change("CH-2026-002", "P-2026-002", "地表覆盖变化", 1.8, "GENERAL", "待复核"),
-                        change("CH-2026-003", "P-2026-003", "疑似违建", 0.9, "HIGH", "已派发")
-                ));
+                        change("CH-2026-003", "P-2026-003", "疑似违建", 0.9, "HIGH", "已派发"));
+                String levelFilter = level;
+                all = all.stream()
+                        .filter(item -> parcelNo.isBlank()
+                                || String.valueOf(item.get("parcelNo")).contains(parcelNo))
+                        .filter(item -> levelFilter.isBlank()
+                                || levelFilter.equals(String.valueOf(item.get("level"))))
+                        .filter(item -> keyword.isBlank() || changeMatches(keyword, item))
+                        .toList();
+                return succeed(state, all);
             }
             case "gis.patrol.create" -> {
                 String parcelNo = string(request.input(), "parcelNo", "P-2026-001");
@@ -235,8 +267,7 @@ public class MockGisAdapter implements AgentAdapter {
     }
 
     private static Map<String, Object> parcel(String parcelNo, String name, String region,
-                                              double areaMu, String landUse, String status,
-                                              String keyword) {
+                                              double areaMu, String landUse, String status) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("parcelNo", parcelNo);
         map.put("parcelName", name);
@@ -244,10 +275,69 @@ public class MockGisAdapter implements AgentAdapter {
         map.put("areaMu", areaMu);
         map.put("landUse", landUse);
         map.put("status", status);
-        if (keyword != null && !keyword.isBlank()) {
-            map.put("matchedBy", keyword);
-        }
         return map;
+    }
+
+    /** 编号/名称/精确 token 命中，优先于区域/用途等弱条件。 */
+    private static boolean strongMatch(String keyword, Map<String, Object> item) {
+        String text = compact(keyword);
+        String no = String.valueOf(item.get("parcelNo"));
+        String name = String.valueOf(item.get("parcelName"));
+        String region = String.valueOf(item.get("region"));
+        if (text.contains(no) || text.contains(name)) {
+            return true;
+        }
+        // 只输入区域名（如“江北新区”）不算强命中，否则会同时命中多个地块。
+        if (text.length() >= 3 && name.contains(text) && !region.contains(text)) {
+            return true;
+        }
+        for (String token : tokens(keyword)) {
+            if (token.length() >= 2 && !region.contains(token)
+                    && (name.contains(token) || no.contains(token))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 区域/用途等弱条件；只在没有强命中时使用。 */
+    private static boolean weakMatch(String keyword, Map<String, Object> item) {
+        String text = compact(keyword);
+        String region = String.valueOf(item.get("region"));
+        String landUse = String.valueOf(item.get("landUse"));
+        if (text.contains(region) || text.contains(landUse)) {
+            return true;
+        }
+        for (String token : tokens(keyword)) {
+            if (token.length() >= 2 && (region.contains(token) || landUse.contains(token))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean changeMatches(String keyword, Map<String, Object> item) {
+        String text = compact(keyword);
+        String changeNo = String.valueOf(item.get("changeNo"));
+        String parcelNo = String.valueOf(item.get("parcelNo"));
+        String changeType = String.valueOf(item.get("changeType"));
+        String status = String.valueOf(item.get("status"));
+        if (text.contains(changeNo) || text.contains(parcelNo)
+                || text.contains(changeType) || text.contains(status)) {
+            return true;
+        }
+        // “最近/紧急/高/图斑”等筛选意图由 level/其它条件处理，不要误杀全部结果。
+        return text.contains("图斑") || text.contains("遥感") || text.contains("变化")
+                || text.contains("紧急") || text.contains("高");
+    }
+
+    private static String compact(String text) {
+        return text == null ? "" : text.replaceAll("[\\s，。！？!?：:、]", "");
+    }
+
+    private static String[] tokens(String text) {
+        return text == null ? new String[0]
+                : text.split("[\\s，。！？!?：:、]+");
     }
 
     private static Map<String, Object> change(String changeNo, String parcelNo, String changeType,

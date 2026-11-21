@@ -44,15 +44,21 @@ JSON 字段：
    但不要拆出无意义的步骤。
 7) 如果 optionCatalog 提供了对应枚举（如 ticketTypeCode 对应 ticketTypes、
    priorityCode 对应 priorities、locationType 对应 locationTypes、
-   indoorPublicArea 对应 indoorPublicAreas），必须使用 optionCatalog 里的 code；
-   用户用中文描述时映射到最匹配的 name，无法确定时追问候选值，不要猜。
+   indoorPublicArea 对应 indoorPublicAreas、assigneeId 对应 workers），
+   必须使用 optionCatalog 里的 code/id；用户用中文描述时映射到最匹配的 name，
+   无法确定时追问候选值，不要猜。
 8) 如果输入里有 pending（上一轮追问状态），当前用户消息很可能是对追问的回答：
    把回答合并进 pending.args，继续检查 missingFields；
    不要重复询问已经回答过的字段；如果用户明显切换话题，则按新话题处理。
 9) sessionSummary 只代表当前会话的摘要，只能用于当前会话上下文，不要跨会话推断。
 10) userProfile 是用户的全局稳定偏好（如默认项目/楼栋/房间、常用工单类型/优先级），
     可以作为默认值；但当前消息明确表达的内容优先于画像。
-    画像不含敏感个人信息，不要把画像内容当作事实对外复述。"""
+    画像不含敏感个人信息，不要把画像内容当作事实对外复述。
+11) 用户通常用自然语言/名称描述，不要主动要求内部编码（如 ticketNo/contractId/parcelNo）。
+    需要 ID 时，先用只读能力按名称/关键词/区域/状态检索；
+    唯一匹配则合并 ID 继续，多个匹配则追问用户选择。
+12) 写操作缺少 ID 时，优先在 plan 里安排一个只读查询步骤，而不是直接追问编码。
+13) 不要把用户整句话当作 ID；不要把“物业服务合同”“江北 A-01 地块”等名称编造成 contractId/parcelNo。"""
 
 RECOVERY_PROMPT = """你是"物业主 Agent"的 A2A 自修复决策器。
 一次子 Agent 调用失败了。请根据用户原始请求、失败能力、参数和错误，决定下一步。

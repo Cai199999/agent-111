@@ -1,6 +1,7 @@
 package com.wuye.agent.routing;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,7 +68,7 @@ public class RuleRouter implements Router {
                 return RouteDecision.route("contract.rule.list", Map.of(), 0.9, "命中合同规则查询");
             }
             // 注意：必须先判断“审查”，否则“审查合同”会被“查合同”子串误命中为 resolve
-            if (containsAny(text, "审查")) {
+            if (containsAny(text, "审查", "审核", "审一下", "帮我审")) {
                 Matcher contractNo = CONTRACT_NO.matcher(text);
                 if (contractNo.find()) {
                     return RouteDecision.route("contract.review",
@@ -78,7 +79,12 @@ public class RuleRouter implements Router {
                     return RouteDecision.route("contract.review",
                             Map.of("contractId", Long.parseLong(id.group(1))), 0.93, "命中合同审查+合同ID");
                 }
-                return RouteDecision.clarify("请提供要审查的合同编号或合同 ID。", "合同审查缺少合同标识");
+                // 用户只给了合同名称（如“物业服务合同”）：先 resolve 再 review，不要求编造 ID。
+                return new RouteDecision("contract.review", Map.of(), 0.85, false, null,
+                        "按合同名称先解析再审查",
+                        List.of(new RouteDecision.PlanStep("contract.resolve", Map.of("query", text)),
+                                new RouteDecision.PlanStep("contract.review", Map.of())),
+                        List.of(), "RULE");
             }
             if (containsAny(text, "解析", "查找合同", "查合同", "定位合同")) {
                 return RouteDecision.route("contract.resolve",
@@ -140,14 +146,22 @@ public class RuleRouter implements Router {
         Matcher parcel = PARCEL_NO.matcher(text);
         String parcelNo = parcel.find() ? parcel.group() : null;
         boolean patrolIntent = containsAny(text, "巡查", "执法", "外业")
-                || (text.contains("核查") && containsAny(text, "创建", "新建", "派发", "安排", "任务"));
+                || (containsAny(text, "核查", "复核")
+                    && containsAny(text, "创建", "新建", "派发", "安排", "任务", "图斑", "地块"));
         if (patrolIntent) {
             Map<String, Object> args = new LinkedHashMap<>();
+            args.put("patrolType", text);
             if (parcelNo != null) {
                 args.put("parcelNo", parcelNo);
+                return RouteDecision.route("gis.patrol.create", args, 0.9, "命中巡查任务");
             }
-            args.put("patrolType", text);
-            return RouteDecision.route("gis.patrol.create", args, 0.9, "命中巡查任务");
+            // 用户只说了地块名称：先查唯一候选，再创建巡查任务。
+            return new RouteDecision("gis.patrol.create", args, 0.85, false, null,
+                    "按地块名称先解析再创建巡查",
+                    List.of(new RouteDecision.PlanStep("gis.parcel.query",
+                                    Map.of("keyword", text)),
+                            new RouteDecision.PlanStep("gis.patrol.create", args)),
+                    List.of(), "RULE");
         }
         if (containsAny(text, "遥感", "变化图斑", "图斑", "影像", "变化检测")) {
             Map<String, Object> args = new LinkedHashMap<>();
@@ -172,16 +186,65 @@ public class RuleRouter implements Router {
 
         if (containsAny(text, "派单", "派给", "分配给") || (ticketNo != null && text.contains("派"))) {
             Matcher assignee = ASSIGNEE.matcher(text);
-            if (ticketNo == null) {
-                return RouteDecision.clarify("请提供要派单的工单号，例如 GD20261119000107。", "派单缺少工单号");
+            String assigneeId = assignee.find() ? assignee.group(1) : inferWorker(text);
+            Map<String, Object> finalArgs = new LinkedHashMap<>();
+            if (assigneeId != null) {
+                finalArgs.put("assigneeId", assigneeId);
             }
-            if (!assignee.find()) {
-                return RouteDecision.clarify("请提供处理人 ID，例如“派给 10002”。", "派单缺少处理人");
+            if (ticketNo != null) {
+                finalArgs.put("ticketNo", ticketNo);
+                if (assigneeId == null) {
+                    return RouteDecision.clarify(
+                            "请说明派给谁，例如“派给张师傅”或“派给 10002”。", "派单缺少处理人");
+                }
+                return RouteDecision.route("property.ticket.assign", finalArgs, 0.95, "命中派单");
             }
-            Map<String, Object> args = new LinkedHashMap<>();
-            args.put("ticketNo", ticketNo);
-            args.put("assigneeId", assignee.group(1));
-            return RouteDecision.route("property.ticket.assign", args, 0.95, "命中派单");
+            // 用户只描述了工单（如“3栋2单元漏水那个工单”）：先查唯一候选，再派单。
+            if (containsAny(text, "工单", "漏水", "故障", "照明", "道闸", "维修", "报修")) {
+                return new RouteDecision("property.ticket.assign", finalArgs, 0.85, false, null,
+                        "按描述先查工单再派单",
+                        List.of(new RouteDecision.PlanStep("property.ticket.query",
+                                        Map.of("keyword", text)),
+                                new RouteDecision.PlanStep("property.ticket.assign", finalArgs)),
+                        List.of(), "RULE");
+            }
+            return RouteDecision.clarify("请说明要派哪张工单，例如“3栋2单元漏水那个工单”。",
+                    "派单缺少工单描述");
+        }
+
+        // 工单生命周期动作：用户可只描述工单，ticketNo 交给主 Agent 语义解析。
+        if (containsAny(text, "关闭", "关掉", "关单")) {
+            return ticketAction("property.ticket.close", ticketNo);
+        }
+        if (containsAny(text, "接单")) {
+            return ticketAction("property.ticket.accept", ticketNo);
+        }
+        if (containsAny(text, "解决", "修好", "处理完")) {
+            return ticketAction("property.ticket.resolve", ticketNo);
+        }
+        if (containsAny(text, "验证")) {
+            return ticketAction("property.ticket.verify", ticketNo);
+        }
+        if (containsAny(text, "挂起", "暂停")) {
+            return ticketAction("property.ticket.hold", ticketNo);
+        }
+        if (containsAny(text, "恢复")) {
+            return ticketAction("property.ticket.resume", ticketNo);
+        }
+        if (containsAny(text, "结束工单")) {
+            return ticketAction("property.ticket.finish", ticketNo);
+        }
+        if (containsAny(text, "取消工单")) {
+            return ticketAction("property.ticket.cancel", ticketNo);
+        }
+        if (containsAny(text, "回访")) {
+            return ticketAction("property.ticket.visit.add", ticketNo);
+        }
+        if (containsAny(text, "评论", "备注")) {
+            return ticketAction("property.ticket.comment.add", ticketNo);
+        }
+        if (containsAny(text, "详情", "详细")) {
+            return ticketAction("property.ticket.detail", ticketNo);
         }
 
         // 注意：必须先判断“创建/新建 + 工单”，否则只命中“工单”会落到查询
@@ -238,6 +301,28 @@ public class RuleRouter implements Router {
                 || normalized.equals("报修")
                 || normalized.equals("帮我建单")
                 || normalized.equals("帮我创建工单");
+    }
+
+    /** 工单动作：有工单号直接执行，没有则触发主 Agent 的只读语义解析。 */
+    private static RouteDecision ticketAction(String capabilityId, String ticketNo) {
+        if (ticketNo == null) {
+            return new RouteDecision(capabilityId, Map.of(), 0.85, true,
+                    "请描述要处理的工单，例如“3栋2单元漏水那个工单”。",
+                    "命中工单操作", List.of(), List.of("ticketNo"), "RULE");
+        }
+        return RouteDecision.route(capabilityId, Map.of("ticketNo", ticketNo), 0.9,
+                "命中工单操作");
+    }
+
+    /** 规则兜底的人名映射；LLM 正常会通过 optionCatalog.workers 自动映射。 */
+    private static String inferWorker(String text) {
+        if (text.contains("张师傅")) {
+            return "10002";
+        }
+        if (text.contains("李师傅")) {
+            return "10003";
+        }
+        return null;
     }
 
     /** 规则路由的最小枚举映射；不确定时返回 null，让 schema 校验走“追问用户”。 */
