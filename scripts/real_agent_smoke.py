@@ -71,6 +71,13 @@ def call(method: str, url: str, token: str, body=None, actor: str = "10001",
         return status, {"raw": text}
 
 
+def unwrap_property(body):
+    """物业是 {code,data} 包络；合同是裸对象。"""
+    if isinstance(body, dict) and body.get("code") == 0 and isinstance(body.get("data"), dict):
+        return body["data"]
+    return body
+
+
 def main() -> int:
     env = load_env()
     property_base = env.get("AGENT_PROPERTY_BASE_URL", "http://127.0.0.1:8402").rstrip("/")
@@ -87,6 +94,7 @@ def main() -> int:
     status, body = call("GET", property_base + "/agent/v1/ready", property_token)
     check("物业 ready", status == 200, (status, body))
     status, manifest = call("GET", property_base + "/agent/v1/manifest", property_token)
+    manifest = unwrap_property(manifest)
     caps = manifest.get("capabilities") if isinstance(manifest, dict) else None
     check("物业 manifest", status == 200 and isinstance(caps, list), (status, manifest))
     if isinstance(manifest, dict):
@@ -99,8 +107,9 @@ def main() -> int:
         "clientTaskId": "real-smoke-" + uuid.uuid4().hex,
         "executionMode": "SYNC",
     })
-    check("物业 ticket.query", status == 200 and body.get("status") == "SUCCEEDED",
-          (status, body))
+    task = unwrap_property(body)
+    check("物业 ticket.query", status == 200 and task.get("status") == "SUCCEEDED",
+          (status, task))
 
     # 合同 health / ready / manifest
     status, body = call("GET", contract_base + "/health", contract_token)

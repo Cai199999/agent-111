@@ -214,6 +214,9 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
             TaskStatus taskStatus = status == null ? null : normalizeStatus(status, null);
             Map<String, Object> payload = support.map(item.get("payload"));
             Instant createdAt = HttpAgentSupport.instant(item, "createdAt");
+            if (createdAt == null) {
+                createdAt = Instant.now();
+            }
             events.add(new TaskEvent(seq, type, taskStatus, payload, createdAt));
         }
         return events;

@@ -236,7 +236,8 @@ public class MySqlStore implements Store {
                             """,
                     task.taskNo, event.seq(), event.type(),
                     event.status() == null ? null : event.status().name(),
-                    json(event.payload()), ts(event.createdAt()));
+                    json(event.payload()),
+                    ts(event.createdAt() == null ? Instant.now() : event.createdAt()));
         }
     }
 
@@ -327,7 +328,7 @@ public class MySqlStore implements Store {
                 rs.getString("actor_id"),
                 rs.getString("execution_mode"),
                 readMap(rs.getString("input_json")),
-                instant(rs.getTimestamp("created_at")));
+                safeInstant(rs, "created_at"));
         task.childTaskId = rs.getString("child_task_id");
         task.status = TaskStatus.valueOf(rs.getString("status"));
         task.output = readObject(rs.getString("output_json"));
@@ -337,8 +338,8 @@ public class MySqlStore implements Store {
         task.currentStep = rs.getString("current_step");
         task.cancelSupported = rs.getBoolean("cancel_supported");
         task.cancelReason = rs.getString("cancel_reason");
-        task.startedAt = instant(rs.getTimestamp("started_at"));
-        task.finishedAt = instant(rs.getTimestamp("finished_at"));
+        task.startedAt = safeInstant(rs, "started_at");
+        task.finishedAt = safeInstant(rs, "finished_at");
 
         String title = rs.getString("confirmation_title");
         if (title != null) {
@@ -356,7 +357,7 @@ public class MySqlStore implements Store {
                     title,
                     rs.getString("confirmation_risk"),
                     readFields(rs.getString("confirmation_fields_json")),
-                    instant(rs.getTimestamp("confirmation_expires_at")),
+                    safeInstant(rs, "confirmation_expires_at"),
                     rs.getString("confirmation_state"));
         }
         return task;
@@ -372,7 +373,7 @@ public class MySqlStore implements Store {
                         rs.getString("event_type"),
                         rs.getString("status") == null ? null : TaskStatus.valueOf(rs.getString("status")),
                         readMap(rs.getString("payload_json")),
-                        instant(rs.getTimestamp("created_at"))),
+                        safeInstant(rs, "created_at")),
                 task.taskNo);
         long maxSeq = 0;
         long maxChildSeq = 0;
@@ -470,5 +471,14 @@ public class MySqlStore implements Store {
 
     private static Instant instant(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    /** 兼容历史脏数据：MySQL zero date 读取会抛异常，兜底为当前时间。 */
+    private static Instant safeInstant(ResultSet rs, String column) {
+        try {
+            return instant(rs.getTimestamp(column));
+        } catch (Exception ex) {
+            return Instant.now();
+        }
     }
 }

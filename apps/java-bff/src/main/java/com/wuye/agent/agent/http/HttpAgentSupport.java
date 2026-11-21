@@ -120,9 +120,12 @@ public class HttpAgentSupport {
         }
 
         Map<String, Object> request = new LinkedHashMap<>();
+        List<String> scopes = split(endpoint.getDelegationScopes());
         request.put("actorId", numericOrString(actorId));
         request.put("roles", split(endpoint.getRoles()));
-        request.put("scopes", split(endpoint.getDelegationScopes()));
+        // 物业方言用 scopes，合同方言用 scope；同时发送，双方忽略未知字段。
+        request.put("scopes", scopes);
+        request.put("scope", scopes);
         request.put("ttlSeconds", 600);
         request.put("audience", endpoint.getAudience());
         request.put("tenantId", endpoint.getTenantId());

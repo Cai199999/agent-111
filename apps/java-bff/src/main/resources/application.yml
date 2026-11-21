@@ -35,9 +35,11 @@ wuye:
       audience: ${AGENT_CONTRACT_AUDIENCE:agent-hetong}
       actor-id: ${AGENT_CONTRACT_ACTOR_ID:10001}
       roles: ${AGENT_CONTRACT_ROLES:ADMIN}
-      tenant-id: ${AGENT_CONTRACT_TENANT_ID:0}
+      # 合同 Agent 要求 tenantId 为正整数；默认 1。
+      tenant-id: ${AGENT_CONTRACT_TENANT_ID:1}
       delegation-path: /agent/v1/delegation/token
-      delegation-scopes: ${AGENT_CONTRACT_DELEGATION_SCOPES:*}
+      # 合同不接受通配符 scope，必须是已声明能力。
+      delegation-scopes: ${AGENT_CONTRACT_DELEGATION_SCOPES:contract.resolve,contract.review,contract.rule.list,contract.rule.create,knowledge.search}
       use-delegation: true
   ai:
     enabled: ${WUYE_AI_ENABLED:false}

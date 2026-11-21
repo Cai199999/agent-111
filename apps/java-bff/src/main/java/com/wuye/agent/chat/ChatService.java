@@ -868,6 +868,15 @@ public class ChatService {
                 args.putIfAbsent(key, value);
             }
         }
+        // 只读查询常见包络：{items:[...]} 或 {result:[...]}；唯一候选时继续合并。
+        Object items = map.get("items");
+        if (items == null) {
+            items = map.get("result");
+        }
+        if (items instanceof List<?> list && list.size() == 1
+                && list.get(0) instanceof Map<?, ?> item) {
+            mergeMap(args, item);
+        }
     }
 
     private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery) {

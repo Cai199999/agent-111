@@ -265,8 +265,9 @@ public class TaskService {
             task.childEventSeq.set(event.seq());
             Map<String, Object> payload = new LinkedHashMap<>(event.payload() == null ? Map.of() : event.payload());
             payload.put("childSeq", event.seq());
+            Instant createdAt = event.createdAt() == null ? Instant.now() : event.createdAt();
             task.events.add(new TaskEvent(task.eventSeq.incrementAndGet(), event.type(), event.status(),
-                    payload, event.createdAt()));
+                    payload, createdAt));
         }
     }
 
