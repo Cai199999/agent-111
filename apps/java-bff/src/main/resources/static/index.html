@@ -70,6 +70,7 @@
           </button>
           <div id="userDropdown" class="dropdown" hidden>
             <button type="button" data-action="dashboard" id="dashboardMenuItem">数据看板</button>
+            <button type="button" data-action="a2a" id="a2aMenuItem">A2A 能力</button>
             <button type="button" data-action="human" id="humanMenuItem">人工介入</button>
             <button type="button" data-action="audit" id="auditMenuItem">审计日志</button>
             <button type="button" data-action="profile">个人信息</button>
@@ -154,6 +155,17 @@
     <div id="humanList" class="audit-list"></div>
     <div class="modal-actions">
       <button id="humanClose" class="btn" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="a2aModal" class="modal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="a2aTitle">
+    <div id="a2aTitle" class="modal-title">A2A 能力卡</div>
+    <div id="a2aSummary" class="profile-meta"></div>
+    <div id="a2aList" class="a2a-grid"></div>
+    <div class="modal-actions">
+      <button id="a2aClose" class="btn" type="button">关闭</button>
     </div>
   </div>
 </div>

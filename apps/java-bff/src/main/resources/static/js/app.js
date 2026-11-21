@@ -176,6 +176,11 @@ const els = {
   dashboardFunnel: document.getElementById('dashboardFunnel'),
   dashboardTable: document.getElementById('dashboardTable'),
   dashboardClose: document.getElementById('dashboardClose'),
+  a2aMenuItem: document.getElementById('a2aMenuItem'),
+  a2aModal: document.getElementById('a2aModal'),
+  a2aSummary: document.getElementById('a2aSummary'),
+  a2aList: document.getElementById('a2aList'),
+  a2aClose: document.getElementById('a2aClose'),
   auditMenuItem: document.getElementById('auditMenuItem'),
   auditModal: document.getElementById('auditModal'),
   auditList: document.getElementById('auditList'),
@@ -261,6 +266,7 @@ function bindEvents() {
     if (!action) return;
     els.userDropdown.hidden = true;
     if (action === 'dashboard') openDashboard();
+    if (action === 'a2a') openA2A();
     if (action === 'human') openHumanTasks();
     if (action === 'audit') openAudit();
     if (action === 'profile') openProfile();
@@ -283,6 +289,9 @@ function bindEvents() {
   els.settingsSave.addEventListener('click', saveSettings);
   els.dashboardClose.addEventListener('click', () => {
     els.dashboardModal.hidden = true;
+  });
+  els.a2aClose.addEventListener('click', () => {
+    els.a2aModal.hidden = true;
   });
   els.auditClose.addEventListener('click', () => {
     els.auditModal.hidden = true;
@@ -353,6 +362,9 @@ function renderCurrentUser() {
   const isAdmin = (state.me.roles || []).includes('ADMIN');
   if (els.dashboardMenuItem) {
     els.dashboardMenuItem.hidden = !isAdmin;
+  }
+  if (els.a2aMenuItem) {
+    els.a2aMenuItem.hidden = !isAdmin;
   }
   if (els.auditMenuItem) {
     els.auditMenuItem.hidden = !isAdmin;
@@ -1416,6 +1428,64 @@ const ACTION_LABELS = {
   HUMAN_CLAIM: '认领人工任务',
   HUMAN_RESOLVE: '处理人工任务',
 };
+
+async function openA2A() {
+  els.a2aModal.hidden = false;
+  els.a2aSummary.textContent = '加载中…';
+  els.a2aList.replaceChildren();
+  try {
+    const summary = await api('/api/v1/admin/a2a/summary');
+    renderA2A(summary);
+  } catch (error) {
+    els.a2aSummary.textContent = error.message || '加载失败';
+  }
+}
+
+function renderA2A(summary) {
+  const main = summary.main || {};
+  const agents = summary.agents || [];
+  const compat = summary.compatibility || {};
+  els.a2aSummary.textContent =
+    `协议 ${main.protocol || '-'} · ${main.a2aCompatibility || compat.status || '-'} · `
+    + `子 Agent ${agents.length} 个 · JSON-RPC ${compat.jsonRpc ? '已启用' : '未实现（保留 facade）'}`;
+  const cards = [a2aCard(main, '主 Agent')];
+  for (const item of agents) {
+    cards.push(a2aCard(item.card || {}, '子 Agent', item.health));
+  }
+  els.a2aList.replaceChildren(...cards);
+}
+
+function a2aCard(card, kind, health) {
+  const box = el('div', 'a2a-card');
+  const head = el('div', 'a2a-head');
+  head.append(
+    el('div', 'a2a-name', card.name || card.agentId || '未命名 Agent'),
+    el('span', 'pill', kind),
+  );
+  box.append(head);
+  box.append(el('div', 'a2a-meta',
+    `${card.agentId || '-'} · v${card.version || '-'} · ${card.protocol || '-'}`
+    + `${card.dialect ? ` · ${card.dialect}` : ''}`));
+  if (health) {
+    box.append(el('div', 'a2a-meta',
+      `健康 ${health.status || '-'} / 就绪 ${health.ready || '-'} · ${health.latencyMs ?? '-'} ms`));
+  }
+  const capabilities = card.capabilities || [];
+  const caps = el('div', 'a2a-caps');
+  for (const capability of capabilities.slice(0, 10)) {
+    caps.append(el('span', 'a2a-cap', capability.capabilityId || capability.name || '-'));
+  }
+  if (capabilities.length > 10) {
+    caps.append(el('span', 'a2a-cap', `+${capabilities.length - 10}`));
+  }
+  box.append(caps);
+  const features = card.features || {};
+  const confirmation = features.humanConfirmation ?? features.confirmation;
+  box.append(el('div', 'a2a-meta',
+    `${features.sse ? 'SSE' : '事件轮询'} · 人工确认 ${confirmation ? '✓' : '—'}`
+    + ` · 取消 ${features.cancel ? '✓' : '—'} · 流式 ${features.streaming ? '✓' : '—'}`));
+  return box;
+}
 
 async function openHumanTasks() {
   els.humanModal.hidden = false;

@@ -42,6 +42,15 @@ if [[ -z "$TOKEN" ]]; then
 fi
 AUTH="Authorization: Bearer $TOKEN"
 
+echo "== A2A 发现层 =="
+curl -sf "$BASE/.well-known/agent-card.json" >"$TMP/agent-card.json" || true
+check "公开 Agent Card" \
+  "$(grep -q 'wuye-main-agent' "$TMP/agent-card.json" && grep -q 'agent-task-v1' "$TMP/agent-card.json" && echo 1 || echo 0)"
+check "Agent Card 不泄露内部令牌" \
+  "$(grep -qi 'internalToken' "$TMP/agent-card.json" && echo 0 || echo 1)"
+check "管理端 A2A 总览" \
+  "$(curl -sf "$BASE/api/v1/admin/a2a/summary" -H "$AUTH" >/dev/null && echo 1 || echo 0)"
+
 echo "== 工单查询 =="
 SESSION="$(curl -sf -X POST "$BASE/api/v1/chat/sessions" -H "$AUTH" \
   -H 'Content-Type: application/json' -d '{"title":"demo-smoke"}' \

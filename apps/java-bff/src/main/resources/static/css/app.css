@@ -400,6 +400,24 @@ body {
 }
 .setting-row input { width: 18px; height: 18px; }
 
+/* A2A Agent Card */
+.a2a-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px; max-height: 52vh; overflow: auto; margin-top: 10px;
+}
+.a2a-card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  background: #fbfcfe;
+}
+.a2a-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.a2a-name { font-weight: 700; font-size: 13px; }
+.a2a-meta { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.a2a-caps { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 2px; }
+.a2a-cap {
+  background: var(--primary-weak); color: var(--primary);
+  border-radius: 999px; padding: 2px 7px; font-size: 10px;
+}
+
 @media (max-width: 820px) {
   .profile-form { grid-template-columns: 1fr; }
   .top-actions .pill { display: none; }

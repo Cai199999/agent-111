@@ -42,6 +42,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 || path.equals("/error")
                 || path.equals("/health")
                 || path.equals("/ready")
+                || path.equals("/.well-known/agent-card.json")
                 || path.startsWith("/css/")
                 || path.startsWith("/js/")
                 || path.startsWith("/vendor/")

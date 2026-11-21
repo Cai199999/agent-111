@@ -312,6 +312,42 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void a2aCardsExposeProtocolAndCapabilities() throws Exception {
+        // 公开 Agent Card：无需登录、脱敏、可发现
+        ResponseEntity<String> publicCard = rest.getForEntity(
+                url("/.well-known/agent-card.json"), String.class);
+        assertEquals(HttpStatus.OK, publicCard.getStatusCode());
+        assertTrue(publicCard.getBody().contains("wuye-main-agent"), publicCard.getBody());
+        assertTrue(publicCard.getBody().contains("agent-task-v1"), publicCard.getBody());
+        assertTrue(publicCard.getBody().contains("discovery-only"), publicCard.getBody());
+        assertTrue(!publicCard.getBody().contains("internalToken"), publicCard.getBody());
+        assertTrue(!publicCard.getBody().contains("DEEPSEEK"), publicCard.getBody());
+
+        // 子 Agent Card：按权限可见，含能力与方言
+        String adminCard = getWithToken("/api/v1/agents/property-maintenance/card", adminToken);
+        assertTrue(adminCard.contains("property.ticket.query"), adminCard);
+        assertTrue(adminCard.contains("dialect-adapter"), adminCard);
+
+        String userToken = login("user", "user123");
+        String userCard = getWithToken("/api/v1/agents/property-maintenance/card", userToken);
+        assertTrue(userCard.contains("property.ticket.query"), userCard);
+
+        // 合同 Agent 对普通用户不可见 -> 404
+        HttpHeaders userHeaders = new HttpHeaders();
+        userHeaders.setBearerAuth(userToken);
+        ResponseEntity<String> forbidden = rest.exchange(
+                url("/api/v1/agents/contract-review/card"), HttpMethod.GET,
+                new HttpEntity<>(userHeaders), String.class);
+        assertEquals(HttpStatus.NOT_FOUND, forbidden.getStatusCode());
+
+        // 管理端 A2A 总览
+        String summary = getWithToken("/api/v1/admin/a2a/summary", adminToken);
+        assertTrue(summary.contains("\"compatibility\""), summary);
+        assertTrue(summary.contains("\"agents\""), summary);
+        assertTrue(summary.contains("\"health\""), summary);
+    }
+
+    @Test
     void healthAndReadyAreUp() {
         ResponseEntity<String> health = rest.getForEntity(url("/health"), String.class);
         assertEquals(HttpStatus.OK, health.getStatusCode());
