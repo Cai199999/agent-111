@@ -67,6 +67,8 @@ public class ChatService {
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
+    /** 平台目录追问上下文：记住上一轮聚焦的 Agent。 */
+    private final Map<String, String> lastCatalogAgent = new ConcurrentHashMap<>();
 
     public ChatService(Store store, AdapterRegistry registry, AgentCatalogService catalogService,
                        OptionCatalogService optionCatalogService,
@@ -458,18 +460,53 @@ public class ChatService {
             return;
         }
         if (MainAgentTools.PLATFORM_CATALOG.equals(capabilityId)) {
-            List<AgentCatalogService.AgentView> agents = catalogService.forUser(user);
+            List<AgentCatalogService.AgentView> agents = new ArrayList<>(catalogService.forUser(user));
+            String agentKey = route.args() == null ? null : str(route.args().get("agentKey"));
+            String keyword = route.args() == null ? null : str(route.args().get("keyword"));
+            // “具体是什么功能/全部列出来”这类追问，沿用上一轮聚焦的 Agent。
+            if (blank(agentKey) && blank(keyword) && isCatalogFollowUp(content)) {
+                agentKey = lastCatalogAgent.get(session.sessionNo);
+            }
+            if (!blank(agentKey)) {
+                String wanted = agentKey;
+                List<AgentCatalogService.AgentView> exact = agents.stream()
+                        .filter(agent -> wanted.equals(agent.agentKey()))
+                        .toList();
+                agents = exact.isEmpty()
+                        ? agents.stream().filter(agent -> matchesAgent(agent, wanted)).toList()
+                        : exact;
+            } else if (!blank(keyword)) {
+                String kw = keyword;
+                List<AgentCatalogService.AgentView> matched = agents.stream()
+                        .filter(agent -> matchesAgent(agent, kw))
+                        .toList();
+                if (!matched.isEmpty()) {
+                    agents = matched;
+                }
+            }
+            if (agents.size() == 1) {
+                lastCatalogAgent.put(session.sessionNo, agents.get(0).agentKey());
+            }
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("agentCount", agents.size());
             data.put("capabilityCount", agents.stream()
                     .mapToInt(agent -> agent.capabilities().size()).sum());
             data.put("agents", agents);
             output = data;
-            answer = "当前平台有 " + agents.size() + " 个 Agent："
-                    + String.join("、", agents.stream()
-                    .map(agent -> agent.displayName() + "（" + agent.capabilities().size() + " 项能力）")
-                    .toList())
-                    + "。原始目录见下方结果。";
+            if (agents.isEmpty()) {
+                answer = "没有找到匹配的 Agent（可能名称不对，或当前账号无权查看）。";
+            } else if (agents.size() == 1) {
+                AgentCatalogService.AgentView agent = agents.get(0);
+                answer = agent.displayName() + "（" + agent.agentKey() + "）有 "
+                        + agent.capabilities().size() + " 项能力："
+                        + capabilityDetails(agent) + "。原始目录见下方结果。";
+            } else {
+                answer = "当前匹配到 " + agents.size() + " 个 Agent："
+                        + String.join("、", agents.stream()
+                        .map(agent -> agent.displayName() + "（" + agent.capabilities().size() + " 项能力）")
+                        .toList())
+                        + "。可以指定 Agent 名称继续查看。";
+            }
         } else if (MainAgentTools.PLATFORM_A2A.equals(capabilityId)) {
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("protocol", "agent-task-v1");
@@ -678,6 +715,40 @@ public class ChatService {
                 "status", tasks.isEmpty() ? "CLARIFIED" : "BATCH"));
         emitter.complete();
         memoryService.updateAsync(session.sessionNo);
+    }
+
+    private boolean isCatalogFollowUp(String content) {
+        return containsAny(content, "具体", "全部功能", "所有功能", "列出来",
+                "详细", "还有什么", "它的功能", "这个agent", "看看功能");
+    }
+
+    private boolean matchesAgent(AgentCatalogService.AgentView agent, String keyword) {
+        if (agent.agentKey().contains(keyword) || agent.displayName().contains(keyword)) {
+            return true;
+        }
+        return agent.capabilities().stream()
+                .anyMatch(capability -> capability.capabilityId().contains(keyword)
+                        || capability.displayName().contains(keyword));
+    }
+
+    private String capabilityDetails(AgentCatalogService.AgentView agent) {
+        return String.join("、", agent.capabilities().stream()
+                .map(capability -> capability.displayName()
+                        + "（" + (capability.readOnly() ? "只读" : "写操作")
+                        + (capability.requiresConfirmation() ? "，需确认" : "") + "）")
+                .toList());
+    }
+
+    private static boolean containsAny(String text, String... keywords) {
+        if (text == null) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String workerId(String name) {

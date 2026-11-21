@@ -57,6 +57,20 @@ class RuleRouterTest {
     }
 
     @Test
+    void agentSpecificCapabilityQueryUsesCatalogFilter() {
+        RouteDecision decision = router.route("检查时空资产agent目前有什么功能");
+        assertEquals("platform.catalog", decision.capabilityId());
+        assertEquals("geo-asset-agent", decision.args().get("agentKey"));
+    }
+
+    @Test
+    void capabilityFollowUpUsesCatalogAndContextResolver() {
+        RouteDecision decision = router.route("具体是什么功能");
+        assertEquals("platform.catalog", decision.capabilityId());
+        assertTrue(decision.args().isEmpty());
+    }
+
+    @Test
     void naturalLanguageContractReviewPlansResolveFirst() {
         RouteDecision decision = router.route("帮我审一下物业服务合同");
         assertEquals("contract.review", decision.capabilityId());

@@ -36,7 +36,7 @@ public class HybridRouter implements Router {
             return rule;
         }
         Optional<RouteDecision> llm = llmRouterClient.route(message);
-        return llm.orElse(rule);
+        return choose(rule, llm);
     }
 
     @Override
@@ -60,6 +60,23 @@ public class HybridRouter implements Router {
             return rule;
         }
         Optional<RouteDecision> llm = llmRouterClient.route(message, pending, sessionSummary, userProfile);
-        return llm.orElse(rule);
+        return choose(rule, llm);
+    }
+
+    /**
+     * 平台目录追问/批量操作：规则已经给出确定性能力时，不因 LLM 的“泛化澄清”而丢掉上下文。
+     * 其他场景仍保持 LLM 主导。
+     */
+    private RouteDecision choose(RouteDecision rule, Optional<RouteDecision> llm) {
+        if (llm.isEmpty()) {
+            return rule;
+        }
+        RouteDecision decision = llm.get();
+        boolean deterministic = "platform.catalog".equals(rule.capabilityId())
+                || "batch.execute".equals(rule.capabilityId());
+        if (deterministic && !rule.needClarification() && decision.needClarification()) {
+            return rule;
+        }
+        return decision;
     }
 }

@@ -35,6 +35,28 @@ public class RuleRouter implements Router {
         boolean property = containsAny(text, "工单", "报修", "派单", "接单", "现场", "回访", "维修", "漏水", "故障", "待处理");
 
         // 0. 平台自省：面试官问“平台有什么/怎么接”时，返回真实注册表数据。
+        // 先处理“某个 Agent 有什么功能”，避免只返回全部目录。
+        if (containsAny(text, "时空资产")
+                && !containsAny(text, "地块", "图斑", "巡查", "遥感", "变化")) {
+            return RouteDecision.route("platform.catalog",
+                    Map.of("agentKey", "geo-asset-agent"), 0.95, "时空资产能力查询");
+        }
+        if (containsAny(text, "物业")
+                && containsAny(text, "功能", "能力", "有什么", "能做什么")
+                && !containsAny(text, "工单", "报修")) {
+            return RouteDecision.route("platform.catalog",
+                    Map.of("agentKey", "property-maintenance"), 0.95, "物业能力查询");
+        }
+        if (containsAny(text, "合同")
+                && containsAny(text, "功能", "能力", "有什么")
+                && !containsAny(text, "审查", "解析", "规则")) {
+            return RouteDecision.route("platform.catalog",
+                    Map.of("agentKey", "contract-review"), 0.95, "合同能力查询");
+        }
+        if (containsAny(text, "具体是什么功能", "全部功能", "所有功能",
+                "功能列出来", "详细功能")) {
+            return RouteDecision.route("platform.catalog", Map.of(), 0.95, "平台能力追问");
+        }
         if (containsAny(compact, "哪些agent", "有哪些agent", "agent目录", "平台上有",
                 "平台能力", "能做什么", "agent列表")) {
             return RouteDecision.route("platform.catalog", Map.of(), 0.95, "平台目录自省");

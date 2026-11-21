@@ -36,7 +36,7 @@ cp .env.example .env && chmod 600 .env
 
 # 测试（内存 profile，随机端口，不占业务端口）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 61/61 passed；Python AI 15/15；端到端 smoke 26 项
+# 当前：Java 65/65 passed；Python AI 15/15；端到端 smoke 26 项
 
 # 一键演示（强制 mock 子 Agent，自动重打包；默认开启 LLM）
 bash scripts/start-demo.sh

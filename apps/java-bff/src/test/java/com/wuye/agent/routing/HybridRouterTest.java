@@ -59,6 +59,19 @@ class HybridRouterTest {
     }
 
     @Test
+    void catalogFollowUpPrefersDeterministicRuleOverLlmClarification() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.clarify("请说明你想了解哪个功能", "缺少上下文")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("具体是什么功能");
+
+        assertEquals("platform.catalog", decision.capabilityId());
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
     void llmFailureFallsBackToRule() {
         LlmRouterClient llm = message -> Optional.empty();
         HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());

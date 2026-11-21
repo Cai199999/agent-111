@@ -62,11 +62,18 @@ public final class MainAgentTools {
                         "capabilityId", PLATFORM_CATALOG,
                         "displayName", "读取平台 Agent 目录",
                         "description", "读取当前平台真实注册的 Agent、能力和角色可见性。"
-                                + "用户问“现在有哪些 Agent/各自能做什么/平台能力”时使用。",
+                                + "用户问某个 Agent 的功能时，必须用 agentKey/keyword 过滤；"
+                                + "不要默认返回全部 Agent。追问时沿用上下文里的 Agent。",
                         "readOnly", true,
                         "requiresConfirmation", false,
                         "executionModes", List.of("SYNC"),
-                        "inputSchema", Map.of("type", "object")),
+                        "inputSchema", Map.of(
+                                "type", "object",
+                                "properties", Map.of(
+                                        "agentKey", Map.of("type", "string",
+                                                "description", "如 geo-asset-agent / property-maintenance / contract-review"),
+                                        "keyword", Map.of("type", "string",
+                                                "description", "按 Agent 名称或能力关键词过滤，如 时空资产/地块/图斑")))),
                 Map.of(
                         "capabilityId", PLATFORM_A2A,
                         "displayName", "读取 A2A 协议状态",

@@ -350,6 +350,28 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void agentCapabilityFollowUpsStayFocused() throws Exception {
+        String session = createSession();
+
+        String first = send(session, "检查时空资产agent目前有什么功能");
+        assertTrue(first.contains("platform.catalog"), first);
+        assertTrue(first.contains("geo-asset-agent"), first);
+        assertTrue(first.contains("gis.parcel.query"), first);
+        assertTrue(first.contains("gis.change.query"), first);
+        assertTrue(first.contains("gis.patrol.create"), first);
+        assertTrue(first.contains("3 项能力"), first);
+
+        String followUp = send(session, "具体是什么功能");
+        assertTrue(followUp.contains("platform.catalog"), followUp);
+        assertTrue(followUp.contains("gis.parcel.query"), followUp);
+        assertTrue(!followUp.contains("您想了解哪个功能"), followUp);
+
+        String all = send(session, "全部功能列出来");
+        assertTrue(all.contains("gis.patrol.create"), all);
+        assertTrue(!all.contains("物业运维 Agent（Mock）有"), all);
+    }
+
+    @Test
     void batchAssignCreatesTwoIndependentTasks() throws Exception {
         String session = createSession();
         String sse = send(session,
