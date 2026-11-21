@@ -266,11 +266,14 @@ public class AgentInstallService {
             if ("169.254.169.254".equals(host) || "metadata.google.internal".equalsIgnoreCase(host)) {
                 throw ApiException.badRequest("CARD_URL_BLOCKED", "禁止访问云元数据地址");
             }
-            String path = uri.getPath();
-            if (path == null || path.isBlank() || "/".equals(path)) {
-                return URI.create(scheme + "://" + uri.getRawAuthority() + "/.well-known/agent-card.json");
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            // 支持三种输入：基础 URL、完整 Agent Card URL、Manifest URL。
+            if (path.endsWith(".json") || path.endsWith("/agent/v1/manifest")) {
+                return uri;
             }
-            return uri;
+            String prefix = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+            return URI.create(scheme + "://" + uri.getRawAuthority()
+                    + prefix + "/.well-known/agent-card.json");
         } catch (ApiException ex) {
             throw ex;
         } catch (Exception ex) {

@@ -1,6 +1,8 @@
 package com.wuye.agent.chat;
 
 import com.wuye.agent.agent.adapter.AdapterRegistry;
+import com.wuye.agent.agent.catalog.AgentCatalogService;
+import com.wuye.agent.agent.install.DynamicAgentRegistry;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.agent.model.Confirmation;
 import com.wuye.agent.agent.model.TaskEvent;
@@ -50,6 +52,8 @@ public class ChatService {
 
     private final Store store;
     private final AdapterRegistry registry;
+    private final AgentCatalogService catalogService;
+    private final DynamicAgentRegistry dynamicAgentRegistry;
     private final Router router;
     private final LlmRouterClient llmRouterClient;
     private final TaskService taskService;
@@ -61,13 +65,16 @@ public class ChatService {
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
 
-    public ChatService(Store store, AdapterRegistry registry,
+    public ChatService(Store store, AdapterRegistry registry, AgentCatalogService catalogService,
+                       DynamicAgentRegistry dynamicAgentRegistry,
                        Router router, LlmRouterClient llmRouterClient,
                        TaskService taskService, TaskRecoveryService recoveryService,
                        PolicyService policyService, MemoryService memoryService,
                        UserProfileService userProfileService, Ids ids) {
         this.store = store;
         this.registry = registry;
+        this.catalogService = catalogService;
+        this.dynamicAgentRegistry = dynamicAgentRegistry;
         this.router = router;
         this.llmRouterClient = llmRouterClient;
         this.taskService = taskService;
@@ -320,7 +327,47 @@ public class ChatService {
         String capabilityId = route.capabilityId();
         Object output;
         String answer;
-        if (MainAgentTools.MEMORY_UPDATE.equals(capabilityId)) {
+        if (MainAgentTools.PLATFORM_CATALOG.equals(capabilityId)) {
+            List<AgentCatalogService.AgentView> agents = catalogService.forUser(user);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("agentCount", agents.size());
+            data.put("capabilityCount", agents.stream()
+                    .mapToInt(agent -> agent.capabilities().size()).sum());
+            data.put("agents", agents);
+            output = data;
+            answer = "当前平台有 " + agents.size() + " 个 Agent："
+                    + String.join("、", agents.stream()
+                    .map(agent -> agent.displayName() + "（" + agent.capabilities().size() + " 项能力）")
+                    .toList())
+                    + "。原始目录见下方结果。";
+        } else if (MainAgentTools.PLATFORM_A2A.equals(capabilityId)) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("protocol", "agent-task-v1");
+            data.put("a2aCompatibility", "discovery-only");
+            data.put("agentCard", true);
+            data.put("jsonRpc", false);
+            data.put("pushNotifications", false);
+            data.put("sse", true);
+            data.put("humanConfirmation", true);
+            data.put("cancel", true);
+            data.put("agentCount", registry.descriptors().size());
+            data.put("capabilityCount", registry.capabilities().size());
+            data.put("dynamicAgents", dynamicAgentRegistry.agentKeys());
+            output = data;
+            answer = "A2A 当前是 discovery-only：Agent Card、任务/确认/事件语义已落地；"
+                    + "JSON-RPC 与 push notification 未实现，保留 transport facade 演进空间。";
+        } else if (MainAgentTools.PLATFORM_MEMORY.equals(capabilityId)) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("sessionSummary", session.summary == null ? "" : session.summary);
+            data.put("profile", userProfileService.getProfile(user.id()));
+            if (userProfileService.getMeta(user.id()) != null) {
+                data.put("meta", userProfileService.getMeta(user.id()));
+            }
+            output = data;
+            answer = session.summary == null || session.summary.isBlank()
+                    ? "当前会话还没有生成摘要；全局画像见下方结果。"
+                    : "当前会话摘要和全局画像如下。";
+        } else if (MainAgentTools.MEMORY_UPDATE.equals(capabilityId)) {
             Map<String, Object> profile = userProfileService.merge(user.id(), route.args());
             output = profile;
             answer = "已记住你的偏好，原始画像如下。";
@@ -389,6 +436,23 @@ public class ChatService {
         policyService.requireCapability(user, capability.capabilityId());
         if (finalStep.args() != null) {
             args.putAll(finalStep.args());
+        }
+
+        // 主 Agent 记忆层：运行时安装的 Agent 不各自维护记忆，
+        // 由主 Agent 注入当前会话摘要 + 全局画像，子 Agent 只消费。
+        if (dynamicAgentRegistry.isDynamic(capability.agentKey())) {
+            Map<String, Object> memory = new LinkedHashMap<>();
+            SessionState current = store.getSession(sessionNo);
+            if (current != null && current.summary != null && !current.summary.isBlank()) {
+                memory.put("sessionSummary", current.summary);
+            }
+            String profile = userProfileService.contextFor(user.id());
+            if (profile != null && !profile.isBlank()) {
+                memory.put("userProfile", profile);
+            }
+            if (!memory.isEmpty()) {
+                args.put("_memory", memory);
+            }
         }
 
         TaskRecord task = taskService.submit(sessionNo, capability, args, user.actorId(), traceId);

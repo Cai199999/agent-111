@@ -80,6 +80,58 @@ Agent 状态   ＋
 
 ---
 
+## 三、企业 Agent 示例市场（真实 HTTP 契约）
+
+安装弹窗里还有两个“企业 Agent 示例”，通过 Agent Card URL 安装：
+
+| Agent | URL | 能力 |
+|---|---|---|
+| 政策法规问答 Agent | `http://127.0.0.1:8600/demo-agents/policy` | 政策问答、政策文件审查（确认） |
+| 客服工单 Agent | `http://127.0.0.1:8600/demo-agents/customer` | 客服工单查询、创建（确认） |
+
+它们不是本地 Adapter 直连，而是真实的 HTTP Canonical v1：
+
+- `/.well-known/agent-card.json`
+- `/health`、`/ready`
+- `/agent/v1/tasks`、`/confirm`、`/cancel`、`/events`
+
+它们同样复用主 Agent 的：
+
+- 人工确认；
+- 审计；
+- 人工介入；
+- 看板；
+- 记忆注入。
+
+### 记忆怎么体现
+
+主 Agent 在调用动态 Agent 前，把当前会话摘要和全局画像放进 `_memory`：
+
+```json
+{
+  "input": {
+    "question": "耕地保护",
+    "_memory": {
+      "sessionSummary": "...",
+      "userProfile": "{\"preferredTicketTypeCode\":\"LIGHTING\",...}"
+    }
+  }
+}
+```
+
+动态 Agent 返回：
+
+```json
+{
+  "memoryUsed": true,
+  "memoryHint": "已结合主 Agent 注入的会话摘要/用户画像"
+}
+```
+
+**记忆是主 Agent 层的能力**，不是每个子 Agent 各建一套记忆库。
+
+---
+
 ## 四、安装后发生了什么
 
 ```text

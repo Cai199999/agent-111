@@ -11,12 +11,19 @@ public final class MainAgentTools {
 
     public static final String MEMORY_UPDATE = "memory.profile.update";
     public static final String MEMORY_GET = "memory.profile.get";
+    public static final String PLATFORM_CATALOG = "platform.catalog";
+    public static final String PLATFORM_A2A = "platform.a2a";
+    public static final String PLATFORM_MEMORY = "platform.memory";
 
     private MainAgentTools() {
     }
 
     public static boolean isMainTool(String capabilityId) {
-        return MEMORY_UPDATE.equals(capabilityId) || MEMORY_GET.equals(capabilityId);
+        return MEMORY_UPDATE.equals(capabilityId)
+                || MEMORY_GET.equals(capabilityId)
+                || PLATFORM_CATALOG.equals(capabilityId)
+                || PLATFORM_A2A.equals(capabilityId)
+                || PLATFORM_MEMORY.equals(capabilityId);
     }
 
     public static List<Map<String, Object>> payload() {
@@ -45,6 +52,31 @@ public final class MainAgentTools {
                         "capabilityId", MEMORY_GET,
                         "displayName", "读取用户偏好",
                         "description", "读取当前用户的全局画像（稳定偏好，不含敏感个人信息）。",
+                        "readOnly", true,
+                        "requiresConfirmation", false,
+                        "executionModes", List.of("SYNC"),
+                        "inputSchema", Map.of("type", "object")),
+                Map.of(
+                        "capabilityId", PLATFORM_CATALOG,
+                        "displayName", "读取平台 Agent 目录",
+                        "description", "读取当前平台真实注册的 Agent、能力和角色可见性。"
+                                + "用户问“现在有哪些 Agent/各自能做什么/平台能力”时使用。",
+                        "readOnly", true,
+                        "requiresConfirmation", false,
+                        "executionModes", List.of("SYNC"),
+                        "inputSchema", Map.of("type", "object")),
+                Map.of(
+                        "capabilityId", PLATFORM_A2A,
+                        "displayName", "读取 A2A 协议状态",
+                        "description", "读取 A2A 协议、Agent Card 兼容状态、SSE/确认/JSON-RPC 支持和动态安装数量。",
+                        "readOnly", true,
+                        "requiresConfirmation", false,
+                        "executionModes", List.of("SYNC"),
+                        "inputSchema", Map.of("type", "object")),
+                Map.of(
+                        "capabilityId", PLATFORM_MEMORY,
+                        "displayName", "读取主 Agent 记忆",
+                        "description", "读取当前会话摘要 + 全局用户画像。用户问“记忆里有什么/你记得我什么”时使用。",
                         "readOnly", true,
                         "requiresConfirmation", false,
                         "executionModes", List.of("SYNC"),

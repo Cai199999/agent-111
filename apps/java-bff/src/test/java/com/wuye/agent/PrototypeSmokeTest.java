@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wuye.agent.memory.UserProfileService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +43,9 @@ class PrototypeSmokeTest {
 
     @Autowired
     ObjectMapper mapper;
+
+    @Autowired
+    UserProfileService userProfileService;
 
     private String adminToken;
 
@@ -378,6 +382,61 @@ class PrototypeSmokeTest {
             rest.exchange(url("/api/v1/admin/agents/inspection-agent"), HttpMethod.DELETE,
                     new HttpEntity<>(headers), String.class);
         }
+    }
+
+    @Test
+    void platformIntrospectionToolsReturnLiveData() throws Exception {
+        String session = createSession();
+
+        String catalog = send(session, "现在平台上有哪些 Agent？");
+        assertTrue(catalog.contains("platform.catalog"), catalog);
+        assertTrue(catalog.contains("geo-asset-agent"), catalog);
+        assertTrue(catalog.contains("property-maintenance"), catalog);
+
+        String a2a = send(session, "A2A 现在支持什么？");
+        assertTrue(a2a.contains("platform.a2a"), a2a);
+        assertTrue(a2a.contains("discovery-only"), a2a);
+        assertTrue(a2a.contains("jsonRpc"), a2a);
+
+        String memory = send(session, "现在记忆里有什么？");
+        assertTrue(memory.contains("platform.memory"), memory);
+        assertTrue(memory.contains("sessionSummary"), memory);
+    }
+
+    @Test
+    void enterpriseAgentsCanBeInstalledFromUrlAndUseMainAgentMemory() throws Exception {
+        // 主 Agent 记忆层：给管理员一个画像，安装后的企业 Agent 应收到 _memory。
+        userProfileService.merge(1L, Map.of("preferredTicketTypeCode", "LIGHTING"));
+        try {
+            JsonNode policy = postForData("/api/v1/admin/agents/install",
+                    Map.of("cardUrl", url("/demo-agents/policy")));
+            assertEquals("policy-qa-agent", policy.path("agentKey").asText(), policy.toString());
+
+            String session = createSession();
+            String policySse = send(session, "查询政策：耕地保护");
+            assertTrue(policySse.contains("policy.qa.ask"), policySse);
+            assertTrue(policySse.contains("土地管理法"), policySse);
+            assertTrue(policySse.contains("\"memoryUsed\":true"), policySse);
+
+            JsonNode customer = postForData("/api/v1/admin/agents/install",
+                    Map.of("cardUrl", url("/demo-agents/customer")));
+            assertEquals("customer-service-agent", customer.path("agentKey").asText(), customer.toString());
+
+            String customerSse = send(session, "查询客服工单");
+            assertTrue(customerSse.contains("customer.ticket.query"), customerSse);
+            assertTrue(customerSse.contains("CS-2026-001"), customerSse);
+        } finally {
+            deleteAgent("policy-qa-agent");
+            deleteAgent("customer-service-agent");
+            userProfileService.delete(1L);
+        }
+    }
+
+    private void deleteAgent(String agentKey) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        rest.exchange(url("/api/v1/admin/agents/" + agentKey), HttpMethod.DELETE,
+                new HttpEntity<>(headers), String.class);
     }
 
     @Test

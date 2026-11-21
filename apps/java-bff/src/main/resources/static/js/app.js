@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261121-install1';
+const UI_VERSION = '20261121-enterprise1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -69,6 +69,16 @@ const FIELD_LABELS = {
   fileName: '文件名',
   rows: '记录数',
   downloadUrl: '下载地址',
+  question: '问题',
+  answer: '回答',
+  citations: '引用',
+  reviewNo: '审查编号',
+  tickets: '工单列表',
+  customer: '客户',
+  issue: '问题描述',
+  priority: '优先级',
+  memoryUsed: '使用记忆',
+  memoryHint: '记忆说明',
   code: '编码',
   preferredProjectId: '默认项目',
   preferredBuildingId: '默认楼栋',
@@ -204,6 +214,8 @@ const els = {
   installAgent: document.getElementById('installAgent'),
   installAgentModal: document.getElementById('installAgentModal'),
   installTemplateAgent: document.getElementById('installTemplateAgent'),
+  installPolicyAgent: document.getElementById('installPolicyAgent'),
+  installCustomerAgent: document.getElementById('installCustomerAgent'),
   installFromUrl: document.getElementById('installFromUrl'),
   installAgentUrl: document.getElementById('installAgentUrl'),
   installAgentToken: document.getElementById('installAgentToken'),
@@ -329,6 +341,8 @@ function bindEvents() {
     els.installAgentModal.hidden = true;
   });
   els.installTemplateAgent.addEventListener('click', installTemplateAgent);
+  els.installPolicyAgent.addEventListener('click', () => installDemoEnterpriseAgent('policy'));
+  els.installCustomerAgent.addEventListener('click', () => installDemoEnterpriseAgent('customer'));
   els.installFromUrl.addEventListener('click', installAgentFromUrl);
   els.auditClose.addEventListener('click', () => {
     els.auditModal.hidden = true;
@@ -1127,6 +1141,10 @@ function capabilityLabel(capabilityId) {
     'inspect.plan.create': '巡检 · 创建计划',
     'inspect.report.generate': '巡检 · 生成报告',
     'inspect.report.export': '巡检 · 导出报告',
+    'policy.qa.ask': '政策 · 法规问答',
+    'policy.document.review': '政策 · 文件审查',
+    'customer.ticket.query': '客服 · 查询工单',
+    'customer.ticket.create': '客服 · 创建工单',
   };
   return labels[capabilityId] || capabilityId || '任务';
 }
@@ -1556,6 +1574,11 @@ async function installTemplateAgent() {
   } finally {
     els.installTemplateAgent.disabled = false;
   }
+}
+
+async function installDemoEnterpriseAgent(id) {
+  els.installAgentUrl.value = `${location.origin}/demo-agents/${id}`;
+  await installAgentFromUrl();
 }
 
 async function installAgentFromUrl() {

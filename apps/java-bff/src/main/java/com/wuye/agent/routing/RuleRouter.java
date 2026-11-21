@@ -26,10 +26,23 @@ public class RuleRouter implements Router {
     public RouteDecision route(String raw) {
         String text = raw == null ? "" : raw.strip();
         String lower = text.toLowerCase();
+        String compact = lower.replaceAll("\\s+", "");
 
         boolean knowledge = containsAny(text, "知识库", "知识", "资料", "制度", "规定");
         boolean contract = containsAny(text, "合同", "条款", "审查", "甲方", "乙方", "违约");
         boolean property = containsAny(text, "工单", "报修", "派单", "接单", "现场", "回访", "维修", "漏水", "故障", "待处理");
+
+        // 0. 平台自省：面试官问“平台有什么/怎么接”时，返回真实注册表数据。
+        if (containsAny(compact, "哪些agent", "有哪些agent", "agent目录", "平台上有",
+                "平台能力", "能做什么", "agent列表")) {
+            return RouteDecision.route("platform.catalog", Map.of(), 0.95, "平台目录自省");
+        }
+        if (lower.contains("a2a") || containsAny(compact, "agentcard", "协议支持", "协议兼容")) {
+            return RouteDecision.route("platform.a2a", Map.of(), 0.95, "A2A 协议自省");
+        }
+        if (containsAny(text, "记忆里", "我的画像", "记得我", "记忆系统", "记住我什么")) {
+            return RouteDecision.route("platform.memory", Map.of(), 0.95, "记忆层自省");
+        }
 
         // 1. 知识检索：两域同名能力，必须先消歧
         if (knowledge) {
@@ -77,7 +90,30 @@ public class RuleRouter implements Router {
             }
         }
 
-        // 3. 运行时安装的巡检报告 Agent（未安装时由 ChatService 做友好兜底）
+        // 3. 运行时安装的企业 Agent 示例（未安装时由 ChatService 做友好兜底）
+        if (containsAny(text, "政策", "法规", "耕地", "条例", "补贴")) {
+            if (containsAny(text, "审查", "审核") && containsAny(text, "文件", "政策")) {
+                Map<String, Object> args = new LinkedHashMap<>();
+                args.put("fileName", text);
+                args.put("scope", "全部条款");
+                return RouteDecision.route("policy.document.review", args, 0.9, "命中政策文件审查");
+            }
+            return RouteDecision.route("policy.qa.ask",
+                    Map.of("question", text), 0.9, "命中政策法规问答");
+        }
+        if (containsAny(text, "客服", "投诉", "客户工单")) {
+            if (containsAny(text, "创建", "新建", "提交", "投诉")) {
+                Map<String, Object> args = new LinkedHashMap<>();
+                args.put("customer", "未提供");
+                args.put("issue", text);
+                args.put("priority", "NORMAL");
+                return RouteDecision.route("customer.ticket.create", args, 0.9, "命中客服工单创建");
+            }
+            return RouteDecision.route("customer.ticket.query",
+                    Map.of("query", text), 0.9, "命中客服工单查询");
+        }
+
+        // 4. 运行时安装的巡检报告 Agent（未安装时由 ChatService 做友好兜底）
         if (containsAny(text, "巡检")) {
             if (containsAny(text, "导出")) {
                 return RouteDecision.route("inspect.report.export",
@@ -100,7 +136,7 @@ public class RuleRouter implements Router {
                     Map.of("query", text), 0.9, "命中巡检报告查询");
         }
 
-        // 4. 时空资产域（第三个演示 Agent）
+        // 5. 时空资产域（第三个演示 Agent）
         Matcher parcel = PARCEL_NO.matcher(text);
         String parcelNo = parcel.find() ? parcel.group() : null;
         boolean patrolIntent = containsAny(text, "巡查", "执法", "外业")
@@ -130,7 +166,7 @@ public class RuleRouter implements Router {
             return RouteDecision.route("gis.parcel.query", args, 0.9, "命中地块查询");
         }
 
-        // 5. 物业域
+        // 6. 物业域
         Matcher ticket = TICKET_NO.matcher(text);
         String ticketNo = ticket.find() ? ticket.group() : null;
 
