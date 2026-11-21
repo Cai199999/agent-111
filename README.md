@@ -13,6 +13,7 @@
 | [`docs/05-最终设计方案与开发规范.md`](docs/05-最终设计方案与开发规范.md) | 代码结构、编码/测试/Git 规范、启动、阶段计划、ADR |
 | [`docs/06-Agent接入与扩展规范.md`](docs/06-Agent接入与扩展规范.md) | Canonical v1、Adapter SPI、新 Agent 接入 SOP、自定义 Agent 边界 |
 | [`docs/memory/00_project_brief.md`](docs/memory/00_project_brief.md) | 项目 brief 与当前状态 |
+| [`docs/demo/面试演示脚本.md`](docs/demo/面试演示脚本.md) | 8 分钟演示流程、苍穹数码场景映射、高频问答、风险兜底 |
 
 ## 输入依据
 
@@ -30,7 +31,14 @@ cp .env.example .env && chmod 600 .env
 mvn -f apps/java-bff/pom.xml test
 # 当前：Java 35/35 passed；Python AI 11/11
 
-# 启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
+# 一键演示（强制 mock 子 Agent，自动重打包；默认开启 LLM）
+bash scripts/start-demo.sh
+# 演示链路冒烟：16 项检查
+bash scripts/smoke-demo.sh
+# 离线兜底：纯规则路由
+DEMO_AI=0 bash scripts/start-demo.sh
+
+# 手动启动（8600 需先登记 RESOURCES.md；脚本会 source .env）
 bash scripts/start-prototype.sh
 ```
 
@@ -47,7 +55,7 @@ bash scripts/start-python-ai.sh
 WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 ```
 
-原型边界：无真实登录、Manifest 静态、无 Redis/MinIO、任务事件轮询、真实子 Agent 未启动尚未联调。
+原型边界：演示默认使用 Mock 子 Agent（真实 8402/8400 启动后可用 `WUYE_AGENT_MODE=http` 联调）、Manifest 静态、无 Redis/MinIO、任务事件轮询；LLM 需在 `.env` 配 `DEEPSEEK_API_KEY`，未配置时自动回退规则路由。
 
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 

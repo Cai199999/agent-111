@@ -69,6 +69,18 @@
 - 首期逐个接入 + 声明式注册；自定义 Agent 放到 P5，且必须是受控模板。
 - SSE + 轮询降级；主 Agent 自己掌握 deadline/超时/重试。
 
+## 2026-11-21 面试演示准备
+
+- 目标：后天（2026-11-23）苍穹数码面试，8 分钟演示；定位为“可复用的智能体编排底座”，物业/合同只是演示子 Agent。
+- 已恢复编译：`MetricsController` 补 `java.util.List` 导入；Java 测试 35/35、Python 11/11 通过。
+- 新增 `scripts/start-demo.sh`：一键停止本项目旧进程、重打包、强制 mock 子 Agent、默认启动 Python LLM、健康等待；`DEMO_AI=0` 可离线回退规则路由。
+- 新增 `scripts/smoke-demo.sh`：16 项链路冒烟（健康/登录/查询/建单确认/合同异步/看板/告警/人工队列/审计），已验证 `PASS=16 FAIL=0`。
+- 新增 `scripts/reset-demo-data.sh`：只清 `wuye_agent_db` 演示数据，保留账号/角色/权限，需 `--yes` 确认。
+- Mock 模式补齐主数据枚举（ticketTypes/priorities/locationTypes/indoorPublicAreas），自然语言“1栋大堂的灯不亮了”可直接映射 `LIGHTING` 并进入确认。
+- Mock 物业补齐接单/解决/验证/关闭/取消/挂起/恢复/结束/评论/材料/回访/导出，避免演示中因边缘能力中断。
+- 演示文档：`docs/demo/面试演示脚本.md`（流程、苍穹场景映射、Q&A、风险兜底、两天计划）。
+- 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
+
 ## 下一步
 
 1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。

@@ -62,6 +62,27 @@ public class MetricsService {
                 usageStore.summary(from, to));
     }
 
+    public List<TrendPoint> trend(Instant from, Instant to) {
+        List<TaskRecord> tasks = store.listTasks(null).stream()
+                .filter(task -> task.createdAt != null)
+                .filter(task -> from == null || !task.createdAt.isBefore(from))
+                .filter(task -> to == null || !task.createdAt.isAfter(to))
+                .toList();
+        Map<java.time.LocalDate, List<TaskRecord>> groups = new java.util.TreeMap<>();
+        for (TaskRecord task : tasks) {
+            java.time.LocalDate date = java.time.LocalDate.ofInstant(task.createdAt, java.time.ZoneOffset.UTC);
+            groups.computeIfAbsent(date, key -> new ArrayList<>()).add(task);
+        }
+        return groups.entrySet().stream()
+                .map(entry -> new TrendPoint(
+                        entry.getKey().toString(),
+                        entry.getValue().size(),
+                        count(entry.getValue(), TaskStatus.SUCCEEDED),
+                        count(entry.getValue(), TaskStatus.FAILED)
+                                + count(entry.getValue(), TaskStatus.REJECTED)))
+                .toList();
+    }
+
     private List<CapabilityMetric> byCapability(List<TaskRecord> tasks) {
         Map<String, List<TaskRecord>> groups = new LinkedHashMap<>();
         for (TaskRecord task : tasks) {
@@ -171,6 +192,9 @@ public class MetricsService {
     }
 
     public record CapabilityMetric(String capabilityId, long total, long succeeded, long failed) {
+    }
+
+    public record TrendPoint(String date, long total, long succeeded, long failed) {
     }
 
     public record AgentMetric(String agentKey, long total, long succeeded, long failed) {

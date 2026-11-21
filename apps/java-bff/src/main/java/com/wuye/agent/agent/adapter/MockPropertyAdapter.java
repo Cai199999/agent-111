@@ -181,6 +181,29 @@ public class MockPropertyAdapter implements AgentAdapter {
                 event(state, "STATUS_CHANGED", TaskStatus.WAITING_CONFIRM, Map.of("message", "等待用户确认派单"));
                 return AdapterResult.waiting(childTaskId, confirmation, List.copyOf(state.events));
             }
+            // 其余工单写操作走统一确认 + 模拟成功，避免演示时因未实现的边缘能力中断。
+            // 真实接入时由物业子 Agent 返回各自的确认字段和状态机。
+            case "property.ticket.accept", "property.ticket.resolve", "property.ticket.verify",
+                 "property.ticket.close", "property.ticket.cancel", "property.ticket.hold",
+                 "property.ticket.resume", "property.ticket.finish", "property.ticket.comment.add",
+                 "property.ticket.material.add", "property.ticket.visit.add",
+                 "property.ticket.export" -> {
+                String ticketNo = string(request.input(), "ticketNo", "GD20261119000107");
+                String action = actionName(request.capabilityId());
+                Confirmation confirmation = confirmation(
+                        action + "确认",
+                        "HIGH",
+                        List.of(
+                                new Confirmation.Field("工单", ticketNo),
+                                new Confirmation.Field("操作", action)
+                        ));
+                state.confirmation = confirmation;
+                state.status = TaskStatus.WAITING_CONFIRM;
+                state.currentStep = "WAITING_CONFIRM";
+                event(state, "STATUS_CHANGED", TaskStatus.WAITING_CONFIRM,
+                        Map.of("message", "等待用户确认" + action));
+                return AdapterResult.waiting(childTaskId, confirmation, List.copyOf(state.events));
+            }
             default -> {
                 AgentError error = new AgentError("60001", "VALIDATION", false, "未实现的物业能力：" + request.capabilityId());
                 state.status = TaskStatus.FAILED;
@@ -222,8 +245,23 @@ public class MockPropertyAdapter implements AgentAdapter {
             state.output = switch (state.capabilityId) {
                 case "property.ticket.create" -> Map.of("ticketNo", "GD202611200001", "status", "PENDING");
                 case "property.profile.update" -> profileOutput(state);
-                default -> Map.of("ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                case "property.ticket.comment.add" -> Map.of(
+                        "ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                        "commentId", "CM202611210001", "status", "CREATED");
+                case "property.ticket.material.add" -> Map.of(
+                        "ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                        "materialId", "MT202611210001", "status", "CREATED");
+                case "property.ticket.visit.add" -> Map.of(
+                        "ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                        "visitId", "VS202611210001", "status", "CREATED");
+                case "property.ticket.export" -> Map.of(
+                        "fileName", "工单导出.xlsx", "downloadUrl", "/mock/export/tickets.xlsx");
+                case "property.ticket.assign" -> Map.of(
+                        "ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
                         "assigneeId", string(state.input, "assigneeId", "10002"), "status", "ASSIGNED");
+                default -> Map.of(
+                        "ticketNo", string(state.input, "ticketNo", "GD20261119000107"),
+                        "status", successStatus(state.capabilityId));
             };
             state.progress = 100;
             state.currentStep = "DONE";
@@ -337,6 +375,40 @@ public class MockPropertyAdapter implements AgentAdapter {
         output.put("customerId", state.input.getOrDefault("customerId", 2001));
         output.put("reviewStatus", "10001".equals(state.actorId) ? "APPROVED" : "PENDING");
         return output;
+    }
+
+    /** 统一写操作的确认文案。 */
+    private static String actionName(String capabilityId) {
+        return switch (capabilityId) {
+            case "property.ticket.accept" -> "接单";
+            case "property.ticket.resolve" -> "提交解决";
+            case "property.ticket.verify" -> "验证";
+            case "property.ticket.close" -> "关闭工单";
+            case "property.ticket.cancel" -> "取消工单";
+            case "property.ticket.hold" -> "挂起";
+            case "property.ticket.resume" -> "恢复";
+            case "property.ticket.finish" -> "结束";
+            case "property.ticket.comment.add" -> "添加评论";
+            case "property.ticket.material.add" -> "添加材料";
+            case "property.ticket.visit.add" -> "添加回访";
+            case "property.ticket.export" -> "导出工单";
+            default -> "工单操作";
+        };
+    }
+
+    /** 写操作确认后的模拟终态。 */
+    private static String successStatus(String capabilityId) {
+        return switch (capabilityId) {
+            case "property.ticket.accept" -> "ACCEPTED";
+            case "property.ticket.resolve" -> "RESOLVED";
+            case "property.ticket.verify" -> "VERIFIED";
+            case "property.ticket.close" -> "CLOSED";
+            case "property.ticket.cancel" -> "CANCELLED";
+            case "property.ticket.hold" -> "HOLD";
+            case "property.ticket.resume" -> "PROCESSING";
+            case "property.ticket.finish" -> "FINISHED";
+            default -> "SUCCEEDED";
+        };
     }
 
     private static String string(Map<String, Object> input, String key, String fallback) {
