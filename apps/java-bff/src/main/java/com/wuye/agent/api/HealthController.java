@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 原型健康检查。生产化后 /ready 还需检查 MySQL、Redis、MinIO、Python AI。
+ * 健康/就绪检查。当前 /ready 反映 store、LLM 开关和 Agent 模式；
+ * 生产化还需纳入 Redis、MinIO、数据库连接池与下游依赖。
  */
 @RestController
 public class HealthController {

@@ -13,6 +13,7 @@
 | [`docs/05-最终设计方案与开发规范.md`](docs/05-最终设计方案与开发规范.md) | 代码结构、编码/测试/Git 规范、启动、阶段计划、ADR |
 | [`docs/06-Agent接入与扩展规范.md`](docs/06-Agent接入与扩展规范.md) | Canonical v1、Adapter SPI、新 Agent 接入 SOP、自定义 Agent 边界 |
 | [`docs/memory/00_project_brief.md`](docs/memory/00_project_brief.md) | 项目 brief 与当前状态 |
+| [`docs/demo/README.md`](docs/demo/README.md) | 面试材料索引：必读 4 份、附录、不建议展示的材料 |
 | [`docs/demo/面试演示脚本.md`](docs/demo/面试演示脚本.md) | 8 分钟演示流程、苍穹数码场景映射、高频问答、风险兜底 |
 | [`docs/demo/业务发现与AI全栈叙事.md`](docs/demo/业务发现与AI全栈叙事.md) | 以“业务发现 × AI 全栈交付”为主线的 10 分钟叙事、场景机会地图、30/60/90 天计划 |
 | [`docs/demo/平台能力评估.md`](docs/demo/平台能力评估.md) | A2A / 前端 / 后端能力评估、设计 vs 实现差距、面试话术、提分动作 |

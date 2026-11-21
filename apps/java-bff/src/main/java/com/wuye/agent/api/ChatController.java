@@ -24,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * 单对话框 API。原型无登录态，使用 X-Actor-Id 头；生产化替换为 JWT。
+ * 单对话框 API。登录态由 AuthFilter 的 JWT 解析并写入 AuthContext；
+ * 历史 X-Actor-Id 仅作为兼容头保留，不再作为登录凭据。
  */
 @RestController
 @RequestMapping("/api/v1/chat")

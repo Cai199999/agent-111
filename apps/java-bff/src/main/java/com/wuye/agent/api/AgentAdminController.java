@@ -24,7 +24,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Agent 注册/能力/健康查询。原型只读；生产化再加注册、同步、开关。
+ * Agent 目录/能力/健康，以及运行时安装/卸载。
+ *
+ * <p>安装支持模板与 Agent Card URL；卸载仅允许运行时安装的动态 Agent。
+ * Manifest 自动同步/版本校验仍是后续项。</p>
  */
 @RestController
 @RequestMapping("/api/v1/admin")

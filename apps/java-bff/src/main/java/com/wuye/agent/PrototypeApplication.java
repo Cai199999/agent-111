@@ -8,11 +8,11 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerA
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 
 /**
- * 物业主 Agent BFF 原型入口。
+ * 物业主 Agent BFF 入口。
  *
- * <p>原型阶段只依赖 spring-boot-starter-web：会话、任务、确认、事件全部内存存储，
- * 子 Agent 由 Mock Adapter 模拟两种协议方言。生产化时再接入 MySQL/Redis/MinIO
- * 与真实 HTTP Adapter，不改变控制器与 Agent 层接口。</p>
+ * <p>默认内存 profile，便于测试；mysql profile 接 MySQL + Flyway。
+ * 子 Agent 支持 Mock / 真实 HTTP 方言 / 运行时安装的 Canonical v1 Agent；
+ * 当前未接 Redis/MinIO，生产化时再补，不改变控制器与 Agent 层接口。</p>
  */
 @SpringBootApplication(exclude = {
         DataSourceAutoConfiguration.class,

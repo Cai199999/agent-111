@@ -118,7 +118,7 @@ cp .env.example .env && chmod 600 .env
 
 # 2. 只跑测试（内存 profile，不需要 MySQL）
 mvn -f apps/java-bff/pom.xml test
-# 当前：Java 35/35 passed（Python AI 另 11/11）
+# 当前：Java 66/66 passed（Python AI 另 15/15；smoke 26/26；E2E 101/101）
 
 # 3. 启动（脚本会 source .env；默认 mysql profile）
 bash scripts/start-prototype.sh
@@ -232,10 +232,10 @@ export AGENT_CONTRACT_INTERNAL_TOKEN=...
 
 ## 原型边界
 
-- 无真实登录；使用 `X-Actor-Id` 默认 `10001`。
-- Python AI 只做路由决策；自然语言生成、槽位补全、usage 落库尚未接入。
-- Manifest 为静态描述，尚未接自动同步/版本校验。
+- 已实现 JWT 登录 + 三级 RBAC；浏览器只拿 `taskNo`，确认令牌不出服务端。
+- Python AI 做路由/解释/摘要/画像/自修复决策；不直接调用子 Agent。
+- 内置 Mock Agent 的 Manifest/descriptor 是静态的；运行时安装支持 Agent Card 拉取，但 Manifest 自动同步/版本校验未做。
 - 无 Redis/MinIO；确认令牌用 MySQL 加密列，附件上传未接。
-- 任务事件用轮询刷新；后续可加任务 SSE。
-- 真实 HTTP Adapter 已实现，但两个子 Agent 当前未启动，尚未完成活体联调。
-- 未接 Agent 管理后台的注册/同步/能力开关；当前为代码内注册。
+- 浏览器任务事件用 SSE + 轮询；子 Agent 事件仍是轮询（`afterSeq`）。
+- 真实 HTTP Adapter 已实现，但 8402/8400 当前未启动；演示使用 Mock，另有 geo-asset/inspection/企业 Agent。
+- 已支持运行时安装/卸载（内存态）；注册表持久化、Manifest 自动同步、能力开关未做。
