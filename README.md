@@ -23,6 +23,7 @@
 | [`docs/demo/动态安装Agent.md`](docs/demo/动态安装Agent.md) | 运行时安装 Agent、完整巡检 Agent 能力、受控安装边界 |
 | [`docs/demo/演示预置问题.md`](docs/demo/演示预置问题.md) | 演示输入清单、面试官追问的自省问题、企业 Agent URL、记忆演示 |
 | [`docs/demo/面试问答与技术选型.md`](docs/demo/面试问答与技术选型.md) | 技术栈全景、选型取舍、踩坑与解决、40+ 面试问题、GIS/苍穹映射 |
+| [`docs/demo/真实Agent联调方案.md`](docs/demo/真实Agent联调方案.md) | 物业 8402 / 合同 8400 的真实 A2A 联调步骤、令牌/端口/风险 |
 
 ## 输入依据
 
@@ -72,7 +73,7 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 
 ## 当前状态
 
-- 设计文档已同步到子 Agent 最新契约：物业 `0.8.0`、合同 `0.7.0`。
+- 设计文档已同步到子 Agent 最新契约：物业 `0.9.0`、合同 `0.7.0`。
 - 子 Agent P0 整改已落地：委托令牌签发、Manifest 元数据、健康/就绪、`clientTaskId` 回查、取消、事件 `seq/afterSeq`。
 - 两个真实子 Agent（物业 8402 / 合同 8400）当前均未启动；演示默认使用 Mock，并新增第三个 Mock `geo-asset-agent` 验证扩展性。
 - 主 Agent 候选端口：`8600`（Java BFF）、`8700`（Python AI）、`5182`（Web dev）。

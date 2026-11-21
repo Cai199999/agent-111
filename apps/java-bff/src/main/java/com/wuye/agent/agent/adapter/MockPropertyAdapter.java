@@ -43,7 +43,7 @@ public class MockPropertyAdapter implements AgentAdapter {
             AGENT_KEY,
             "物业运维 Agent（Mock）",
             "property-v08",
-            "0.8.0",
+            "0.9.0",
             "wrapped",
             "/agent/v1/health",
             "/agent/v1/ready",

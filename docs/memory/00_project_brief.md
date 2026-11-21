@@ -5,7 +5,7 @@
 - **项目**：`wuye-agent`（主 Agent / 单对话框编排 Agent）
 - **目标**：用一个对话框统一接入物业、合同、时空资产等子 Agent，并提供可扩展、可运行时安装/卸载的 Agent 接入层。
 - **子 Agent**：
-  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.8.0）
+  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.9.0）
   - `contract-review`：合同审查/规则/知识（协议 `agent-task-v1` 0.7.0）
   - `geo-asset-agent`：地块/遥感变化图斑/巡查任务（演示用 Mock，`gis-v01`）
   - 运行时安装：`inspection-agent`、`policy-qa-agent`、`customer-service-agent`（模板/Agent Card URL）
@@ -46,7 +46,7 @@
 ## 历史状态（2026-11-20，部分数字/边界已过时）
 
 - 五份设计文档 + Agent 扩展规范已完成并同步到最新契约。
-- 子 Agent P0 已落地：物业 `0.8.0`、合同 `0.7.0`。
+- 子 Agent P0 已落地：物业 `0.8.0` → `0.9.0`、合同 `0.7.0`。
   - 合同：委托令牌签发、Manifest 元数据、`clientTaskId` 回查、启用 `CANCELLED`、`contract.resolve`；`contract.import` 仍禁用。
   - 物业：`AGENT_SERVICE_PORT` 必填（8402）、Manifest 元数据、`decision` 确认、`REJECTED` 终态、事件 `seq/afterSeq`、附件列表；异步声明 `db-recovery`。
 - 两个真实子 Agent 当前均未启动（`8400/8401/8500` 已释放；`8200/8300/8402` 无进程）；演示另有 Mock 时空资产/动态 Agent。

@@ -262,7 +262,7 @@ GET /ready    → {"status":"UP","checks":{"db":"UP","llm":"UP","storage":"UP"}}
 
 | Agent | 版本 | 破坏性/关键变更 | 主 Agent 处理 |
 |---|---|---|---|
-| `property-maintenance` | `0.8.0` | `AGENT_SERVICE_PORT` 必填；`REJECTED` 终态；健康路径改为 `/agent/v1/health`、`/agent/v1/ready`；事件补 `seq/type` | 配置 8402；状态归一化；按 Manifest 探活 |
+| `property-maintenance` | `0.9.0` | `AGENT_SERVICE_PORT` 必填；`REJECTED` 终态；健康路径改为 `/agent/v1/health`、`/agent/v1/ready`；事件补 `seq/type` | 配置 8402；状态归一化；按 Manifest 探活 |
 | `contract-review` | `0.7.0` | 旧委托令牌无 `audience` 返回 401；异步提交 `202`；`CANCELLED` 正式终态 | 按 Agent 重签委托；TaskGateway 接受 200/202；终态集合加 `CANCELLED` |
 
 > 主 Agent 不应依赖旧令牌缓存；升级后应清理 `wuye_agent:delegation:*` 并重新签发。
