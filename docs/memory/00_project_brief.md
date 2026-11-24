@@ -107,7 +107,10 @@
 - H2 已实现：`AgentAdapter.manifest()`（2 秒短超时）、`AgentManifestService`（物业 + 运行时 Agent，5 分钟缓存）、
   `/api/v1/profile/forms` 系列接口、个人中心 `#profileSections` 分段渲染；旧接口保留。
 - H2 测试：`AgentManifestServiceTest` 3 项；`PrototypeSmokeTest` 27 项；全量 Java 72/72 通过。
-- H3（Agent Card 权限声明）、H4（回归 + 重新冻结）待实现。
+- H3 已实现：V12 给 `wa_permission` 加 `source`；`DynamicPermissionService`（Noop/MySQL 两实现）；
+  Card `permissions` 安装写权限、卸载只撤销 `AGENT:<key>` 来源；未知角色/内置冲突拒绝安装；安装/卸载写审计。
+- H3 测试：`DynamicPermissionParseTest` 5 项；`AgentInstallServiceTest` 验证 grant/revoke；全量 Java 77/77 通过。
+- H4（回归 + MySQL 真实验证 + 重新冻结 `base-v1.1-2026-11-24`）待执行。
 - 设计文档：`docs/07-底座通用加固.md`；外部项目方案：`flow-agent/docs/08-底座通用加固方案.md`。
 
 ## 下一步

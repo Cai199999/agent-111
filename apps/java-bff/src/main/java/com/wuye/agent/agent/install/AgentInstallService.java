@@ -11,6 +11,7 @@ import com.wuye.agent.agent.http.HttpAgentSupport;
 import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.AgentHealth;
 import com.wuye.agent.agent.model.Capability;
+import com.wuye.agent.auth.DynamicPermissionService;
 import com.wuye.agent.common.ApiException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -53,17 +54,20 @@ public class AgentInstallService {
     private final AgentHttpProperties properties;
     private final ObjectMapper mapper;
     private final AgentRegistryStore registryStore;
+    private final DynamicPermissionService permissionService;
     private final HttpClient http;
 
     public AgentInstallService(AdapterRegistry registry, DynamicAgentRegistry dynamicRegistry,
                                HttpAgentSupport support, AgentHttpProperties properties,
-                               ObjectMapper mapper, AgentRegistryStore registryStore) {
+                               ObjectMapper mapper, AgentRegistryStore registryStore,
+                               DynamicPermissionService permissionService) {
         this.registry = registry;
         this.dynamicRegistry = dynamicRegistry;
         this.support = support;
         this.properties = properties;
         this.mapper = mapper;
         this.registryStore = registryStore;
+        this.permissionService = permissionService;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
@@ -160,8 +164,15 @@ public class AgentInstallService {
         register(adapter);
         try {
             registryStore.save(httpEntry(descriptor, endpoint, installedBy));
+            permissionService.grant(agentKey, card.path("permissions"), installedBy);
         } catch (RuntimeException ex) {
             rollback(adapter);
+            try {
+                registryStore.remove(agentKey);
+            } catch (RuntimeException cleanup) {
+                log.error("安装失败后清理注册记录失败 agent={} error={}",
+                        agentKey, cleanup.getMessage());
+            }
             throw ex;
         }
         log.info("installed http agent {} from {} persist=true", agentKey, cardUri);
@@ -183,6 +194,11 @@ public class AgentInstallService {
         } catch (RuntimeException ex) {
             // 内存已移除但注册表未标记成功：记录错误，重启后可能被恢复，需人工处理。
             log.error("移除 Agent 注册记录失败 agent={} error={}", agentKey, ex.getMessage());
+        }
+        try {
+            permissionService.revoke(agentKey);
+        } catch (RuntimeException ex) {
+            log.error("撤销动态权限失败 agent={} error={}", agentKey, ex.getMessage());
         }
         if (removed instanceof AutoCloseable closeable) {
             try {

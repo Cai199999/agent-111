@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -11,6 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.http.AgentHttpProperties;
 import com.wuye.agent.agent.http.HttpAgentSupport;
+import com.wuye.agent.auth.DynamicPermissionService;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -28,6 +33,7 @@ class AgentInstallServiceTest {
     private AgentInstallService service;
     private AdapterRegistry registry;
     private InMemoryAgentRegistryStore store;
+    private DynamicPermissionService permissionService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -43,7 +49,9 @@ class AgentInstallServiceTest {
         DynamicAgentRegistry dynamicRegistry = new DynamicAgentRegistry();
         HttpAgentSupport support = new HttpAgentSupport(properties, mapper);
         store = new InMemoryAgentRegistryStore();
-        service = new AgentInstallService(registry, dynamicRegistry, support, properties, mapper, store);
+        permissionService = mock(DynamicPermissionService.class);
+        service = new AgentInstallService(registry, dynamicRegistry, support, properties, mapper,
+                store, permissionService);
     }
 
     @AfterEach
@@ -63,10 +71,12 @@ class AgentInstallServiceTest {
         assertTrue(registry.capability("external.demo.query").isPresent());
         assertTrue(registry.capability("external.demo.write").isPresent());
         assertTrue(store.find("external-demo-agent").map(AgentRegistryEntry::active).orElse(false));
+        verify(permissionService).grant(eq("external-demo-agent"), any(), eq("system"));
 
         service.uninstall("external-demo-agent");
         assertTrue(registry.capability("external.demo.query").isEmpty());
         assertFalse(store.find("external-demo-agent").map(AgentRegistryEntry::active).orElse(false));
+        verify(permissionService).revoke("external-demo-agent");
     }
 
     private void card(HttpExchange exchange) throws IOException {

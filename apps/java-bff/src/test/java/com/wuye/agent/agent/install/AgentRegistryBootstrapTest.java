@@ -13,6 +13,7 @@ import com.wuye.agent.agent.http.AgentHttpProperties;
 import com.wuye.agent.agent.http.HttpAgentSupport;
 import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.Capability;
+import com.wuye.agent.auth.NoopDynamicPermissionService;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -56,7 +57,8 @@ class AgentRegistryBootstrapTest {
         AdapterRegistry registry = new AdapterRegistry(List.of());
         DynamicAgentRegistry dynamicRegistry = new DynamicAgentRegistry();
         AgentInstallService installService = new AgentInstallService(
-                registry, dynamicRegistry, support, properties, mapper, store);
+                registry, dynamicRegistry, support, properties, mapper, store,
+                new NoopDynamicPermissionService());
 
         AgentDescriptor descriptor = descriptor();
         String json = mapper.writeValueAsString(descriptor);
@@ -78,7 +80,8 @@ class AgentRegistryBootstrapTest {
         AdapterRegistry registry = new AdapterRegistry(List.of());
         DynamicAgentRegistry dynamicRegistry = new DynamicAgentRegistry();
         AgentInstallService installService = new AgentInstallService(
-                registry, dynamicRegistry, support, properties, mapper, store);
+                registry, dynamicRegistry, support, properties, mapper, store,
+                new NoopDynamicPermissionService());
         store.save(entry(mapper.writeValueAsString(descriptor())));
 
         AgentRegistryBootstrap bootstrap = new AgentRegistryBootstrap(
