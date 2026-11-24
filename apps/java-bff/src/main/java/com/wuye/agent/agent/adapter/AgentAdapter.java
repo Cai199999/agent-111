@@ -7,6 +7,7 @@ import com.wuye.agent.agent.model.AgentHealth;
 import com.wuye.agent.agent.model.Decision;
 import com.wuye.agent.agent.model.TaskEvent;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 子 Agent 协议适配 SPI。
@@ -47,4 +48,12 @@ public interface AgentAdapter {
     List<TaskEvent> events(String childTaskId, long afterSeq);
 
     AgentHealth health();
+
+    /**
+     * 可选 Manifest：用于个人中心等通用表单聚合。
+     * 默认返回空，表示该 Agent 不声明表单；HTTP Adapter 会拉取 /agent/v1/manifest。
+     */
+    default Map<String, Object> manifest() {
+        return Map.of();
+    }
 }

@@ -109,6 +109,17 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void profileFormsAggregationReturnsPropertySection() throws Exception {
+        String forms = getWithToken("/api/v1/profile/forms", adminToken);
+        assertTrue(forms.contains("property-maintenance"), forms);
+        assertTrue(forms.contains("property.profile.get"), forms);
+        assertTrue(forms.contains("sections"), forms);
+
+        String userForms = getWithToken("/api/v1/profile/forms", login("user", "user123"));
+        assertTrue(userForms.contains("property-maintenance"), userForms);
+    }
+
+    @Test
     void propertyQueryReturnsTickets() throws Exception {
         String session = createSession();
         String sse = send(session, "我有哪些待处理工单？");

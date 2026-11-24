@@ -50,6 +50,12 @@ public class HttpAgentSupport {
         return send("GET", endpoint, path, null, actorId, traceId, delegation);
     }
 
+    /** 短超时 GET：用于 Manifest 等可选元数据，避免子 Agent 不可达时拖慢个人中心。 */
+    public HttpResult get(AgentHttpProperties.Endpoint endpoint, String path,
+                          String actorId, String traceId, boolean delegation, int timeoutMs) {
+        return send("GET", endpoint, path, null, actorId, traceId, delegation, timeoutMs);
+    }
+
     public HttpResult post(AgentHttpProperties.Endpoint endpoint, String path, Object body,
                            String actorId, String traceId, boolean delegation) {
         return send("POST", endpoint, path, body, actorId, traceId, delegation);
@@ -57,10 +63,16 @@ public class HttpAgentSupport {
 
     public HttpResult send(String method, AgentHttpProperties.Endpoint endpoint, String path, Object body,
                            String actorId, String traceId, boolean withDelegation) {
+        return send(method, endpoint, path, body, actorId, traceId, withDelegation,
+                properties.getReadTimeoutMs());
+    }
+
+    public HttpResult send(String method, AgentHttpProperties.Endpoint endpoint, String path, Object body,
+                           String actorId, String traceId, boolean withDelegation, int timeoutMs) {
         try {
             URI uri = URI.create(stripTrailingSlash(endpoint.getBaseUrl()) + path);
             HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                    .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                    .timeout(Duration.ofMillis(timeoutMs))
                     .header("Accept", "application/json");
 
             if (!"GET".equalsIgnoreCase(method)) {

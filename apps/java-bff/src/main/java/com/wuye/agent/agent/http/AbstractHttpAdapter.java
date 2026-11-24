@@ -166,6 +166,27 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
                 latency);
     }
 
+    /**
+     * 拉取可选 Manifest（个人中心等通用表单）。
+     * 短超时 + 失败返回空，避免某个子 Agent 不可达拖慢整个页面。
+     */
+    @Override
+    public Map<String, Object> manifest() {
+        try {
+            HttpAgentSupport.HttpResult result = support.get(endpoint,
+                    path(endpoint.getManifestPath(), "/agent/v1/manifest"),
+                    endpoint.getActorId(), null, false, 2000);
+            if (result.status() < 200 || result.status() >= 300) {
+                return Map.of();
+            }
+            JsonNode body = support.unwrap(result.body(), dialect);
+            Map<String, Object> manifest = support.map(body);
+            return manifest == null ? Map.of() : manifest;
+        } catch (Exception ex) {
+            return Map.of();
+        }
+    }
+
     protected AdapterResult parseTask(HttpAgentSupport.HttpResult result, String fallbackTaskId) {
         JsonNode body = support.unwrap(result.body(), dialect);
         if (result.status() < 200 || result.status() >= 300) {

@@ -359,6 +359,10 @@ body {
 .profile-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
 .profile-form .full { grid-column: 1 / -1; }
 .profile-form .required::after { content: " *"; color: var(--red); }
+.profile-sections { display: grid; gap: 16px; margin-top: 18px; }
+.profile-section { border-top: 1px solid var(--line); padding-top: 14px; }
+.profile-section-head { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.profile-section-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 .metric-cards {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
   gap: 10px; margin-bottom: 14px;

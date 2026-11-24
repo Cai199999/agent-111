@@ -189,6 +189,7 @@ const els = {
   userDropdown: document.getElementById('userDropdown'),
   profileModal: document.getElementById('profileModal'),
   profileForm: document.getElementById('profileForm'),
+  profileSections: document.getElementById('profileSections'),
   profileMeta: document.getElementById('profileMeta'),
   profileError: document.getElementById('profileError'),
   profileSave: document.getElementById('profileSave'),
@@ -1284,6 +1285,117 @@ async function openProfile() {
   } catch (error) {
     els.profileMeta.textContent = '';
     els.profileError.textContent = error.message || '加载个人资料失败';
+  }
+  await loadProfileSections();
+}
+
+async function loadProfileSections() {
+  if (!els.profileSections) return;
+  els.profileSections.replaceChildren();
+  try {
+    const data = await api('/api/v1/profile/forms');
+    const sections = (data?.sections || []).filter(
+      (section) => section.agentKey !== 'property-maintenance' && section.available !== false);
+    for (const section of sections) {
+      renderProfileSection(section);
+    }
+    els.profileSections.hidden = sections.length === 0;
+  } catch {
+    // 聚合接口失败不影响物业表单；隐藏扩展段即可。
+    els.profileSections.hidden = true;
+  }
+}
+
+function renderProfileSection(section) {
+  const wrap = document.createElement('section');
+  wrap.className = 'profile-section';
+  const head = document.createElement('div');
+  head.className = 'profile-section-head';
+  head.textContent = section.title || section.displayName || section.agentKey;
+  wrap.append(head);
+
+  const form = document.createElement('form');
+  form.className = 'profile-form';
+  const draft = {};
+  for (const field of section.form?.fields || []) {
+    const label = el('label', field.required ? 'required' : '', field.label || field.name);
+    let input;
+    if (field.type === 'select') {
+      input = document.createElement('select');
+      input.append(new Option('请选择', ''));
+      const options = Array.isArray(field.options) ? field.options : [];
+      for (const option of options) {
+        const value = typeof option === 'object'
+          ? (option.id ?? option.value ?? option.code ?? option.name ?? '')
+          : option;
+        const text = typeof option === 'object'
+          ? (option.name ?? option.label ?? option.title ?? value)
+          : option;
+        input.append(new Option(text, value));
+      }
+    } else {
+      input = document.createElement('input');
+      input.type = field.sensitive ? 'password' : 'text';
+      if (field.maxLength) input.maxLength = field.maxLength;
+      input.autocomplete = 'off';
+    }
+    input.addEventListener('input', () => {
+      draft[field.name] = input.value;
+    });
+    input.addEventListener('change', () => {
+      draft[field.name] = input.value;
+    });
+    label.append(input);
+    form.append(label);
+  }
+  wrap.append(form);
+
+  const actions = document.createElement('div');
+  actions.className = 'profile-section-actions';
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'btn primary small';
+  save.textContent = '保存';
+  save.hidden = !section.updateCapability;
+  save.addEventListener('click', () => saveProfileSection(section, draft, save));
+  actions.append(save);
+  wrap.append(actions);
+  els.profileSections.append(wrap);
+}
+
+async function saveProfileSection(section, draft, button) {
+  button.disabled = true;
+  try {
+    const payload = {};
+    for (const [key, value] of Object.entries(draft)) {
+      if (value === undefined || value === null || String(value).trim() === '') continue;
+      payload[key] = /^\d+$/.test(String(value)) ? Number(value) : value;
+    }
+    let task = await api(`/api/v1/profile/forms/${encodeURIComponent(section.agentKey)}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (task.status === 'WAITING_CONFIRM') {
+      const confirmed = await askConfirm(
+        `确认保存「${section.title || section.displayName || section.agentKey}」？`,
+        { title: '保存资料', confirmText: '确认保存', danger: false },
+      );
+      if (!confirmed) return;
+      task = await api(`/api/v1/tasks/${task.taskNo}/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ decision: 'APPROVE', comment: '个人信息保存' }),
+      });
+      if (task.status === 'FAILED' || task.status === 'REJECTED') {
+        throw new Error(task.error?.message || '保存失败');
+      }
+    } else if (task.status !== 'SUCCEEDED') {
+      throw new Error(task.error?.message || '保存未完成');
+    }
+    showToast('资料已保存');
+  } catch (error) {
+    showToast(error.message || '保存失败');
+  } finally {
+    button.disabled = false;
   }
 }
 

@@ -104,7 +104,10 @@
 - 启动加载不主动探活，避免子 Agent 不可达拖慢启动；健康由管理端按需查询。
 - 测试：新增 `AgentRegistryBootstrapTest`，`AgentInstallServiceTest` 增加持久化断言；全量 Java 68/68 通过。
 - MySQL 真实迁移与重启恢复尚未在共享 `wuye_agent_db` 执行，计划 H4 回归前验证。
-- H2（Manifest 表单聚合）、H3（Agent Card 权限声明）、H4（回归 + 重新冻结）待实现。
+- H2 已实现：`AgentAdapter.manifest()`（2 秒短超时）、`AgentManifestService`（物业 + 运行时 Agent，5 分钟缓存）、
+  `/api/v1/profile/forms` 系列接口、个人中心 `#profileSections` 分段渲染；旧接口保留。
+- H2 测试：`AgentManifestServiceTest` 3 项；`PrototypeSmokeTest` 27 项；全量 Java 72/72 通过。
+- H3（Agent Card 权限声明）、H4（回归 + 重新冻结）待实现。
 - 设计文档：`docs/07-底座通用加固.md`；外部项目方案：`flow-agent/docs/08-底座通用加固方案.md`。
 
 ## 下一步
