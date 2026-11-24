@@ -19,6 +19,8 @@ wuye:
     mode: ${WUYE_AGENT_MODE:mock}
     connect-timeout-ms: 3000
     read-timeout-ms: 20000
+    registry:
+      load-on-startup: ${AGENT_REGISTRY_LOAD_ON_STARTUP:true}
     property:
       base-url: ${AGENT_PROPERTY_BASE_URL:http://127.0.0.1:8402}
       internal-token: ${AGENT_PROPERTY_INTERNAL_TOKEN:}

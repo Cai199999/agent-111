@@ -18,6 +18,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,7 +37,9 @@ import org.springframework.stereotype.Service;
  *   <li>从外部 Agent Card URL 安装 Canonical v1 HTTP Agent（只注册契约，不执行任意代码）。</li>
  * </ol>
  *
- * <p>安装是内存态，重启后消失；生产化应落 {@code wa_agent_registry} 并加审批/SSRF 防护。</p>
+ * <p>安装成功后写入 {@code wa_agent_registry}（H1），重启由
+ * {@link AgentRegistryBootstrap} 恢复；模板 Agent 按 template_key 恢复。
+ * 生产化仍应加安装审批与显式 SSRF allowlist。</p>
  */
 @Service
 public class AgentInstallService {
@@ -49,22 +52,38 @@ public class AgentInstallService {
     private final HttpAgentSupport support;
     private final AgentHttpProperties properties;
     private final ObjectMapper mapper;
+    private final AgentRegistryStore registryStore;
     private final HttpClient http;
 
     public AgentInstallService(AdapterRegistry registry, DynamicAgentRegistry dynamicRegistry,
                                HttpAgentSupport support, AgentHttpProperties properties,
-                               ObjectMapper mapper) {
+                               ObjectMapper mapper, AgentRegistryStore registryStore) {
         this.registry = registry;
         this.dynamicRegistry = dynamicRegistry;
         this.support = support;
         this.properties = properties;
         this.mapper = mapper;
+        this.registryStore = registryStore;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
     }
 
     public Map<String, Object> installTemplate(String template) {
+        return installTemplate(template, "system");
+    }
+
+    public Map<String, Object> installTemplate(String template, String installedBy) {
+        return installTemplateInternal(template, installedBy, true);
+    }
+
+    /** 启动恢复用：只注册，不重复写注册表。 */
+    Map<String, Object> restoreTemplate(String template) {
+        return installTemplateInternal(template, "restore", false);
+    }
+
+    private Map<String, Object> installTemplateInternal(String template, String installedBy,
+                                                        boolean persist) {
         if (template == null || template.isBlank()
                 || !INSPECTION_TEMPLATE.equalsIgnoreCase(template)) {
             throw ApiException.badRequest("TEMPLATE_UNKNOWN", "未知安装模板：" + template);
@@ -74,11 +93,24 @@ public class AgentInstallService {
         }
         DynamicInspectionAgent adapter = new DynamicInspectionAgent();
         register(adapter);
-        log.info("installed template agent {}", adapter.descriptor().agentKey());
+        if (persist) {
+            try {
+                registryStore.save(templateEntry(adapter.descriptor(), template, installedBy));
+            } catch (RuntimeException ex) {
+                rollback(adapter);
+                throw ex;
+            }
+        }
+        log.info("installed template agent {} persist={}", adapter.descriptor().agentKey(), persist);
         return view(adapter.descriptor(), adapter.health());
     }
 
     public Map<String, Object> installFromCardUrl(String cardUrl, String internalToken) {
+        return installFromCardUrl(cardUrl, internalToken, "system");
+    }
+
+    public Map<String, Object> installFromCardUrl(String cardUrl, String internalToken,
+                                                  String installedBy) {
         if (cardUrl == null || cardUrl.isBlank()) {
             throw ApiException.badRequest("CARD_URL_REQUIRED", "请提供 Agent Card URL");
         }
@@ -116,6 +148,7 @@ public class AgentInstallService {
         endpoint.setActorId("10001");
         endpoint.setRoles("ADMIN");
         endpoint.setTenantId("0");
+        endpoint.setManifestPath(endpointPath(card, "manifest", "/agent/v1/manifest"));
         endpoint.setUseDelegation(false);
 
         DynamicHttpAgentAdapter adapter = new DynamicHttpAgentAdapter(support, endpoint, descriptor);
@@ -125,7 +158,13 @@ public class AgentInstallService {
                     "Agent 健康检查失败：" + health.health() + " / " + health.ready());
         }
         register(adapter);
-        log.info("installed http agent {} from {}", agentKey, cardUri);
+        try {
+            registryStore.save(httpEntry(descriptor, endpoint, installedBy));
+        } catch (RuntimeException ex) {
+            rollback(adapter);
+            throw ex;
+        }
+        log.info("installed http agent {} from {} persist=true", agentKey, cardUri);
         return view(descriptor, health);
     }
 
@@ -139,6 +178,12 @@ public class AgentInstallService {
         }
         dynamicRegistry.markRemoved(agentKey,
                 removed.descriptor().capabilities().stream().map(Capability::capabilityId).toList());
+        try {
+            registryStore.remove(agentKey);
+        } catch (RuntimeException ex) {
+            // 内存已移除但注册表未标记成功：记录错误，重启后可能被恢复，需人工处理。
+            log.error("移除 Agent 注册记录失败 agent={} error={}", agentKey, ex.getMessage());
+        }
         if (removed instanceof AutoCloseable closeable) {
             try {
                 closeable.close();
@@ -154,6 +199,77 @@ public class AgentInstallService {
         registry.register(adapter);
         dynamicRegistry.markInstalled(adapter.descriptor().agentKey(),
                 adapter.descriptor().capabilities().stream().map(Capability::capabilityId).toList());
+    }
+
+    /** 写注册表失败时回滚内存注册，避免“内存有、库里没有”。 */
+    private void rollback(AgentAdapter adapter) {
+        String agentKey = adapter.descriptor().agentKey();
+        registry.unregister(agentKey);
+        dynamicRegistry.markRemoved(agentKey,
+                adapter.descriptor().capabilities().stream().map(Capability::capabilityId).toList());
+    }
+
+    private AgentRegistryEntry httpEntry(AgentDescriptor descriptor,
+                                         AgentHttpProperties.Endpoint endpoint,
+                                         String installedBy) {
+        Instant now = Instant.now();
+        return new AgentRegistryEntry(
+                descriptor.agentKey(),
+                descriptor.displayName(),
+                descriptor.contractVersion(),
+                descriptor.dialect(),
+                AgentRegistryEntry.KIND_HTTP,
+                null,
+                descriptorJson(descriptor),
+                endpoint.getBaseUrl(),
+                endpoint.getInternalToken(),
+                endpoint.getAudience(),
+                endpoint.getActorId(),
+                endpoint.getRoles(),
+                endpoint.getTenantId(),
+                endpoint.isUseDelegation(),
+                descriptor.healthPath(),
+                descriptor.readyPath(),
+                endpoint.getManifestPath(),
+                AgentRegistryEntry.STATUS_ACTIVE,
+                installedBy,
+                now,
+                now);
+    }
+
+    private AgentRegistryEntry templateEntry(AgentDescriptor descriptor, String template,
+                                             String installedBy) {
+        Instant now = Instant.now();
+        return new AgentRegistryEntry(
+                descriptor.agentKey(),
+                descriptor.displayName(),
+                descriptor.contractVersion(),
+                descriptor.dialect(),
+                AgentRegistryEntry.KIND_TEMPLATE,
+                template,
+                descriptorJson(descriptor),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                descriptor.healthPath(),
+                descriptor.readyPath(),
+                null,
+                AgentRegistryEntry.STATUS_ACTIVE,
+                installedBy,
+                now,
+                now);
+    }
+
+    private String descriptorJson(AgentDescriptor descriptor) {
+        try {
+            return mapper.writeValueAsString(descriptor);
+        } catch (Exception ex) {
+            throw new IllegalStateException("序列化 Agent 描述失败：" + descriptor.agentKey(), ex);
+        }
     }
 
     private JsonNode fetchCard(URI cardUri) {

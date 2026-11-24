@@ -97,6 +97,16 @@
 - 面试材料：`docs/demo/面试问答与技术选型.md`（技术栈全景、12 项选型取舍、12 个踩坑、40+ 问题、GIS/苍穹映射、边界话术）。
 - 当前运行方式：`bash scripts/start-demo.sh`；已监听 8600/8700。演示前可选 `bash scripts/reset-demo-data.sh --yes` 清数据后重跑 smoke。
 
+## 2026-11-24 底座通用加固（H1）
+
+- 分支：`feat/base-hardening`；目标是在接入外部 Agent 前补齐三项通用能力，完成后打 `base-v1.1-2026-11-24` 重新冻结。
+- H1 已实现：`wa_agent_registry` 表（V11）、`AgentRegistryStore` + 内存/MySQL 实现、`AgentRegistryBootstrap` 启动加载、安装写库/卸载标记/失败回滚、内部令牌 AES-GCM 加密落库。
+- 启动加载不主动探活，避免子 Agent 不可达拖慢启动；健康由管理端按需查询。
+- 测试：新增 `AgentRegistryBootstrapTest`，`AgentInstallServiceTest` 增加持久化断言；全量 Java 68/68 通过。
+- MySQL 真实迁移与重启恢复尚未在共享 `wuye_agent_db` 执行，计划 H4 回归前验证。
+- H2（Manifest 表单聚合）、H3（Agent Card 权限声明）、H4（回归 + 重新冻结）待实现。
+- 设计文档：`docs/07-底座通用加固.md`；外部项目方案：`flow-agent/docs/08-底座通用加固方案.md`。
+
 ## 下一步
 
 1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。

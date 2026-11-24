@@ -12,6 +12,7 @@
 | [`docs/04-API接口设计清单.md`](docs/04-API接口设计清单.md) | 用户端/内部 API、SSE 事件、子 Agent 映射、错误码 |
 | [`docs/05-最终设计方案与开发规范.md`](docs/05-最终设计方案与开发规范.md) | 代码结构、编码/测试/Git 规范、启动、阶段计划、ADR |
 | [`docs/06-Agent接入与扩展规范.md`](docs/06-Agent接入与扩展规范.md) | Canonical v1、Adapter SPI、新 Agent 接入 SOP、自定义 Agent 边界 |
+| [`docs/07-底座通用加固.md`](docs/07-底座通用加固.md) | H1 注册持久化 / H2 表单聚合 / H3 权限声明的设计与状态 |
 | [`docs/memory/00_project_brief.md`](docs/memory/00_project_brief.md) | 项目 brief 与当前状态 |
 | [`docs/demo/README.md`](docs/demo/README.md) | 面试材料索引：必读 4 份、附录、不建议展示的材料 |
 | [`docs/demo/面试演示脚本.md`](docs/demo/面试演示脚本.md) | 8 分钟演示流程、苍穹数码场景映射、高频问答、风险兜底 |

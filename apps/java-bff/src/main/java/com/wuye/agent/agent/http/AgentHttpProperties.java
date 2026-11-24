@@ -66,6 +66,7 @@ public class AgentHttpProperties {
         private String actorId = "10001";
         private String roles = "ADMIN";
         private String tenantId = "0";
+        private String manifestPath = "/agent/v1/manifest";
         private String delegationPath = "/agent/v1/delegation/token";
         private String delegationScopes = "*";
         private boolean useDelegation = true;
@@ -116,6 +117,14 @@ public class AgentHttpProperties {
 
         public void setTenantId(String tenantId) {
             this.tenantId = tenantId;
+        }
+
+        public String getManifestPath() {
+            return manifestPath;
+        }
+
+        public void setManifestPath(String manifestPath) {
+            this.manifestPath = manifestPath;
         }
 
         public String getDelegationPath() {

@@ -1,6 +1,7 @@
 package com.wuye.agent.agent.install;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,6 +27,7 @@ class AgentInstallServiceTest {
     private HttpServer server;
     private AgentInstallService service;
     private AdapterRegistry registry;
+    private InMemoryAgentRegistryStore store;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -40,7 +42,8 @@ class AgentInstallServiceTest {
         registry = new AdapterRegistry(List.of());
         DynamicAgentRegistry dynamicRegistry = new DynamicAgentRegistry();
         HttpAgentSupport support = new HttpAgentSupport(properties, mapper);
-        service = new AgentInstallService(registry, dynamicRegistry, support, properties, mapper);
+        store = new InMemoryAgentRegistryStore();
+        service = new AgentInstallService(registry, dynamicRegistry, support, properties, mapper, store);
     }
 
     @AfterEach
@@ -59,9 +62,11 @@ class AgentInstallServiceTest {
         assertNotNull(registry.get("external-demo-agent"));
         assertTrue(registry.capability("external.demo.query").isPresent());
         assertTrue(registry.capability("external.demo.write").isPresent());
+        assertTrue(store.find("external-demo-agent").map(AgentRegistryEntry::active).orElse(false));
 
         service.uninstall("external-demo-agent");
         assertTrue(registry.capability("external.demo.query").isEmpty());
+        assertFalse(store.find("external-demo-agent").map(AgentRegistryEntry::active).orElse(false));
     }
 
     private void card(HttpExchange exchange) throws IOException {

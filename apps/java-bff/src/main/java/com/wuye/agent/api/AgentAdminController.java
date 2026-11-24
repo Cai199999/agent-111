@@ -7,6 +7,7 @@ import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.AgentHealth;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.auth.AuthContext;
+import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
 import com.wuye.agent.common.ApiResponse;
@@ -76,15 +77,17 @@ public class AgentAdminController {
     public ApiResponse<Map<String, Object>> install(
             @RequestBody(required = false) InstallRequest request,
             @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
-        policyService.requireAdmin(AuthContext.require());
+        AuthUser user = AuthContext.require();
+        policyService.requireAdmin(user);
         if (request == null) {
             throw ApiException.badRequest("INSTALL_REQUEST_REQUIRED", "请提供 template 或 cardUrl");
         }
         Map<String, Object> result;
         if (request.template() != null && !request.template().isBlank()) {
-            result = installService.installTemplate(request.template());
+            result = installService.installTemplate(request.template(), user.actorId());
         } else {
-            result = installService.installFromCardUrl(request.cardUrl(), request.internalToken());
+            result = installService.installFromCardUrl(request.cardUrl(), request.internalToken(),
+                    user.actorId());
         }
         return ApiResponse.ok(result, trace(traceId));
     }
