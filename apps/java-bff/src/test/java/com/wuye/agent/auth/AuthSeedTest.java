@@ -14,7 +14,7 @@ class AuthSeedTest {
     @Test
     void demoUsersCoverEveryBusinessLevelWithUniqueActorIds() {
         List<AuthSeed.DemoUser> users = AuthSeed.demoUsers();
-        assertEquals(6, users.size());
+        assertEquals(8, users.size());
 
         Set<String> usernames = new HashSet<>();
         Set<String> actorIds = new HashSet<>();
@@ -23,10 +23,12 @@ class AuthSeedTest {
             assertTrue(actorIds.add(user.actorId()), "actorId 重复：" + user.actorId());
         }
 
-        assertTrue(usernames.containsAll(
-                Set.of("admin", "worker", "user", "senior", "contractor", "supervisor")));
-        assertTrue(actorIds.containsAll(
-                Set.of("10001", "10002", "10003", "20002", "20003", "20004")));
+        assertTrue(usernames.containsAll(Set.of(
+                "admin", "worker", "worker2", "user", "user2",
+                "senior", "contractor", "supervisor")));
+        assertTrue(actorIds.containsAll(Set.of(
+                "10001", "10002", "10004", "10003", "10005",
+                "20002", "20003", "20004")));
     }
 
     @Test

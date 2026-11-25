@@ -88,7 +88,10 @@ public final class AuthSeed {
                 new DemoUser("U0003", "user", "user123", "租户/用户", "10003", "USER"),
                 new DemoUser("U0004", "senior", "senior123", "物业高级员工", "20002", "WORKER"),
                 new DemoUser("U0005", "contractor", "contractor123", "施工工人", "20003", "WORKER"),
-                new DemoUser("U0006", "supervisor", "supervisor123", "监理", "20004", "WORKER"));
+                new DemoUser("U0006", "supervisor", "supervisor123", "监理", "20004", "WORKER"),
+                // 同一层级的第二个人：证明账号矩阵按层级而不是按具体人。
+                new DemoUser("U0007", "worker2", "worker2123", "物业普通员工B", "10004", "WORKER"),
+                new DemoUser("U0008", "user2", "user2123", "租户B", "10005", "USER"));
     }
 
     public static Set<String> rolesWithParents(Set<String> roles) {
