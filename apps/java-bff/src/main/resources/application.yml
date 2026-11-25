@@ -55,6 +55,9 @@ wuye:
   auth:
     jwt-secret: ${JWT_SECRET:}
     token-ttl-seconds: 28800
+  notify:
+    # 外部 Agent 写入站内通知的内部令牌；为空时内部接口拒绝写入。
+    token: ${NOTIFY_INTERNAL_TOKEN:}
   dev:
     admin-password: ${DEV_ADMIN_PASSWORD:admin123}
     worker-password: ${DEV_WORKER_PASSWORD:worker123}

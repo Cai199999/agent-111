@@ -474,6 +474,48 @@ body {
   border-radius: 999px; padding: 2px 7px; font-size: 10px;
 }
 
+/* 站内通知 */
+.notify-menu { position: relative; }
+.notify-btn {
+  position: relative; width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  display: grid; place-items: center; cursor: pointer;
+}
+.notify-btn:hover { border-color: #bcd0f7; color: var(--primary); background: var(--primary-weak); }
+.notify-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px;
+  padding: 0 4px; border-radius: 999px; background: #dc2626; color: #fff;
+  font-size: 10px; line-height: 17px; text-align: center; font-weight: 700;
+}
+.notify-badge[hidden] { display: none; }
+.notify-dropdown {
+  position: absolute; right: 0; top: 42px; width: 360px; max-width: calc(100vw - 32px);
+  padding: 0; z-index: 30;
+}
+.notify-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 13px;
+}
+.notify-head button {
+  border: 0; background: transparent; color: var(--primary); cursor: pointer; font-size: 12px;
+}
+.notify-list { max-height: 420px; overflow: auto; }
+.notify-empty { padding: 26px 16px; text-align: center; color: var(--muted); font-size: 12px; }
+.notify-item {
+  padding: 12px 14px; border-bottom: 1px solid var(--line); cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.notify-item:hover { background: #f8faff; }
+.notify-item.unread { background: #f3f7ff; }
+.notify-item.unread .notify-title::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--primary); margin-right: 6px; vertical-align: 1px;
+}
+.notify-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.notify-content { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.notify-meta { display: flex; justify-content: space-between; font-size: 11px; color: #9aa4b2; }
+.notify-source { color: var(--primary); }
+
 @media (max-width: 820px) {
   .profile-form { grid-template-columns: 1fr; }
   .top-actions .pill { display: none; }

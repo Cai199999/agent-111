@@ -47,6 +47,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 || path.startsWith("/css/")
                 || path.startsWith("/js/")
                 || path.startsWith("/vendor/")
+                || path.equals("/api/v1/internal/notifications")
                 || path.equals("/api/v1/auth/login");
     }
 

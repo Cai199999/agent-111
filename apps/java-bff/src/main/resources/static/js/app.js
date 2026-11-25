@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261125-preview1';
+const UI_VERSION = '20261125-notify1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -114,6 +114,12 @@ const VALUE_LABELS = {
   reviewStatus: { PENDING: '审核中', APPROVED: '已通过', REJECTED: '已拒绝', NONE: '未提交' },
 };
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (char) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]
+  ));
+}
+
 function readToken() {
   try {
     const value = localStorage.getItem(TOKEN_KEY);
@@ -173,6 +179,9 @@ const state = {
   profileOptions: {},
   profileData: {},
   profileDraft: {},
+  notifications: [],
+  notifyTimer: null,
+  notifyAbort: null,
 };
 
 const els = {
@@ -239,6 +248,12 @@ const els = {
   chatTitle: document.getElementById('chatTitle'),
   chatSub: document.getElementById('chatSub'),
   toast: document.getElementById('toast'),
+  notifyMenu: document.getElementById('notifyMenu'),
+  notifyButton: document.getElementById('notifyButton'),
+  notifyBadge: document.getElementById('notifyBadge'),
+  notifyDropdown: document.getElementById('notifyDropdown'),
+  notifyList: document.getElementById('notifyList'),
+  notifyReadAll: document.getElementById('notifyReadAll'),
 };
 
 const QUICK_PROMPTS = [
@@ -282,6 +297,7 @@ async function bootstrap() {
   renderCurrentUser();
   renderAgents();
   hideLogin();
+  startNotifications();
   await loadSessions();
   if (!state.sessions.length) {
     await createSession();
@@ -300,6 +316,19 @@ function bindEvents() {
       event.preventDefault();
       sendMessage();
     }
+  });
+  els.notifyButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    els.notifyDropdown.hidden = !els.notifyDropdown.hidden;
+    if (!els.notifyDropdown.hidden) {
+      refreshNotifications().catch(() => {});
+    }
+  });
+  els.notifyReadAll.addEventListener('click', () => markAllNotificationsRead());
+  els.notifyList.addEventListener('click', (event) => {
+    const item = event.target.closest('.notify-item');
+    if (!item) return;
+    openNotification(item.dataset.no);
   });
   els.userButton.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -320,6 +349,9 @@ function bindEvents() {
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.user-menu')) {
       els.userDropdown.hidden = true;
+    }
+    if (!event.target.closest('.notify-menu')) {
+      els.notifyDropdown.hidden = true;
     }
   });
   els.profileClose.addEventListener('click', () => {
@@ -402,6 +434,7 @@ function logoutLocal() {
   state.currentSession = null;
   state.polls.forEach((timer) => clearInterval(timer));
   state.polls.clear();
+  stopNotifications();
   showLogin();
 }
 
@@ -1551,7 +1584,147 @@ function saveSettings() {
   localStorage.setItem('wuye_notify', els.settingNotify.checked ? 'on' : 'off');
   localStorage.setItem('wuye_memory', els.settingMemory.checked ? 'on' : 'off');
   els.settingsModal.hidden = true;
+  if (els.settingNotify.checked) {
+    startNotifications();
+  } else {
+    stopNotifications();
+  }
   showToast('设置已保存');
+}
+
+function notifyEnabled() {
+  return localStorage.getItem('wuye_notify') !== 'off';
+}
+
+function stopNotifications() {
+  if (state.notifyTimer) {
+    clearInterval(state.notifyTimer);
+    state.notifyTimer = null;
+  }
+  if (state.notifyAbort) {
+    state.notifyAbort.abort();
+    state.notifyAbort = null;
+  }
+  state.notifications = [];
+  if (els.notifyBadge) els.notifyBadge.hidden = true;
+  if (els.notifyList) els.notifyList.innerHTML = '<div class="notify-empty">暂无通知</div>';
+}
+
+function startNotifications() {
+  if (!notifyEnabled() || !state.token) {
+    stopNotifications();
+    return;
+  }
+  refreshNotifications().catch(() => {});
+  if (state.notifyTimer) clearInterval(state.notifyTimer);
+  state.notifyTimer = setInterval(() => refreshNotifications().catch(() => {}), 30000);
+  connectNotificationStream();
+}
+
+async function refreshNotifications() {
+  const data = await api('/api/v1/notifications?limit=20');
+  state.notifications = data.items || [];
+  renderNotifications(Number(data.unread || 0));
+}
+
+function renderNotifications(unread) {
+  if (!els.notifyBadge || !els.notifyList) return;
+  const count = Number(unread || 0);
+  els.notifyBadge.textContent = count > 99 ? '99+' : String(count);
+  els.notifyBadge.hidden = count <= 0;
+  if (!state.notifications.length) {
+    els.notifyList.innerHTML = '<div class="notify-empty">暂无通知</div>';
+    return;
+  }
+  els.notifyList.innerHTML = state.notifications.map((item) => {
+    const unreadClass = item.status === 'UNREAD' ? ' unread' : '';
+    const time = item.createdAt ? new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false }) : '';
+    return `
+      <div class="notify-item${unreadClass}" data-no="${escapeHtml(item.notificationNo)}" data-link="${escapeHtml(item.linkUrl || '')}">
+        <div class="notify-title">${escapeHtml(item.title || '通知')}</div>
+        <div class="notify-content">${escapeHtml(item.content || '')}</div>
+        <div class="notify-meta"><span class="notify-source">${escapeHtml(item.sourceAgent || '')}</span><span>${escapeHtml(time)}</span></div>
+      </div>`;
+  }).join('');
+}
+
+async function openNotification(notificationNo) {
+  const item = state.notifications.find((entry) => entry.notificationNo === notificationNo);
+  if (item && item.status === 'UNREAD') {
+    try {
+      await api(`/api/v1/notifications/${encodeURIComponent(notificationNo)}/read`, { method: 'POST' });
+      item.status = 'READ';
+      const unread = state.notifications.filter((entry) => entry.status === 'UNREAD').length;
+      renderNotifications(unread);
+    } catch (error) {
+      console.warn('mark notification read failed', error);
+    }
+  }
+  if (item && item.linkUrl) {
+    window.open(item.linkUrl, '_blank', 'noopener');
+  }
+}
+
+async function markAllNotificationsRead() {
+  try {
+    const data = await api('/api/v1/notifications/read-all', { method: 'POST' });
+    state.notifications.forEach((item) => { item.status = 'READ'; });
+    renderNotifications(Number(data.unread || 0));
+  } catch (error) {
+    showToast(error.message || '操作失败');
+  }
+}
+
+async function connectNotificationStream() {
+  if (!notifyEnabled() || !state.token) return;
+  if (state.notifyAbort) state.notifyAbort.abort();
+  const controller = new AbortController();
+  state.notifyAbort = controller;
+  try {
+    const response = await fetch('/api/v1/notifications/stream', {
+      headers: { Authorization: `Bearer ${state.token}` },
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) return;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let index = buffer.indexOf('\n\n');
+      while (index >= 0) {
+        handleNotificationSse(buffer.slice(0, index));
+        buffer = buffer.slice(index + 2);
+        index = buffer.indexOf('\n\n');
+      }
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.warn('notification stream failed', error);
+    }
+  }
+  if (notifyEnabled() && state.token && state.notifyAbort === controller) {
+    setTimeout(connectNotificationStream, 5000);
+  }
+}
+
+function handleNotificationSse(chunk) {
+  const eventLine = chunk.split('\n').find((line) => line.startsWith('event:'));
+  const dataLine = chunk.split('\n').find((line) => line.startsWith('data:'));
+  if (eventLine && eventLine.slice(6).trim() !== 'notification') return;
+  if (!dataLine) return;
+  try {
+    const item = JSON.parse(dataLine.slice(5).trim());
+    if (!item || !item.notificationNo) return;
+    state.notifications = [item, ...state.notifications.filter((entry) => entry.notificationNo !== item.notificationNo)];
+    const unread = state.notifications.filter((entry) => entry.status === 'UNREAD').length;
+    renderNotifications(unread);
+    showToast(`新通知：${item.title || '站内通知'}`);
+  } catch (error) {
+    console.warn('bad notification event', error);
+  }
 }
 
 async function openDashboard() {

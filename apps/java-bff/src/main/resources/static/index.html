@@ -65,6 +65,23 @@
       <div class="top-actions">
         <span id="propertyPill" class="pill">物业 0.9.0</span>
         <span id="contractPill" class="pill">合同 0.7.0</span>
+        <div class="notify-menu" id="notifyMenu">
+          <button id="notifyButton" class="notify-btn" type="button" aria-label="站内通知" title="站内通知">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 22a2.6 2.6 0 0 0 2.6-2.4h-5.2A2.6 2.6 0 0 0 12 22Zm7-6.2v-1l-1.3-1.4V9a5.7 5.7 0 0 0-4.4-5.6V2.7a1.3 1.3 0 1 0-2.6 0v.7A5.7 5.7 0 0 0 6.3 9v4.4L5 14.8v1h14Z" fill="currentColor"/>
+            </svg>
+            <span id="notifyBadge" class="notify-badge" hidden>0</span>
+          </button>
+          <div id="notifyDropdown" class="dropdown notify-dropdown" hidden>
+            <div class="notify-head">
+              <span>站内通知</span>
+              <button id="notifyReadAll" type="button">全部已读</button>
+            </div>
+            <div id="notifyList" class="notify-list">
+              <div class="notify-empty">暂无通知</div>
+            </div>
+          </div>
+        </div>
         <div class="user-menu">
           <button id="userButton" class="user-btn" type="button">
             <span id="userAvatar" class="user-avatar">A</span>
