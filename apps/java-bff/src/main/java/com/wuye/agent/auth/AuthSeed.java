@@ -77,11 +77,18 @@ public final class AuthSeed {
                            String displayName, String actorId, String role) {
     }
 
+    /**
+     * 演示账号按“层级”而不是具体人建：同一层级可以有多人，业务身份由各 Agent
+     * 用 actorId 做本地绑定。这里只保证每个层级都有可登录的样例账号。
+     */
     public static List<DemoUser> demoUsers() {
         return List.of(
                 new DemoUser("U0001", "admin", "admin123", "管理员", "10001", "ADMIN"),
-                new DemoUser("U0002", "worker", "worker123", "工人", "10002", "WORKER"),
-                new DemoUser("U0003", "user", "user123", "普通用户", "10003", "USER"));
+                new DemoUser("U0002", "worker", "worker123", "物业普通员工", "10002", "WORKER"),
+                new DemoUser("U0003", "user", "user123", "租户/用户", "10003", "USER"),
+                new DemoUser("U0004", "senior", "senior123", "物业高级员工", "20002", "WORKER"),
+                new DemoUser("U0005", "contractor", "contractor123", "施工工人", "20003", "WORKER"),
+                new DemoUser("U0006", "supervisor", "supervisor123", "监理", "20004", "WORKER"));
     }
 
     public static Set<String> rolesWithParents(Set<String> roles) {

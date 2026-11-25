@@ -43,10 +43,12 @@ public class AuthBootstrap implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         long adminId = 0;
         for (AuthSeed.DemoUser demo : AuthSeed.demoUsers()) {
+            // 新增层级账号统一使用“用户名 + 123”的开发密码，生产必须改为 SSO/管理员创建。
             String password = switch (demo.username()) {
                 case "admin" -> adminPassword;
                 case "worker" -> workerPassword;
-                default -> userPassword;
+                case "user" -> userPassword;
+                default -> demo.username() + "123";
             };
             Timestamp now = Timestamp.from(Instant.now());
             jdbc.update("""

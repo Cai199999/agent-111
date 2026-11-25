@@ -3,6 +3,8 @@ package com.wuye.agent.agent.http;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.wuye.agent.auth.AuthContext;
+import com.wuye.agent.auth.AuthUser;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -81,14 +83,25 @@ public class HttpAgentSupport {
             if (notBlank(endpoint.getInternalToken())) {
                 builder.header("X-Internal-Token", endpoint.getInternalToken());
             }
+            // 身份以 actorId 为稳定键；当前请求有登录态时，透传真实角色与租户，
+            // 不再把所有动态 Agent 调用都伪装成 ADMIN。后台任务无登录态时回退到端点配置。
+            AuthUser current = AuthContext.get();
+            boolean sameActor = current != null
+                    && (actorId == null || actorId.isBlank() || actorId.equals(current.actorId()));
             if (notBlank(actorId)) {
                 builder.header("X-Actor-Id", actorId);
+            } else if (sameActor) {
+                builder.header("X-Actor-Id", current.actorId());
             }
-            if (notBlank(endpoint.getRoles())) {
-                builder.header("X-Actor-Roles", endpoint.getRoles());
+            String roles = sameActor ? String.join(",", new java.util.TreeSet<>(current.roles()))
+                    : endpoint.getRoles();
+            if (notBlank(roles)) {
+                builder.header("X-Actor-Roles", roles);
             }
-            if (notBlank(endpoint.getTenantId())) {
-                builder.header("X-Tenant-Id", endpoint.getTenantId());
+            String tenantId = sameActor && notBlank(current.tenantId())
+                    ? current.tenantId() : endpoint.getTenantId();
+            if (notBlank(tenantId)) {
+                builder.header("X-Tenant-Id", tenantId);
             }
             if (notBlank(traceId)) {
                 builder.header("X-Trace-Id", traceId);
