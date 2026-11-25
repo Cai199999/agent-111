@@ -110,8 +110,19 @@
 - H3 已实现：V12 给 `wa_permission` 加 `source`；`DynamicPermissionService`（Noop/MySQL 两实现）；
   Card `permissions` 安装写权限、卸载只撤销 `AGENT:<key>` 来源；未知角色/内置冲突拒绝安装；安装/卸载写审计。
 - H3 测试：`DynamicPermissionParseTest` 5 项；`AgentInstallServiceTest` 验证 grant/revoke；全量 Java 77/77 通过。
-- H4（回归 + MySQL 真实验证 + 重新冻结 `base-v1.1-2026-11-24`）待执行。
+- H4 已完成（2026-11-25）：见下节。
 - 设计文档：`docs/07-底座通用加固.md`；外部项目方案：`flow-agent/docs/08-底座通用加固方案.md`。
+
+## 2026-11-25 底座 H4 验收与重新冻结
+
+- 执行前备份 `wuye_agent_db` 到 `backups/wuye_agent_db_H4_20261125-091755.sql`（gitignore）。
+- Flyway v10 → v12：V11 `wa_agent_registry`、V12 `wa_permission.source` 已在共享库应用。
+- 测试：Java **77/77**、smoke **26/26**、E2E **101/101**（45.4s，LLM 开启、子 Agent mock）。
+- H1 重启验证：安装 `inspection-agent` → 重启 `restored=1`；卸载 → `REMOVED` → 重启不恢复。
+- H3 权限验证：临时 Card 安装写 3 条 `AGENT:<key>` 权限；BASE 只见只读能力，ADMIN 见读写；重启保留；卸载清零，内置 36 条权限不变。
+- 全程 mock，未启动/写入真实物业 8402、合同 8400；契约与 Adapter 未改。
+- 已打 annotated tag `base-v1.1-2026-11-24`，底座重新冻结；OA 只消费 v1.1。
+- 未覆盖：G-02/G-03 角色透传、G-05 规则路由关键词、G-06 SSRF allowlist、G-07 安装审批。
 
 ## 下一步
 
