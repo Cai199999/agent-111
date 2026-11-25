@@ -79,6 +79,13 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - 底座 `.env` 配 `NOTIFY_INTERNAL_TOKEN`，OA 的 `BASE_NOTIFY_TOKEN` 与之一致；
 - 顶栏铃铛显示未读，支持全部已读与点击跳转；SSE 断线重连 + 30 秒轮询兜底。
 
+签名身份断言：
+
+- 配置 `IDENTITY_ASSERTION_SECRET` 后，底座对动态 Agent 调用附带 `X-Identity-Assertion`；
+- 内容为 `actorId + roles + tenantId + aud + exp` 的 HMAC-SHA256 签名，120 秒过期；
+- 子 Agent 可自行校验；OA 已接入（`BASE_IDENTITY_SECRET` 与底座一致）。
+- 该断言只证明身份，不替代各 Agent 的本地业务授权。
+
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 
 ## 当前状态

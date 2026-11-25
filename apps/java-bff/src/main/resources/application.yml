@@ -58,6 +58,9 @@ wuye:
   notify:
     # 外部 Agent 写入站内通知的内部令牌；为空时内部接口拒绝写入。
     token: ${NOTIFY_INTERNAL_TOKEN:}
+  identity:
+    # 底座 → 子 Agent 的 HMAC 身份断言密钥；为空时不发送。
+    assertion-secret: ${IDENTITY_ASSERTION_SECRET:}
   dev:
     admin-password: ${DEV_ADMIN_PASSWORD:admin123}
     worker-password: ${DEV_WORKER_PASSWORD:worker123}

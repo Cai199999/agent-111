@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.wuye.agent.auth.AuthContext;
 import com.wuye.agent.auth.AuthUser;
+import com.wuye.agent.auth.IdentityAssertionService;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -37,6 +38,7 @@ public class HttpAgentSupport {
     private final ObjectMapper mapper;
     private final HttpClient http;
     private final Map<String, CachedToken> delegationCache = new ConcurrentHashMap<>();
+    private IdentityAssertionService identityAssertions;
 
     public HttpAgentSupport(AgentHttpProperties properties, ObjectMapper mapper) {
         this.properties = properties;
@@ -45,6 +47,12 @@ public class HttpAgentSupport {
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
                 .build();
+    }
+
+    /** 单测手工构造时可缺省；Spring 运行态注入签名服务。 */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setIdentityAssertions(IdentityAssertionService identityAssertions) {
+        this.identityAssertions = identityAssertions;
     }
 
     public HttpResult get(AgentHttpProperties.Endpoint endpoint, String path,
@@ -102,6 +110,12 @@ public class HttpAgentSupport {
                     ? current.tenantId() : endpoint.getTenantId();
             if (notBlank(tenantId)) {
                 builder.header("X-Tenant-Id", tenantId);
+            }
+            if (sameActor && identityAssertions != null && identityAssertions.enabled()) {
+                String assertion = identityAssertions.sign(current);
+                if (notBlank(assertion)) {
+                    builder.header(IdentityAssertionService.HEADER, assertion);
+                }
             }
             if (notBlank(traceId)) {
                 builder.header("X-Trace-Id", traceId);
