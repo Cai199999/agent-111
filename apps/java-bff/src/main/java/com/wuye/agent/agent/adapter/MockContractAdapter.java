@@ -12,6 +12,7 @@ import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,12 +167,10 @@ public class MockContractAdapter implements AgentAdapter {
             if (state.status == TaskStatus.CANCELLED) {
                 return;
             }
-            Object output = new LinkedHashMap<String, Object>() {{
-                put("summary", "审查完成：发现 3 个风险点");
-                put("findingsCount", 3);
-                put("findingsByLevel", Map.of("MAJOR", 1, "GENERAL", 2));
-                put("overall", "FAIL");
-            }};
+            String documentText = string(state.input, "documentText", "");
+            Object output = documentText.isBlank()
+                    ? defaultReviewOutput()
+                    : reviewDocument(documentText);
             state.status = TaskStatus.SUCCEEDED;
             state.output = output;
             state.progress = 100;
@@ -287,6 +286,65 @@ public class MockContractAdapter implements AgentAdapter {
     private Confirmation confirmation(String title, String risk, List<Confirmation.Field> fields) {
         return new Confirmation(UUID.randomUUID().toString(), title, risk, fields,
                 Instant.now().plus(10, ChronoUnit.MINUTES), "PENDING");
+    }
+
+    private static Object defaultReviewOutput() {
+        return new LinkedHashMap<String, Object>() {{
+            put("summary", "审查完成：发现 3 个风险点");
+            put("findingsCount", 3);
+            put("findingsByLevel", Map.of("MAJOR", 1, "GENERAL", 2));
+            put("overall", "FAIL");
+        }};
+    }
+
+    /**
+     * 附件文本的轻量 Mock 审查：验证“主 Agent 传 documentText → 子 Agent 出结论”的闭环。
+     * 真实合同 Agent 仍应返回页码/条款引用和更细的规则命中。
+     */
+    private static Object reviewDocument(String text) {
+        List<Map<String, Object>> findings = new ArrayList<>();
+        if (text.contains("违约金")) {
+            findings.add(Map.of(
+                    "level", "MAJOR",
+                    "ruleCode", "R-CON-003",
+                    "title", "违约金比例需核对",
+                    "snippet", snippet(text, "违约金")));
+        }
+        if (text.contains("付款")) {
+            findings.add(Map.of(
+                    "level", "GENERAL",
+                    "ruleCode", "R-CON-002",
+                    "title", "付款节点与验收条件需明确",
+                    "snippet", snippet(text, "付款")));
+        }
+        if (text.contains("保密")) {
+            findings.add(Map.of(
+                    "level", "GENERAL",
+                    "ruleCode", "R-CON-004",
+                    "title", "保密义务范围需确认",
+                    "snippet", snippet(text, "保密")));
+        }
+        int major = (int) findings.stream()
+                .filter(item -> "MAJOR".equals(item.get("level"))).count();
+        int general = findings.size() - major;
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("summary", "附件审查完成：发现 " + findings.size() + " 个风险点");
+        output.put("findingsCount", findings.size());
+        output.put("findingsByLevel", Map.of("MAJOR", major, "GENERAL", general));
+        output.put("findings", findings);
+        output.put("overall", major > 0 ? "FAIL" : findings.isEmpty() ? "PASS" : "PASS_WITH_RISK");
+        output.put("documentChars", text.length());
+        return output;
+    }
+
+    private static String snippet(String text, String keyword) {
+        int index = text.indexOf(keyword);
+        if (index < 0) {
+            return "";
+        }
+        int start = Math.max(0, index - 30);
+        int end = Math.min(text.length(), index + keyword.length() + 50);
+        return text.substring(start, end).replace('\n', ' ');
     }
 
     private static String string(Map<String, Object> input, String key, String fallback) {

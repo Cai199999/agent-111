@@ -8,6 +8,8 @@ import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.agent.model.Confirmation;
 import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
+import com.wuye.agent.attachment.ChatAttachmentContext;
+import com.wuye.agent.attachment.ChatAttachmentService;
 import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiException;
@@ -64,6 +66,7 @@ public class ChatService {
     private final PolicyService policyService;
     private final MemoryService memoryService;
     private final UserProfileService userProfileService;
+    private final ChatAttachmentService attachmentService;
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
@@ -76,7 +79,8 @@ public class ChatService {
                        Router router, LlmRouterClient llmRouterClient,
                        TaskService taskService, TaskRecoveryService recoveryService,
                        PolicyService policyService, MemoryService memoryService,
-                       UserProfileService userProfileService, Ids ids) {
+                       UserProfileService userProfileService,
+                       ChatAttachmentService attachmentService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.catalogService = catalogService;
@@ -89,11 +93,12 @@ public class ChatService {
         this.policyService = policyService;
         this.memoryService = memoryService;
         this.userProfileService = userProfileService;
+        this.attachmentService = attachmentService;
         this.ids = ids;
     }
 
     public void send(String sessionNo, String content, String clientMessageId,
-                     AuthUser user, String traceId, SseEmitter emitter) {
+                     String attachmentId, AuthUser user, String traceId, SseEmitter emitter) {
         try {
             SessionState session = store.getSession(sessionNo);
             if (session == null) {
@@ -101,10 +106,15 @@ public class ChatService {
                 emitter.complete();
                 return;
             }
-            if (content == null || content.isBlank()) {
+            content = content == null ? "" : content.trim();
+            boolean hasAttachment = attachmentId != null && !attachmentId.isBlank();
+            if (content.isBlank() && !hasAttachment) {
                 emit(emitter, "error", Map.of("code", "VALIDATION_ERROR", "message", "消息不能为空", "retryable", false));
                 emitter.complete();
                 return;
+            }
+            if (content.isBlank()) {
+                content = "请处理这个附件";
             }
 
             // 幂等：同一 clientMessageId 不重复执行（内存/MySQL 共用查询）
@@ -120,6 +130,9 @@ public class ChatService {
             if (clientMessageId != null) {
                 userMeta.put("clientMessageId", clientMessageId);
             }
+            if (hasAttachment) {
+                userMeta.put("attachmentId", attachmentId);
+            }
             ChatMessage userMessage = store.addMessage(session, "USER", content, "TEXT", userMeta, clientMessageId);
             emit(emitter, "meta", Map.of(
                     "sessionNo", sessionNo,
@@ -131,13 +144,71 @@ public class ChatService {
                 pendingIntents.remove(sessionNo);
                 pending = null;
             }
-            RouteDecision route = router.route(content, pending, session.summary,
-                    userProfileService.contextFor(user.id()));
-            // 用户用名称/描述而不是内部编码时：先做一次只读语义解析，唯一命中就继续执行。
-            if (route.needClarification()) {
-                RouteDecision resolved = semanticResolve(route, content, user, traceId);
-                if (resolved != null) {
-                    route = resolved;
+            ChatAttachmentContext attachmentContext = null;
+            RouteDecision route;
+            if (hasAttachment) {
+                attachmentContext = attachmentService.context(attachmentId, content, user);
+                if (attachmentContext.needsVision() && attachmentContext.promptText(1).isBlank()) {
+                    String message = "检测到扫描件/图片，当前主 Agent 只能处理可复制文本的 PDF/文本文件。"
+                            + "请上传文本层 PDF，或开启视觉解析后再试。";
+                    emit(emitter, "feedback", Map.of(
+                            "action", "NEEDS_VISION", "message", message, "retryable", false));
+                    emit(emitter, "delta", Map.of("content", message));
+                    emit(emitter, "done", Map.of("messageNo", "attachment-vision", "status", "CLARIFIED"));
+                    emitter.complete();
+                    return;
+                }
+                if ("FAILED".equals(attachmentContext.parseStatus())
+                        || "UNSUPPORTED".equals(attachmentContext.parseKind())) {
+                    String message = "附件解析失败，请换一个 PDF/TXT/MD/CSV 文件，或转人工处理。";
+                    emit(emitter, "feedback", Map.of(
+                            "action", "PARSE_FAILED", "message", message, "retryable", false));
+                    emit(emitter, "delta", Map.of("content", message));
+                    emit(emitter, "done", Map.of("messageNo", "attachment-parse", "status", "CLARIFIED"));
+                    emitter.complete();
+                    return;
+                }
+                if (attachmentContext.domain().unknown()) {
+                    String message = "我看到了附件，但无法判断这是 OA 单据还是合同。"
+                            + "请说明要做什么，例如“按请假单处理”或“审查这份合同”。";
+                    emit(emitter, "feedback", Map.of(
+                            "action", "ASK_DOMAIN", "message", message, "retryable", false));
+                    emit(emitter, "delta", Map.of("content", message));
+                    emit(emitter, "done", Map.of("messageNo", "attachment-domain", "status", "CLARIFIED"));
+                    emitter.complete();
+                    return;
+                }
+                if (attachmentContext.needsVision()) {
+                    emit(emitter, "feedback", Map.of(
+                            "action", "VISION_FALLBACK",
+                            "message", "附件是复杂版面/扫描件，先使用可提取文本；视觉复核尚未启用。",
+                            "retryable", false));
+                }
+                Map<String, Object> args = new LinkedHashMap<>();
+                if ("CONTRACT".equals(attachmentContext.domain().domain())) {
+                    args.put("attachmentId", attachmentContext.attachmentNo());
+                    args.put("fileName", attachmentContext.fileName());
+                    args.put("documentText", attachmentContext.promptText(12000));
+                    args.put("pageCount", attachmentContext.pageCount());
+                    args.put("userIntent", content);
+                } else {
+                    args.put("attachmentId", attachmentContext.attachmentNo());
+                    args.put("text", content + "\n\n附件内容：\n" + attachmentContext.promptText(6000));
+                }
+                route = RouteDecision.route(
+                        attachmentContext.domain().capabilityId(),
+                        args,
+                        attachmentContext.domain().confidence(),
+                        attachmentContext.domain().reason()).withRouter("ATTACHMENT");
+            } else {
+                route = router.route(content, pending, session.summary,
+                        userProfileService.contextFor(user.id()));
+                // 用户用名称/描述而不是内部编码时：先做一次只读语义解析，唯一命中就继续执行。
+                if (route.needClarification()) {
+                    RouteDecision resolved = semanticResolve(route, content, user, traceId);
+                    if (resolved != null) {
+                        route = resolved;
+                    }
                 }
             }
             Map<String, Object> routeEvent = new LinkedHashMap<>();
@@ -209,10 +280,45 @@ public class ChatService {
             ExecutionResult execution = executePlan(sessionNo, content, route, user, traceId);
             Capability capability = execution.capability();
             TaskRecord task = execution.task();
+            // 附件闭环需要拿到子 Agent 的最终结果做结构化验收；异步合同审查在此等待完成。
+            if (attachmentContext != null
+                    && (task.status == TaskStatus.PENDING || task.status == TaskStatus.RUNNING)) {
+                task = waitForTask(task.taskNo, 8000);
+            }
             RecoveryOutcome recovery = execution.recovery();
             emit(emitter, "task", taskEvent(task));
             for (TaskEvent event : task.events) {
                 emit(emitter, "task_event", eventView(task.taskNo, event));
+            }
+
+            // 主 Agent 的结构化验收：只检查子 Agent 结果是否完整，不替子 Agent 做业务判断。
+            String attachmentFeedback = attachmentContext == null
+                    ? null : attachmentFeedback(capability.capabilityId(), task);
+            if (attachmentFeedback != null) {
+                if (task.status == TaskStatus.SUCCEEDED) {
+                    emit(emitter, "result", Map.of(
+                            "taskNo", task.taskNo,
+                            "capabilityId", capability.capabilityId(),
+                            "output", task.output == null ? Map.of() : task.output));
+                }
+                emit(emitter, "feedback", Map.of(
+                        "taskNo", task.taskNo,
+                        "action", "NEED_MORE_INFO",
+                        "message", attachmentFeedback,
+                        "retryable", false));
+                ChatMessage assistant = store.addMessage(session, "ASSISTANT", attachmentFeedback,
+                        "TEXT", Map.of(
+                                "capabilityId", capability.capabilityId(),
+                                "taskNo", task.taskNo,
+                                "attachmentGate", true), null);
+                emit(emitter, "delta", Map.of("content", attachmentFeedback));
+                emit(emitter, "done", Map.of(
+                        "messageNo", assistant.messageNo(),
+                        "taskNo", task.taskNo,
+                        "status", "CLARIFIED"));
+                emitter.complete();
+                memoryService.updateAsync(sessionNo);
+                return;
             }
 
             // 自修复要求追问：保留 pending 上下文，下一轮用户补充后继续，不把技术错误抛给用户。
@@ -310,6 +416,58 @@ public class ChatService {
                 emitter.completeWithError(ex);
             }
         }
+    }
+
+    private TaskRecord waitForTask(String taskNo, long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        TaskRecord current = taskService.get(taskNo);
+        while (current != null
+                && (current.status == TaskStatus.PENDING || current.status == TaskStatus.RUNNING)
+                && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = taskService.get(taskNo);
+        }
+        return current == null ? taskService.get(taskNo) : current;
+    }
+
+    private String attachmentFeedback(String capabilityId, TaskRecord task) {
+        if (task.status != TaskStatus.SUCCEEDED) {
+            String message = task.error == null ? "未知原因" : task.error.message();
+            return "附件已解析，但子 Agent 没有完成处理：" + message + "。请补充信息或转人工。";
+        }
+        if (!(task.output instanceof Map<?, ?> output)) {
+            return null;
+        }
+        if ("oa.request.draft".equals(capabilityId)) {
+            List<String> missing = new ArrayList<>();
+            for (Object item : asList(output.get("questions"))) {
+                if (item instanceof Map<?, ?> question && question.get("text") != null) {
+                    missing.add(String.valueOf(question.get("text")));
+                }
+            }
+            for (Object item : asList(output.get("missing"))) {
+                missing.add(String.valueOf(item));
+            }
+            boolean submittable = Boolean.TRUE.equals(output.get("submittable"));
+            if (!missing.isEmpty() || !submittable) {
+                String detail = missing.isEmpty() ? "规则尚未通过" : String.join("；", missing);
+                return "已根据附件生成草稿，但还缺少必要信息：" + detail + "。请补充后我继续。";
+            }
+        }
+        if ("contract.review".equals(capabilityId)
+                && !output.containsKey("overall") && !output.containsKey("findings")) {
+            return "合同审查已返回，但缺少结论/风险明细。请补充合同编号或转人工复核。";
+        }
+        return null;
+    }
+
+    private static List<?> asList(Object value) {
+        return value instanceof List<?> list ? list : List.of();
     }
 
     public SessionState createSession(long userId, String title) {

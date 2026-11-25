@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261125-notify1';
+const UI_VERSION = '20261125-attach1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -182,6 +182,8 @@ const state = {
   notifications: [],
   notifyTimer: null,
   notifyAbort: null,
+  attachment: null,
+  uploading: false,
 };
 
 const els = {
@@ -254,6 +256,9 @@ const els = {
   notifyDropdown: document.getElementById('notifyDropdown'),
   notifyList: document.getElementById('notifyList'),
   notifyReadAll: document.getElementById('notifyReadAll'),
+  attachButton: document.getElementById('attachButton'),
+  attachInput: document.getElementById('attachInput'),
+  attachChip: document.getElementById('attachChip'),
 };
 
 const QUICK_PROMPTS = [
@@ -310,6 +315,15 @@ function bindEvents() {
   els.loginForm.addEventListener('submit', handleLogin);
   els.newSession.addEventListener('click', () => createSession().catch((e) => showToast(e.message)));
   els.send.addEventListener('click', sendMessage);
+  els.attachButton.addEventListener('click', () => els.attachInput.click());
+  els.attachInput.addEventListener('change', () => {
+    const file = els.attachInput.files?.[0];
+    els.attachInput.value = '';
+    if (file) uploadAttachment(file);
+  });
+  els.attachChip.addEventListener('click', (event) => {
+    if (event.target.closest('button')) clearAttachment();
+  });
   els.input.addEventListener('input', autoResize);
   els.input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -435,6 +449,7 @@ function logoutLocal() {
   state.polls.forEach((timer) => clearInterval(timer));
   state.polls.clear();
   stopNotifications();
+  clearAttachment();
   showLogin();
 }
 
@@ -680,9 +695,64 @@ function availablePrompts() {
   });
 }
 
+async function uploadAttachment(file) {
+  if (state.uploading) return;
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('附件不能超过 10MB');
+    return;
+  }
+  state.uploading = true;
+  els.attachButton.disabled = true;
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    if (state.currentSession) {
+      form.append('sessionNo', state.currentSession.sessionNo);
+    }
+    const response = await fetch('/api/v1/chat/attachments', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${state.token}` },
+      body: form,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.code !== 'OK') {
+      throw new Error(body.message || `上传失败 HTTP ${response.status}`);
+    }
+    state.attachment = body.data;
+    renderAttachmentChip();
+    showToast('附件已上传');
+  } catch (error) {
+    showToast(error.message || '附件上传失败');
+  } finally {
+    state.uploading = false;
+    els.attachButton.disabled = false;
+  }
+}
+
+function renderAttachmentChip() {
+  if (!els.attachChip) return;
+  if (!state.attachment) {
+    els.attachChip.hidden = true;
+    els.attachChip.innerHTML = '';
+    return;
+  }
+  const kind = state.attachment.parseKind === 'SIMPLE_TEXT' ? '文本' : '多模态';
+  els.attachChip.hidden = false;
+  els.attachChip.innerHTML = `
+    <b>${escapeHtml(state.attachment.fileName)}</b>
+    <span class="kind">${kind}</span>
+    <button type="button" title="移除附件">×</button>`;
+}
+
+function clearAttachment() {
+  state.attachment = null;
+  renderAttachmentChip();
+}
+
 async function sendMessage() {
   const content = els.input.value.trim();
-  if (!content || state.streaming) return;
+  const attachment = state.attachment;
+  if ((!content && !attachment) || state.streaming || state.uploading) return;
   if (!state.currentSession) {
     await createSession();
   }
@@ -693,7 +763,9 @@ async function sendMessage() {
   setSending(true);
   state.streaming = true;
 
-  appendUserMessage(content);
+  const display = attachment ? `${content || '请处理这个附件'}\n📎 ${attachment.fileName}` : content;
+  appendUserMessage(display);
+  clearAttachment();
   const assistant = appendAssistantMessage('');
   const clientMessageId = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -705,7 +777,11 @@ async function sendMessage() {
         'Accept': 'text/event-stream',
         'Authorization': `Bearer ${state.token}`,
       },
-      body: JSON.stringify({ content, clientMessageId }),
+      body: JSON.stringify({
+        content,
+        clientMessageId,
+        attachmentId: attachment ? attachment.attachmentNo : null,
+      }),
     });
     if (response.status === 401) {
       logoutLocal();

@@ -111,7 +111,11 @@
 
     <footer class="composer">
       <div class="composer-box">
-        <textarea id="input" rows="1" placeholder="例如：我有哪些待处理工单？"></textarea>
+        <button id="attachButton" class="attach-btn" type="button" title="上传附件">📎</button>
+        <input id="attachInput" type="file" hidden
+               accept=".pdf,.txt,.md,.csv,.png,.jpg,.jpeg"/>
+        <div id="attachChip" class="attach-chip" hidden></div>
+        <textarea id="input" rows="1" placeholder="例如：审查这份合同 / 按附件生成请假单"></textarea>
         <button id="send" class="btn primary">发送</button>
       </div>
       <div class="composer-hint">Enter 发送 · Shift+Enter 换行 · 写操作会先弹出确认卡片</div>

@@ -88,7 +88,7 @@ public class ChatController {
         requireOwnedSession(sessionNo);
         SseEmitter emitter = new SseEmitter(60_000L);
         chatService.send(sessionNo, request.content(), request.clientMessageId(),
-                AuthContext.require(), trace(traceId), emitter);
+                request.attachmentId(), AuthContext.require(), trace(traceId), emitter);
         return emitter;
     }
 
@@ -111,6 +111,6 @@ public class ChatController {
     public record CreateSessionRequest(String title) {
     }
 
-    public record SendMessageRequest(String content, String clientMessageId) {
+    public record SendMessageRequest(String content, String clientMessageId, String attachmentId) {
     }
 }

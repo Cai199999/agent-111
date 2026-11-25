@@ -86,6 +86,15 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - 子 Agent 可自行校验；OA 已接入（`BASE_IDENTITY_SECRET` 与底座一致）。
 - 该断言只证明身份，不替代各 Agent 的本地业务授权。
 
+聊天附件：
+
+- 对话框支持上传 PDF/TXT/MD/CSV/PNG/JPG（10MB 上限）；
+- 主 Agent 用 PDFBox 抽文本层，判定 `SIMPLE_TEXT` / `COMPLEX_MULTIMODAL`；
+- 按用户描述 + 附件内容判定 OA / 合同领域，把 `attachmentId + documentText + userIntent` 交给子 Agent；
+- 主 Agent 只做结构化验收：缺信息回问，不替子 Agent 编业务结论；
+- 扫描件/图片需要 OCR/视觉适配器，当前未接；
+- 合同附件需合同 Agent 8400 启动，或 `WUYE_AGENT_MODE=mock` 演示。
+
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 
 ## 当前状态

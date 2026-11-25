@@ -33,6 +33,13 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- 聊天附件：PDF 文本层解析 -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
         <!-- 认证与权限 -->
         <dependency>
             <groupId>org.springframework.security</groupId>

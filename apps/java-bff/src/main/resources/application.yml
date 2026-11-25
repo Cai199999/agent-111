@@ -61,6 +61,10 @@ wuye:
   identity:
     # 底座 → 子 Agent 的 HMAC 身份断言密钥；为空时不发送。
     assertion-secret: ${IDENTITY_ASSERTION_SECRET:}
+  attachment:
+    # 聊天附件本地存储；生产应替换为对象存储适配器
+    root: ${CHAT_ATTACHMENT_ROOT:data/chat-attachments}
+    max-bytes: ${CHAT_ATTACHMENT_MAX_BYTES:10485760}
   dev:
     admin-password: ${DEV_ADMIN_PASSWORD:admin123}
     worker-password: ${DEV_WORKER_PASSWORD:worker123}
