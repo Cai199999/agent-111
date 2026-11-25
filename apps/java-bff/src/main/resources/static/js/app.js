@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'wuye_token';
-const UI_VERSION = '20261121-uninstall1';
+const UI_VERSION = '20261125-preview1';
 window.__wuyeAppLoaded = true;
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELLED']);
 console.info(`[wuye] auth ui ${UI_VERSION}`);
@@ -928,6 +928,9 @@ function renderTaskCard(container, task) {
 
   if (task.output !== undefined && task.output !== null) {
     body.append(resultElement(task.output));
+    if (task.output && typeof task.output === 'object' && task.output.previewUrl) {
+      body.append(previewButton(task.output.previewUrl));
+    }
   }
 
   card.append(head, body);
@@ -941,6 +944,17 @@ function renderTaskCard(container, task) {
 function renderRawResult(container, output) {
   if (!container || output === undefined || output === null) return;
   container.append(resultElement(output));
+  if (output && typeof output === 'object' && output.previewUrl) {
+    container.append(previewButton(output.previewUrl));
+  }
+}
+
+function previewButton(url) {
+  const link = el('a', 'preview-btn', '预览单据');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
 }
 
 const TICKET_COLUMNS = [

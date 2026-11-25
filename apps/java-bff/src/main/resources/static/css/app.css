@@ -259,6 +259,14 @@ body {
 .btn.block { width: 100%; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .btn.small { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+.preview-btn {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  padding: 7px 14px; border-radius: 9px; font-size: 12px; font-weight: 600;
+  color: #fff; background: var(--primary); text-decoration: none;
+  border: 1px solid var(--primary); transition: .15s ease;
+}
+.preview-btn::before { content: "↗"; font-size: 13px; }
+.preview-btn:hover { background: #1d4ed8; }
 
 /* 输入区 */
 .composer {
