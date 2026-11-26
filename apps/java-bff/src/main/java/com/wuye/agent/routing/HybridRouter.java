@@ -77,8 +77,35 @@ public class HybridRouter implements Router {
                 || "batch.execute".equals(capabilityId)
                 || (capabilityId != null && (capabilityId.startsWith("policy.")
                 || capabilityId.startsWith("customer.")
-                || capabilityId.startsWith("inspect.")));
+                || capabilityId.startsWith("inspect.")
+                || capabilityId.startsWith("gis.")));
         if (deterministic && !rule.needClarification() && decision.needClarification()) {
+            return rule;
+        }
+        // 显式 ticketId 是确定性寻址：LLM 若漏字段或给出同一能力但没有 ticketId，
+        // 以规则结果为准，避免真实 0.11.0 写能力因缺 ticketId 被 400。
+        Object ruleTicketId = rule.args() == null ? null : rule.args().get("ticketId");
+        if (ruleTicketId != null && !rule.needClarification()
+                && (decision.needClarification()
+                || (rule.capabilityId() != null
+                && rule.capabilityId().equals(decision.capabilityId())
+                && (decision.args() == null || !decision.args().containsKey("ticketId"))))) {
+            return rule;
+        }
+        // 显式地块编号同理：规则已提取 parcelNo 时，不被 LLM 的“缺字段”覆盖。
+        Object ruleParcelNo = rule.args() == null ? null : rule.args().get("parcelNo");
+        if (ruleParcelNo != null && !rule.needClarification()
+                && (decision.needClarification()
+                || (rule.capabilityId() != null
+                && rule.capabilityId().equals(decision.capabilityId())
+                && (decision.args() == null || !decision.args().containsKey("parcelNo"))))) {
+            return rule;
+        }
+        // GIS 巡查需要先解析地块；规则已有只读前置计划时优先，避免 LLM 漏掉 parcelNo。
+        if (rule.hasPlan() && !rule.needClarification()
+                && capabilityId != null && capabilityId.startsWith("gis.")
+                && (decision.plan().isEmpty()
+                || decision.args() == null || !decision.args().containsKey("parcelNo"))) {
             return rule;
         }
         return decision;

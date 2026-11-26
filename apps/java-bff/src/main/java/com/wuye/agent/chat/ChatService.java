@@ -849,11 +849,15 @@ public class ChatService {
             }
 
             String keyword = first(args, "keyword", "description", "title", "query", content);
+            if (args.get("ticketId") != null) {
+                args.put("ticketId", normalizeNumericId("ticketId", args.get("ticketId")));
+            }
             try {
                 if (capabilityId.startsWith("property.ticket.")
                         && !"property.ticket.query".equals(capabilityId)
                         && !"property.ticket.create".equals(capabilityId)
-                        && blank(args.get("ticketNo"))) {
+                        && blank(args.get("ticketNo"))
+                        && blank(args.get("ticketId"))) {
                     Lookup lookup = lookup("property.ticket.query",
                             Map.of("keyword", keyword), user, ids.traceId());
                     if (lookup.single() != null) {
@@ -897,7 +901,8 @@ public class ChatService {
                 }
 
                 TaskRecord task = taskService.submit(session.sessionNo, capability, args,
-                        user.actorId(), ids.traceId());
+                        user.actorId(), ids.traceId(),
+                        skillCatalog.resolveForCapability(capability.capabilityId(), null));
                 RecoveryOutcome recovery = recoveryService.recover(session.sessionNo, content,
                         capability, args, task, user.actorId(), ids.traceId());
                 task = recovery.task();

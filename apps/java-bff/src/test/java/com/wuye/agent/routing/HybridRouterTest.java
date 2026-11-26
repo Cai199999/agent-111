@@ -42,6 +42,48 @@ class HybridRouterTest {
     }
 
     @Test
+    void explicitTicketIdRuleBeatsLlmClarification() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.clarify("请补充 ticketId", "missing")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("把工单 ID 2125796136400281602 派给 10002");
+
+        assertEquals("property.ticket.assign", decision.capabilityId());
+        assertEquals(2125796136400281602L, decision.args().get("ticketId"));
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
+    void explicitParcelNoRuleBeatsLlmClarification() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.clarify("请补充地块编号", "missing")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("为地块 P-2026-001 创建巡查任务");
+
+        assertEquals("gis.patrol.create", decision.capabilityId());
+        assertEquals("P-2026-001", decision.args().get("parcelNo"));
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
+    void gisPatrolPlanBeatsLlmDecisionWithoutParcelNo() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.route("gis.patrol.create", Map.of(), 0.9, "llm")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("安排人去江北 A-01 地块做一次变化图斑复核");
+
+        assertEquals("gis.patrol.create", decision.capabilityId());
+        assertTrue(decision.hasPlan());
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
     void llmCanAskForClarification() {
         AtomicInteger calls = new AtomicInteger();
         LlmRouterClient llm = message -> {

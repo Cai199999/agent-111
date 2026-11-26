@@ -3,6 +3,9 @@ package com.wuye.agent.routing;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 class RuleRouterTest {
@@ -22,6 +25,44 @@ class RuleRouterTest {
         assertTrue(decision.needClarification());
         assertEquals(null, decision.capabilityId());
         assertTrue(decision.clarification().contains("报修内容"));
+    }
+
+    @Test
+    void explicitTicketIdAssignUsesNumericId() {
+        RouteDecision decision = router.route("把工单 ID 2125796136400281602 派给 10002");
+
+        assertEquals("property.ticket.assign", decision.capabilityId());
+        assertEquals(2125796136400281602L, decision.args().get("ticketId"));
+        assertEquals("10002", decision.args().get("assigneeId"));
+        assertEquals(false, decision.needClarification());
+    }
+
+    @Test
+    void explicitTicketIdCloseUsesNumericId() {
+        RouteDecision decision = router.route("关闭工单 ID 2125796136400281602");
+
+        assertEquals("property.ticket.close", decision.capabilityId());
+        assertEquals(2125796136400281602L, decision.args().get("ticketId"));
+        assertEquals(false, decision.needClarification());
+    }
+
+    @Test
+    void batchAssignWithExplicitTicketIds() {
+        RouteDecision decision = router.route(
+                "把工单 ID 111111 派给 10002，把工单 ID 222222 派给 10003");
+
+        assertEquals("batch.execute", decision.capabilityId());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) decision.args().get("items");
+        assertEquals(2, items.size());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> first = (Map<String, Object>) items.get(0).get("args");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> second = (Map<String, Object>) items.get(1).get("args");
+        assertEquals(111111L, first.get("ticketId"));
+        assertEquals("10002", first.get("assigneeId"));
+        assertEquals(222222L, second.get("ticketId"));
+        assertEquals("10003", second.get("assigneeId"));
     }
 
     @Test

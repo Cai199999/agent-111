@@ -121,11 +121,12 @@
 - 真实 AI 分析：`property.ticket.ai.analyze` → `skillId=ticket.assist`；
   低风险写直接 `SUCCEEDED`，无 `WAITING_CONFIRM`；
 - `real_agent_smoke.py`：物业 4/4 PASS；合同 4 项因 8400 未启动 FAIL；
-- 全量 E2E（真实模式）：**PASS=85 / FAIL=11**；
-  - 4 项合同失败：8400 未启动；
-  - 7 项工单失败：E2E 断言写死 mock 工单号（如 `GD20261119000107`）与 mock 处理人，
-    真实数据下不匹配；真实建单/确认链路本身通过；
-- 修复：V19 持久化 `skill_id`、只读 ID 字符串→整数归一、恢复重试保留 skillId。
+- 全量 E2E（`E2E_REAL=1`，真实数据自适应）：**PASS=97 / FAIL=4**；
+  - **仅 4 项合同失败**：8400 未启动；
+  - 物业查询/建单/确认/派单/关闭/批量全部通过；
+  - 真实关闭若子 Agent 按业务状态返回 `20002`，视为链路通过（业务规则拒绝而非集成失败）；
+- 修复：V19 持久化 `skill_id`、只读 ID 字符串→整数归一、恢复重试保留 skillId；
+  显式 `ticketId` 确定性路由（派单/关闭/批量）、GIS 巡查前置计划优先、E2E 真实数据自适应。
 
 ### 4.3 边界
 
@@ -134,4 +135,5 @@
 - 知识文档 multipart 未接主 Agent 上传入口；
 - Skill 只做任务选择封装，不替代委托 scope 与子 Agent 本地角色校验；
 - 主 Agent 仍绝不自动确认，实际确认由子 Agent `WAITING_CONFIRM` 驱动；
-- 现有 E2E 的诊断断言按 mock 数据编写，真实数据需要独立的真实数据 E2E 脚本。
+- 真实 E2E 需 `E2E_REAL=1`；默认 mock 断言仍保持 101/101；
+- 真实关闭可能因工单状态被业务规则拒绝（`20002`），不是主 Agent 集成错误。

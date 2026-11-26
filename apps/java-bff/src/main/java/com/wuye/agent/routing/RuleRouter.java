@@ -19,6 +19,9 @@ import org.springframework.stereotype.Component;
 public class RuleRouter implements Router {
 
     private static final Pattern TICKET_NO = Pattern.compile("GD\\d{6,}");
+    /** 真实 0.11.0 的写能力按 ticketId（数字）寻址。 */
+    private static final Pattern TICKET_ID = Pattern.compile(
+            "(?:工单\\s*(?:ID|id|编号|id号)|ticketId)\\s*[:：=]?\\s*(\\d{4,})");
     private static final Pattern CONTRACT_NO = Pattern.compile("HT[-A-Za-z0-9]+");
     private static final Pattern ASSIGNEE = Pattern.compile("(?:派给|分配给|给)\\s*(\\d{3,})");
     private static final Pattern CONTRACT_ID = Pattern.compile("(\\d{4,})");
@@ -206,6 +209,9 @@ public class RuleRouter implements Router {
         // 6. 物业域
         Matcher ticket = TICKET_NO.matcher(text);
         String ticketNo = ticket.find() ? ticket.group() : null;
+        Matcher ticketIdMatcher = TICKET_ID.matcher(text);
+        Long ticketId = ticketIdMatcher.find()
+                ? parseLong(ticketIdMatcher.group(1)) : null;
 
         // 一次派多个工单：拆成 batch.execute，每项一个 assign。
         if (countOccurrences(text, "派给") >= 2 || countOccurrences(text, "分配给") >= 2) {
@@ -215,8 +221,15 @@ public class RuleRouter implements Router {
                     continue;
                 }
                 Map<String, Object> args = new LinkedHashMap<>();
-                args.put("keyword", clause);
-                String worker = inferWorker(clause);
+                Matcher clauseTicketId = TICKET_ID.matcher(clause);
+                if (clauseTicketId.find()) {
+                    args.put("ticketId", parseLong(clauseTicketId.group(1)));
+                } else {
+                    args.put("keyword", clause);
+                }
+                Matcher clauseAssignee = ASSIGNEE.matcher(clause);
+                String worker = clauseAssignee.find()
+                        ? clauseAssignee.group(1) : inferWorker(clause);
                 if (worker != null) {
                     args.put("assigneeId", worker);
                 }
@@ -236,6 +249,15 @@ public class RuleRouter implements Router {
             Map<String, Object> finalArgs = new LinkedHashMap<>();
             if (assigneeId != null) {
                 finalArgs.put("assigneeId", assigneeId);
+            }
+            if (ticketId != null) {
+                finalArgs.put("ticketId", ticketId);
+                if (assigneeId == null) {
+                    return RouteDecision.clarify(
+                            "请说明派给谁，例如“派给张师傅”或“派给 10002”。", "派单缺少处理人");
+                }
+                return RouteDecision.route("property.ticket.assign", finalArgs, 0.95,
+                        "命中派单+工单ID");
             }
             if (ticketNo != null) {
                 finalArgs.put("ticketNo", ticketNo);
@@ -272,37 +294,37 @@ public class RuleRouter implements Router {
 
         // 工单生命周期动作：用户可只描述工单，ticketNo 交给主 Agent 语义解析。
         if (containsAny(text, "关闭", "关掉", "关单")) {
-            return ticketAction("property.ticket.close", ticketNo);
+            return ticketAction("property.ticket.close", ticketNo, ticketId);
         }
         if (containsAny(text, "接单")) {
-            return ticketAction("property.ticket.accept", ticketNo);
+            return ticketAction("property.ticket.accept", ticketNo, ticketId);
         }
         if (containsAny(text, "解决", "修好", "处理完")) {
-            return ticketAction("property.ticket.resolve", ticketNo);
+            return ticketAction("property.ticket.resolve", ticketNo, ticketId);
         }
         if (containsAny(text, "验证")) {
-            return ticketAction("property.ticket.verify", ticketNo);
+            return ticketAction("property.ticket.verify", ticketNo, ticketId);
         }
         if (containsAny(text, "挂起", "暂停")) {
-            return ticketAction("property.ticket.hold", ticketNo);
+            return ticketAction("property.ticket.hold", ticketNo, ticketId);
         }
         if (containsAny(text, "恢复")) {
-            return ticketAction("property.ticket.resume", ticketNo);
+            return ticketAction("property.ticket.resume", ticketNo, ticketId);
         }
         if (containsAny(text, "结束工单")) {
-            return ticketAction("property.ticket.finish", ticketNo);
+            return ticketAction("property.ticket.finish", ticketNo, ticketId);
         }
         if (containsAny(text, "取消工单")) {
-            return ticketAction("property.ticket.cancel", ticketNo);
+            return ticketAction("property.ticket.cancel", ticketNo, ticketId);
         }
         if (containsAny(text, "回访")) {
-            return ticketAction("property.ticket.visit.add", ticketNo);
+            return ticketAction("property.ticket.visit.add", ticketNo, ticketId);
         }
         if (containsAny(text, "评论", "备注")) {
-            return ticketAction("property.ticket.comment.add", ticketNo);
+            return ticketAction("property.ticket.comment.add", ticketNo, ticketId);
         }
         if (containsAny(text, "详情", "详细")) {
-            return ticketAction("property.ticket.detail", ticketNo);
+            return ticketAction("property.ticket.detail", ticketNo, ticketId);
         }
 
         // 注意：必须先判断“创建/新建 + 工单”，否则只命中“工单”会落到查询
@@ -329,6 +351,10 @@ public class RuleRouter implements Router {
             return RouteDecision.route("property.ticket.create", args, 0.9, "命中建单/报修");
         }
 
+        if (ticketId != null) {
+            return RouteDecision.route("property.ticket.detail",
+                    Map.of("ticketId", ticketId), 0.94, "命中工单ID详情");
+        }
         if (ticketNo != null) {
             if (containsAny(text, "详情", "详细", "看看", "查")) {
                 return RouteDecision.route("property.ticket.detail", Map.of("ticketNo", ticketNo), 0.94, "命中工单详情");
@@ -361,15 +387,33 @@ public class RuleRouter implements Router {
                 || normalized.equals("帮我创建工单");
     }
 
-    /** 工单动作：有工单号直接执行，没有则触发主 Agent 的只读语义解析。 */
-    private static RouteDecision ticketAction(String capabilityId, String ticketNo) {
-        if (ticketNo == null) {
+    /** 工单动作：有 ticketId/ticketNo 直接执行，没有则触发主 Agent 的只读语义解析。 */
+    private static RouteDecision ticketAction(String capabilityId, String ticketNo, Long ticketId) {
+        Map<String, Object> args = new LinkedHashMap<>();
+        if (ticketId != null) {
+            args.put("ticketId", ticketId);
+        }
+        if (ticketNo != null) {
+            args.put("ticketNo", ticketNo);
+        }
+        if (args.isEmpty()) {
             return new RouteDecision(capabilityId, Map.of(), 0.85, true,
                     "请描述要处理的工单，例如“3栋2单元漏水那个工单”。",
                     "命中工单操作", List.of(), List.of("ticketNo"), "RULE", null);
         }
-        return RouteDecision.route(capabilityId, Map.of("ticketNo", ticketNo), 0.9,
-                "命中工单操作");
+        return RouteDecision.route(capabilityId, args, 0.9,
+                ticketId != null ? "命中工单操作+工单ID" : "命中工单操作");
+    }
+
+    private static Long parseLong(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     /** 规则兜底的人名映射；LLM 正常会通过 optionCatalog.workers 自动映射。 */

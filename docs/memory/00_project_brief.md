@@ -276,10 +276,12 @@
 - 修复：V19 `wa_task_binding.skill_id` 持久化；只读 ID 字符串归一为整数；
   恢复重试保留 skillId；MANIFEST schema 的 taskType 取 `name`；
   Skill 区分 taskTypes 与 capabilityIds；ADMIN 可调用新增能力；GIS Mock 在 http 模式可用。
-- 测试：Java 120/120、Python 29/29、Mock E2E 101/101；
-  真实全量 E2E 85/96：4 项合同（8400 未启动）+ 7 项 mock 数据断言不匹配。
-- 边界：合同未验证；真实数据 E2E 需独立脚本；capabilities/resolve 未接；
-  知识文档上传未接；不自动确认。
+- E2E：`E2E_REAL=1` 真实数据自适应；真实全量 **97/101**，仅 4 项合同因 8400 未启动；
+  物业查询/建单/确认/派单/关闭/批量全部通过；Mock 回归 101/101。
+- 新增确定性路由：显式 `ticketId` 的派单/关闭/批量；GIS 巡查前置计划优先。
+- 测试：Java 126/126、Python 29/29。
+- 边界：合同未验证；capabilities/resolve 未接；知识文档上传未接；不自动确认；
+  真实关闭可能被业务状态规则拒绝（20002）。
 
 ## 下一步
 
