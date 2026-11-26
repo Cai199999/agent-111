@@ -26,7 +26,10 @@ import org.springframework.util.MultiValueMap;
  * 聊天附件闭环：上传 → 主 Agent 解析/路由 → 合同子 Agent 审查 → 结果返回。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "wuye.attachment.root=target/test-chat-attachments")
+        properties = {
+                "wuye.attachment.root=target/test-chat-attachments",
+                "wuye.flywheel.root=target/test-flywheel"
+        })
 class ChatAttachmentFlowTest {
 
     @LocalServerPort

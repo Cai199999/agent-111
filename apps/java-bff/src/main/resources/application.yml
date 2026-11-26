@@ -71,6 +71,15 @@ wuye:
     user-password: ${DEV_USER_PASSWORD:user123}
   rate-limit:
     per-minute: ${RATE_LIMIT_PER_MINUTE:300}
+  event:
+    # 第一阶段为进程内事件总线；后续替换为 Outbox + Kafka/Redis Stream
+    enabled: ${EVENT_BUS_ENABLED:true}
+    buffer-size: ${EVENT_BUFFER_SIZE:500}
+    source: ${EVENT_SOURCE:wuye-agent-bff}
+  flywheel:
+    # 任务终态样本落 JSONL，供离线评测/偏好数据使用
+    root: ${FLYWHEEL_ROOT:data/flywheel}
+    recent-size: ${FLYWHEEL_RECENT_SIZE:200}
 
 logging:
   level:

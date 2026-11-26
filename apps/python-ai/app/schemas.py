@@ -139,3 +139,53 @@ class RecoveryResponse(BaseModel):
     missingFields: list[str] = Field(default_factory=list)
     reason: str | None = None
     usage: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# 多 Agent 编排骨架（第一阶段）
+# Python 只做路由/计划/验收；真正调用子 Agent 的仍是 Java BFF。
+# ---------------------------------------------------------------------------
+
+
+class OrchestrationCapability(BaseModel):
+    capabilityId: str
+    agentKey: str | None = None
+    displayName: str | None = None
+    description: str | None = None
+    readOnly: bool = False
+    requiresConfirmation: bool = False
+
+
+class OrchestrationRequest(BaseModel):
+    traceId: str | None = None
+    sessionNo: str | None = None
+    userMessage: str = Field(min_length=1, max_length=4000)
+    actorId: str | None = None
+    tenantId: str | None = None
+    capabilities: list[OrchestrationCapability] = Field(default_factory=list)
+    # Java/上层已确定的计划；非空时优先于 Python 路由
+    plan: list[PlanStep] = Field(default_factory=list)
+    # PLAN_ONLY：只产出派发计划，由 Java 执行；MOCK：进程内 mock 跑通闭环
+    dispatchMode: str = "PLAN_ONLY"
+    maxRounds: int = 2
+
+
+class OrchestrationStepResult(BaseModel):
+    capabilityId: str
+    agentKey: str | None = None
+    status: str = "PENDING"
+    output: Any = None
+    error: str | None = None
+    missingFields: list[str] = Field(default_factory=list)
+
+
+class OrchestrationResponse(BaseModel):
+    verdict: str = "FAILED"
+    capabilityId: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+    plan: list[PlanStep] = Field(default_factory=list)
+    steps: list[OrchestrationStepResult] = Field(default_factory=list)
+    clarification: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    rounds: int = 0
+    usage: dict[str, Any] = Field(default_factory=dict)

@@ -29,6 +29,10 @@ public final class TaskRecord {
     public final List<TaskEvent> events = new CopyOnWriteArrayList<>();
 
     public volatile String childTaskId;
+    /** 创建任务的链路 ID；事件信封与排障统一使用。 */
+    public volatile String traceId;
+    /** 租户隔离标识；原型阶段来自登录用户，缺省为 "0"。 */
+    public volatile String tenantId = "0";
     public volatile TaskStatus status = TaskStatus.PENDING;
     public volatile Object output;
     public volatile AgentError error;

@@ -12,16 +12,25 @@ import com.wuye.agent.agent.model.Decision;
 import com.wuye.agent.agent.model.TaskEvent;
 import com.wuye.agent.agent.model.TaskStatus;
 import com.wuye.agent.audit.AuditService;
+import com.wuye.agent.auth.AuthContext;
+import com.wuye.agent.auth.AuthUser;
 import com.wuye.agent.common.ApiException;
+import com.wuye.agent.event.EventFactory;
+import com.wuye.agent.event.EventPublisher;
+import com.wuye.agent.event.EventTypes;
 import com.wuye.agent.human.HumanInterventionService;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.store.Store;
 import com.wuye.agent.store.TaskRecord;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -33,22 +42,37 @@ import org.springframework.stereotype.Service;
 @Service
 public class TaskService {
 
+    private static final Logger log = LoggerFactory.getLogger(TaskService.class);
+
     private final Store store;
     private final AdapterRegistry registry;
     private final InputSchemaValidator schemaValidator;
     private final AuditService auditService;
     private final HumanInterventionService humanInterventionService;
     private final Ids ids;
+    private final EventPublisher eventPublisher;
+    private final EventFactory eventFactory;
 
+    /** 兼容旧测试/手工构造：关闭事件出口。 */
     public TaskService(Store store, AdapterRegistry registry, InputSchemaValidator schemaValidator,
                        AuditService auditService, HumanInterventionService humanInterventionService,
                        Ids ids) {
+        this(store, registry, schemaValidator, auditService, humanInterventionService, ids,
+                EventPublisher.noop(), new EventFactory(ids, "wuye-agent-bff"));
+    }
+
+    @Autowired
+    public TaskService(Store store, AdapterRegistry registry, InputSchemaValidator schemaValidator,
+                       AuditService auditService, HumanInterventionService humanInterventionService,
+                       Ids ids, EventPublisher eventPublisher, EventFactory eventFactory) {
         this.store = store;
         this.registry = registry;
         this.schemaValidator = schemaValidator;
         this.auditService = auditService;
         this.humanInterventionService = humanInterventionService;
         this.ids = ids;
+        this.eventPublisher = eventPublisher == null ? EventPublisher.noop() : eventPublisher;
+        this.eventFactory = eventFactory;
     }
 
     public TaskRecord submit(String sessionNo, Capability capability, Map<String, Object> input,
@@ -64,7 +88,10 @@ public class TaskService {
         TaskRecord task = new TaskRecord(taskNo, sessionNo, capability.agentKey(), capability.capabilityId(),
                 clientTaskId, actorId, executionMode,
                 input == null ? Map.of() : input, Instant.now());
+        task.traceId = traceId;
+        task.tenantId = currentTenantId();
         store.putTask(task);
+        publishRequested(task, traceId);
 
         // LLM/用户参数先过最小 schema：缺必填/类型不对时不调用子 Agent，
         // 由上层自修复服务转成追问或修正，而不是把技术错误抛给用户。
@@ -82,6 +109,7 @@ public class TaskService {
             humanInterventionService.upsertPending(task.taskNo);
             auditService.record("TASK_SUBMIT", "TASK", task.taskNo, task.agentKey, task.capabilityId,
                     task.status.name(), Map.of("executionMode", executionMode, "validation", "FAILED"));
+            publishTerminal(task, traceId);
             return task;
         }
 
@@ -89,10 +117,10 @@ public class TaskService {
                 capability.capabilityId(), capability.taskType(), task.input, clientTaskId,
                 executionMode, actorId, traceId, traceId);
         try {
-            apply(task, adapter.submit(request));
+            apply(task, adapter.submit(request), traceId);
         } catch (Exception ex) {
             apply(task, AdapterResult.failed(task.childTaskId,
-                    AgentError.dependency("子 Agent 调用失败：" + ex.getMessage()), List.of()));
+                    AgentError.dependency("子 Agent 调用失败：" + ex.getMessage()), List.of()), traceId);
         }
         auditService.record("TASK_SUBMIT", "TASK", task.taskNo, task.agentKey, task.capabilityId,
                 task.status.name(), Map.of("executionMode", executionMode));
@@ -131,6 +159,7 @@ public class TaskService {
             store.removeConfirmationToken(confirmation.token());
             addSystemEvent(task, "ERROR", TaskStatus.FAILED, Map.of("message", "确认令牌已过期"));
             store.putTask(task);
+            publishTerminal(task, traceId);
             return task;
         }
 
@@ -141,7 +170,8 @@ public class TaskService {
 
         AdapterResult result = adapter.confirm(task.childTaskId, confirmation.token(), decision,
                 comment, task.actorId, traceId);
-        apply(task, result);
+        task.traceId = traceId;
+        apply(task, result, traceId);
         task.confirmationStatus = decision == Decision.APPROVE ? "APPROVED" : "REJECTED";
         if (task.confirmation != null) {
             task.confirmation = task.confirmation.withStatus(task.confirmationStatus);
@@ -172,7 +202,8 @@ public class TaskService {
             throw ApiException.notFound("AGENT_NOT_FOUND", "子 Agent 未注册：" + task.agentKey);
         }
         AdapterResult result = adapter.cancel(task.childTaskId, reason, task.actorId, traceId);
-        apply(task, result);
+        task.traceId = traceId;
+        apply(task, result, traceId);
         task.cancelReason = reason;
         if (task.confirmation != null) {
             task.confirmation = task.confirmation.withStatus("CANCELLED");
@@ -200,15 +231,18 @@ public class TaskService {
         }
         AdapterResult result = adapter.getTask(task.childTaskId, task.actorId, null);
         if (result != null) {
-            apply(task, result);
+            apply(task, result, task.traceId);
         }
     }
 
-    private void apply(TaskRecord task, AdapterResult result) {
+    private void apply(TaskRecord task, AdapterResult result, String traceId) {
+        TaskStatus previous = task.status;
         if (result == null) {
             task.status = TaskStatus.FAILED;
             task.error = AgentError.dependency("子 Agent 未返回结果");
             task.finishedAt = Instant.now();
+            store.putTask(task);
+            publishTransition(task, previous, traceId);
             return;
         }
         if (result.childTaskId() != null) {
@@ -251,6 +285,113 @@ public class TaskService {
                 || task.status == TaskStatus.CANCELLED) {
             humanInterventionService.autoResolve(task.taskNo, "任务已结束：" + task.status);
         }
+        publishTransition(task, previous, traceId);
+    }
+
+    // ------------------------------------------------------------------
+    // 事件出口：只发“状态迁移”，轮询刷新不会重复发终态事件。
+    // 事件故障被 InMemoryEventBus 隔离，绝不影响任务主流程。
+    // ------------------------------------------------------------------
+
+    private void publishRequested(TaskRecord task, String traceId) {
+        Map<String, Object> payload = basePayload(task);
+        payload.put("executionMode", task.executionMode);
+        payload.put("input", task.input);
+        publish(EventTypes.TASK_REQUESTED, task, traceId, payload);
+    }
+
+    private void publishTransition(TaskRecord task, TaskStatus previous, String traceId) {
+        if (previous == task.status) {
+            return;
+        }
+        if (task.status == TaskStatus.WAITING_CONFIRM) {
+            publishConfirmationRequested(task, traceId);
+        } else if (task.status.terminal()) {
+            publishTerminal(task, traceId);
+        }
+    }
+
+    private void publishConfirmationRequested(TaskRecord task, String traceId) {
+        Map<String, Object> payload = basePayload(task);
+        Confirmation confirmation = task.confirmation;
+        if (confirmation != null) {
+            // 只暴露确认卡展示字段；token 永不进入事件。
+            payload.put("title", confirmation.title());
+            payload.put("riskLevel", confirmation.riskLevel());
+            payload.put("expiresAt", confirmation.expiresAt());
+            payload.put("confirmationStatus", task.confirmationStatus);
+        }
+        publish(EventTypes.TASK_CONFIRMATION_REQUESTED, task, traceId, payload);
+    }
+
+    private void publishTerminal(TaskRecord task, String traceId) {
+        String eventType = switch (task.status) {
+            case SUCCEEDED -> EventTypes.TASK_COMPLETED;
+            case CANCELLED -> EventTypes.TASK_CANCELLED;
+            default -> EventTypes.TASK_FAILED;
+        };
+        Map<String, Object> payload = basePayload(task);
+        payload.put("status", task.status.name());
+        payload.put("durationMs", durationMs(task));
+        payload.put("input", task.input);
+        if (task.output != null) {
+            payload.put("output", task.output);
+        }
+        if (task.error != null) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("code", task.error.code());
+            error.put("category", task.error.category());
+            error.put("retryable", task.error.retryable());
+            error.put("message", task.error.message());
+            payload.put("error", error);
+        }
+        if (task.status == TaskStatus.CANCELLED) {
+            payload.put("reason", task.cancelReason);
+        }
+        publish(eventType, task, traceId, payload);
+    }
+
+    private Map<String, Object> basePayload(TaskRecord task) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("taskNo", task.taskNo);
+        payload.put("sessionNo", task.sessionNo);
+        payload.put("agentKey", task.agentKey);
+        payload.put("capabilityId", task.capabilityId);
+        payload.put("actorId", task.actorId);
+        payload.put("tenantId", task.tenantId);
+        payload.put("childTaskId", task.childTaskId);
+        return payload;
+    }
+
+    private void publish(String eventType, TaskRecord task, String traceId,
+                         Map<String, Object> payload) {
+        try {
+            eventPublisher.publish(eventFactory.create(
+                    eventType,
+                    task.taskNo,
+                    eventType + ":" + task.taskNo,
+                    traceId == null ? task.traceId : traceId,
+                    task.actorId,
+                    task.tenantId,
+                    payload));
+        } catch (Exception ex) {
+            // 防御性兜底：即便自定义 Publisher 未遵守约定，也不能让事件拖垮任务。
+            log.warn("publish event failed type={} task={}", eventType, task.taskNo, ex);
+        }
+    }
+
+    private long durationMs(TaskRecord task) {
+        Instant start = task.startedAt != null ? task.startedAt : task.createdAt;
+        Instant end = task.finishedAt != null ? task.finishedAt : Instant.now();
+        return Math.max(0, Duration.between(start, end).toMillis());
+    }
+
+    private String currentTenantId() {
+        AuthUser user = AuthContext.get();
+        if (user == null || user.tenantId() == null || user.tenantId().isBlank()) {
+            return "0";
+        }
+        return user.tenantId();
     }
 
     private void addEvents(TaskRecord task, List<TaskEvent> incoming) {

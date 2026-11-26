@@ -95,6 +95,19 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - 扫描件/图片需要 OCR/视觉适配器，当前未接；
 - 合同附件需合同 Agent 8400 启动，或 `WUYE_AGENT_MODE=mock` 演示。
 
+事件出口与编排骨架（第一阶段，2026-11-26）：
+
+- 事件契约 v1：`agent.task.requested / confirmation.requested / completed / failed / cancelled`；
+  载荷不含确认令牌，信封含 `traceId/actorId/tenantId/subject/idempotencyKey`；
+- Java `EventPublisher` / `EventConsumer` + 进程内 `InMemoryEventBus`：有界缓冲、消费者故障隔离、
+  事件故障不影响任务主流程；ADMIN 可查 `GET /api/v1/admin/events/recent`；
+- 飞轮消费者把任务终态样本落 `data/flywheel/samples.jsonl`，ADMIN 可查
+  `GET /api/v1/admin/flywheel/samples`；只做数据出口，不接训练；
+- Python AI 新增 LangGraph 编排骨架 `POST /internal/v1/ai/orchestrate`：
+  `route → plan → dispatch → collect → verify`；`PLAN_ONLY` 只产出计划、由 Java 执行，
+  `MOCK` 仅用于测试/演示；Python 仍不直连子 Agent；
+- 本阶段未接 Kafka / Neo4j / 向量库 / 多实例分布式消费。详见 `docs/08-主Agent演进-事件契约与编排骨架.md`。
+
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。
 
 ## 当前状态

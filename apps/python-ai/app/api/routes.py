@@ -8,9 +8,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import settings
 from app.llm.client import DeepSeekClient, LlmUnavailable
+from app.orchestrator import MockDispatcher, Orchestrator, PlanOnlyDispatcher
 from app.schemas import (
     ExplainRequest,
     ExplainResponse,
+    OrchestrationRequest,
+    OrchestrationResponse,
     RecoveryRequest,
     RecoveryResponse,
     RepairRequest,
@@ -35,6 +38,10 @@ service = RouteService(_client, settings)
 explain_service = ExplainService(_client)
 summarize_service = SummarizeService(_client)
 profile_service = ProfileService(_client)
+
+# 编排骨架：PLAN_ONLY 只产出派发计划（Java 执行），MOCK 仅用于演示/单测。
+plan_only_orchestrator = Orchestrator(PlanOnlyDispatcher())
+mock_orchestrator = Orchestrator(MockDispatcher())
 
 
 def verify_internal_token(x_internal_token: str = Header(default="")) -> None:
@@ -159,3 +166,35 @@ def repair(request: RepairRequest) -> RepairResponse:
     except LlmUnavailable as exc:
         logger.warning("llm repair unavailable error=%s", exc)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post(
+    "/internal/v1/ai/orchestrate",
+    response_model=OrchestrationResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def orchestrate(request: OrchestrationRequest) -> OrchestrationResponse:
+    """多 Agent 编排骨架：route → plan → dispatch → collect → verify。
+
+    PLAN_ONLY 返回派发计划，由 Java BFF 真正调用子 Agent；
+    MOCK 只在本地演示与单测中使用，绝不代表生产能力。
+    """
+    mode = (request.dispatchMode or "PLAN_ONLY").upper()
+    if mode == "MOCK":
+        orchestrator = mock_orchestrator
+    elif mode == "PLAN_ONLY":
+        orchestrator = plan_only_orchestrator
+    else:
+        raise HTTPException(status_code=400, detail="UNSUPPORTED_DISPATCH_MODE")
+
+    response = orchestrator.run(request)
+    logger.info(
+        "orchestrate traceId=%s mode=%s verdict=%s capability=%s steps=%s rounds=%s",
+        request.traceId,
+        mode,
+        response.verdict,
+        response.capabilityId,
+        len(response.steps),
+        response.rounds,
+    )
+    return response

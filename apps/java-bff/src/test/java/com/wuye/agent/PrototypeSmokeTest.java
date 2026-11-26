@@ -32,7 +32,8 @@ import org.springframework.http.ResponseEntity;
  *
  * <p>随机端口仅用于测试，不占用业务端口；不连接 MySQL/Redis/MinIO。</p>
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "wuye.flywheel.root=target/test-flywheel")
 class PrototypeSmokeTest {
 
     private static final Pattern TASK_NO = Pattern.compile("\"taskNo\":\"(wt_[^\"]+)\"");
@@ -561,6 +562,25 @@ class PrototypeSmokeTest {
         ResponseEntity<String> ready = rest.getForEntity(url("/ready"), String.class);
         assertEquals(HttpStatus.OK, ready.getStatusCode());
         assertTrue(ready.getBody().contains("\"status\":\"UP\""));
+    }
+
+    @Test
+    void adminCanInspectEventBusAndFlywheel() throws Exception {
+        String events = getWithToken("/api/v1/admin/events/recent?limit=5", adminToken);
+        assertTrue(events.contains("\"stats\""), events);
+        assertTrue(events.contains("\"published\""), events);
+
+        String samples = getWithToken("/api/v1/admin/flywheel/samples?limit=5", adminToken);
+        assertTrue(samples.contains("\"samples\""), samples);
+        assertTrue(samples.contains("\"consumed\""), samples);
+
+        String userToken = login("user", "user123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(userToken);
+        ResponseEntity<String> forbidden = rest.exchange(
+                url("/api/v1/admin/events/recent"), HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+        assertEquals(HttpStatus.FORBIDDEN, forbidden.getStatusCode());
     }
 
     private String login(String username, String password) throws Exception {

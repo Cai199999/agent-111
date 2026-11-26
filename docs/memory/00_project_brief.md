@@ -124,11 +124,28 @@
 - 已打 annotated tag `base-v1.1-2026-11-24`，底座重新冻结；OA 只消费 v1.1。
 - 未覆盖：G-02/G-03 角色透传、G-05 规则路由关键词、G-06 SSRF allowlist、G-07 安装审批。
 
+## 2026-11-26 主 Agent 演进第一阶段（事件契约 + 编排骨架）
+
+- 背景：主 Agent 下一步要补事件总线/编排/飞轮；先做可回滚的第一刀，不引入 Kafka/Neo4j/训练栈。
+- 事件契约 v1 已冻结（`docs/08-主Agent演进-事件契约与编排骨架.md`）：
+  - 信封：`eventId/eventType/eventVersion/occurredAt/source/traceId/actorId/tenantId/subject/idempotencyKey/payload`；
+  - 类型：`agent.task.requested`、`confirmation.requested`、`completed`、`failed`、`cancelled`、`flywheel.sample.recorded`；
+  - 至少一次、消费端幂等、单机有序、故障隔离；载荷禁止令牌/密钥/完整附件。
+- Java 事件出口：`EventPublisher`/`EventConsumer`/`EventBus` + `InMemoryEventBus`（有界缓冲、同步扇出、
+  单消费者故障隔离）；`TaskService` 只在状态迁移处发事件，轮询不重复发终态，确认令牌不进载荷。
+- 飞轮：`FlywheelSampleService` 订阅终态事件，样本落 `data/flywheel/samples.jsonl`，
+  有界幂等集合；ADMIN 查询 `/api/v1/admin/events/recent`、`/api/v1/admin/flywheel/samples`。
+- Python 编排骨架：LangGraph `route → plan → dispatch → collect → verify`，
+  端点 `/internal/v1/ai/orchestrate`；`PLAN_ONLY` 返回计划由 Java 执行，`MOCK` 仅测试/演示；
+  Python 仍不直连子 Agent。新增 `langgraph` 依赖。
+- 测试：Java 新增 7 项（事件总线 3、飞轮 1、任务事件 2、管理端回归 1），全量 95/95；
+  Python 新增 8 项，`pytest` 23/23。
+- 边界：未接 Kafka/Redis Stream、多实例有序、LLM 参数抽取、自动重试、前端事件展示。
+
 ## 下一步
 
-1. 登记主 Agent 端口与 `wuye_agent_db` 到 `RESOURCES.md`；补 `8402` 登记。
-2. 启动物业 `8402` / 合同 `8400`，`WUYE_AGENT_MODE=http` 做活体联调。
-3. 接 Manifest 自动同步/版本校验，替换静态能力描述。
-4. 接 Python AI 路由（`/internal/v1/ai/route`），规则保留为第一层。
-5. 补任务 SSE、审计、Agent 管理后台；确认令牌迁 Redis。
-6. 并行推动子 Agent 后续项：异步持久化、usage 计量、tenantId、指标标准化。
+1. 把 LLM 路由结果接成编排 `plan`，`/repair` 处理缺字段，形成「LLM 编排 + Java 执行」闭环。
+2. Java 消费 `DISPATCH_REQUIRED`，接回 `TaskService`；完成后补前端计划/验收展示。
+3. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。
+4. 飞轮样本从 JSONL 迁 `wa_flywheel_sample`，接离线评测/偏好数据。
+5. 原有：登记端口、启动 8402/8400 活体联调、Manifest 自动同步、确认令牌迁 Redis。

@@ -45,7 +45,7 @@ curl http://127.0.0.1:8700/ready
 ```bash
 cd apps/python-ai
 .venv/bin/python -m pytest -q
-# 7/7 passed
+# 23/23 passed
 ```
 
 ## API
@@ -127,6 +127,16 @@ Content-Type: application/json
 - `/internal/v1/ai/repair` 接收子 Agent 的 `VALIDATION` 错误和原始参数，返回修正后的参数或追问；
 - Java 在最终任务校验失败时调用 repair，最多重试一次；
 - LLM 不可用时 Java 回退规则路由。
+
+## 多 Agent 编排骨架
+
+- `POST /internal/v1/ai/orchestrate`：LangGraph `route → plan → dispatch → collect → verify`；
+- 请求可带 `capabilities`、可选 `plan`、`dispatchMode`；
+- `PLAN_ONLY`（默认）只产出派发计划，由 Java BFF 真正调用子 Agent；
+- `MOCK` 只在本地演示/单测中使用，不发网络请求；
+- 验收结果：`COMPLETE` / `NEEDS_INPUT` / `DISPATCH_REQUIRED` / `FAILED`；
+- 仍遵守边界：Python 不持有子 Agent 令牌、不直连子 Agent；
+- 详见根目录 `docs/08-主Agent演进-事件契约与编排骨架.md`。
 
 ## 行为与安全
 

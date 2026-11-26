@@ -22,7 +22,10 @@ import org.springframework.http.ResponseEntity;
  * 通知中心纵向切片：内部写入 → 用户未读 → 已读 → 去重。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "wuye.notify.token=test-notify-token")
+        properties = {
+                "wuye.notify.token=test-notify-token",
+                "wuye.flywheel.root=target/test-flywheel"
+        })
 class NotificationFlowTest {
 
     @LocalServerPort
