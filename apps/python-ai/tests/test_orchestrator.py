@@ -6,10 +6,16 @@ from fastapi.testclient import TestClient
 
 from app.api import routes
 from app.main import app
-from app.orchestrator import MockDispatcher, Orchestrator, PlanOnlyDispatcher
+from app.orchestrator import (
+    MockDispatcher,
+    Orchestrator,
+    PlanOnlyDispatcher,
+    verify_results,
+)
 from app.schemas import (
     OrchestrationCapability,
     OrchestrationRequest,
+    OrchestrationStepResult,
     PlanStep,
 )
 
@@ -167,6 +173,81 @@ def test_unknown_plan_capability_fails_closed():
 
     assert response.verdict == "FAILED"
     assert "未授权能力" in "；".join(response.notes)
+
+
+def test_verify_results_complete():
+    response = verify_results(
+        [
+            OrchestrationStepResult(
+                capabilityId="oa.request.draft",
+                agentKey="oa-agent",
+                status="SUCCEEDED",
+                output={"requestNo": "QJ-1"},
+            )
+        ]
+    )
+
+    assert response.verdict == "COMPLETE"
+    assert response.clarification is None
+    assert any("steps=1" in note for note in response.notes)
+
+
+def test_verify_results_needs_input_from_output():
+    response = verify_results(
+        [
+            OrchestrationStepResult(
+                capabilityId="oa.request.draft",
+                status="SUCCEEDED",
+                output={"ok": False, "missingFields": ["startDate", "days"]},
+            )
+        ]
+    )
+
+    assert response.verdict == "NEEDS_INPUT"
+    assert "startDate" in (response.clarification or "")
+    assert "days" in (response.clarification or "")
+
+
+def test_verify_results_failed_step():
+    response = verify_results(
+        [
+            OrchestrationStepResult(
+                capabilityId="contract.review",
+                status="FAILED",
+                error="downstream unavailable",
+            )
+        ]
+    )
+
+    assert response.verdict == "FAILED"
+    assert "downstream unavailable" in (response.clarification or "")
+
+
+def test_verify_endpoint_returns_verdict():
+    client = TestClient(app)
+    headers = (
+        {"X-Internal-Token": routes.settings.internal_token}
+        if routes.settings.internal_token
+        else {}
+    )
+    payload = {
+        "traceId": "trc-verify",
+        "plan": [{"capabilityId": "oa.request.draft", "args": {}}],
+        "steps": [
+            {
+                "capabilityId": "oa.request.draft",
+                "status": "SUCCEEDED",
+                "output": {"requestNo": "QJ-1"},
+            }
+        ],
+    }
+
+    response = client.post(
+        "/internal/v1/ai/orchestrate/verify", json=payload, headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["verdict"] == "COMPLETE"
 
 
 def test_orchestrate_endpoint_uses_internal_token_and_mode():

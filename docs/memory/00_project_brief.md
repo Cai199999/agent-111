@@ -142,10 +142,26 @@
   Python 新增 8 项，`pytest` 23/23。
 - 边界：未接 Kafka/Redis Stream、多实例有序、LLM 参数抽取、自动重试、前端事件展示。
 
+## 2026-11-26 第二阶段：LLM 计划接入与执行闭环
+
+- 链路：`LLM /route → RouteDecision.plan → Python /orchestrate(PLAN_ONLY) → DISPATCH_REQUIRED
+  → Java executePlan → Python /orchestrate/verify → SSE orchestration(PLAN/VERIFY)`。
+- Java `orchestration/`：`OrchestrationGateway` 接口 + `HttpOrchestrationGateway`（3s 超时、30s 熔断、失败开放）；
+  `OrchestrationService` 做权限裁剪、计划回退、终态验收。
+- 开关：`wuye.ai.orchestration-enabled`（默认 true，仅 `wuye.ai.enabled=true` 时生效）；
+  主自省工具、批量工具、附件链路不进入编排；不可用时完全回退现有流程。
+- 执行前 `NEEDS_INPUT/FAILED` 直接回问；`DISPATCH_REQUIRED` 使用 Python 校验后的计划；
+  执行后仅终态任务验收，`NEEDS_INPUT` 以 `orchestration` + `feedback` 事件暴露，不覆盖原结果。
+- Python 新增 `/internal/v1/ai/orchestrate/verify`，只做 collect+verify，不重新调用子 Agent。
+- 真实验证：Python 8700 + Java 8600（AI 开启、mysql profile）；`查询我的待处理工单`
+  → PLAN `DISPATCH_REQUIRED` → 8402 未启动任务失败 → VERIFY `FAILED(ConnectException)`，闭环跑通。
+- 测试：Java 新增 8 项（OrchestrationService 5、HTTP 网关 3），全量 103/103；Python 新增 4 项，27/27。
+- 边界：只验收最终任务；`NEEDS_INPUT` 不自动重规划；前端未渲染 `orchestration` 事件。
+
 ## 下一步
 
-1. 把 LLM 路由结果接成编排 `plan`，`/repair` 处理缺字段，形成「LLM 编排 + Java 执行」闭环。
-2. Java 消费 `DISPATCH_REQUIRED`，接回 `TaskService`；完成后补前端计划/验收展示。
-3. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。
-4. 飞轮样本从 JSONL 迁 `wa_flywheel_sample`，接离线评测/偏好数据。
-5. 原有：登记端口、启动 8402/8400 活体联调、Manifest 自动同步、确认令牌迁 Redis。
+1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。
+2. 飞轮样本从 JSONL 迁 `wa_flywheel_sample`，接离线评测/偏好数据。
+3. 管理端/前端展示 `orchestration`、事件与飞轮样本。
+4. 编排增强：只读前置步骤结果回传、`NEEDS_INPUT` 自动重规划一次。
+5. 原有：启动 8402/8400 活体联调、Manifest 自动同步、确认令牌迁 Redis。

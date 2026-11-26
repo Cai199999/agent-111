@@ -26,6 +26,7 @@ from app.schemas import (
     OrchestrationRequest,
     OrchestrationResponse,
     OrchestrationStepResult,
+    OrchestrationVerifyResponse,
     PlanStep,
 )
 
@@ -324,6 +325,24 @@ def _clarify_node(state: OrchestrationState) -> dict[str, Any]:
         "plan": [],
         "steps": [],
     }
+
+
+def verify_results(
+    steps: list[OrchestrationStepResult], notes: list[str] | None = None
+) -> OrchestrationVerifyResponse:
+    """Java 执行后回传步骤结果，只跑 collect + verify，不再路由/派发。"""
+    state: OrchestrationState = {
+        "steps": [step.model_dump() for step in steps],
+        "notes": list(notes or []),
+    }
+    collected = _collect_node(state)
+    merged: OrchestrationState = {**state, **collected}
+    verified = _verify_node(merged)
+    return OrchestrationVerifyResponse(
+        verdict=str(verified.get("verdict") or "FAILED"),
+        clarification=verified.get("clarification"),
+        notes=list(verified.get("notes") or []),
+    )
 
 
 def build_graph(dispatcher: AgentDispatcher) -> Any:

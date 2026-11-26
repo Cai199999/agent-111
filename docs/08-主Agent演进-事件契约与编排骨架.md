@@ -206,10 +206,83 @@ START → route ──(歧义/无能力)──→ clarify → END
 
 ---
 
-## 6. 下一步
+## 6. 第二阶段：LLM 计划接入与执行闭环（2026-11-26）
 
-1. **LLM 参数抽取接入编排**：复用 `/internal/v1/ai/route` 生成 `plan`，`/repair` 处理缺字段；
-2. **Java 消费 DISPATCH_REQUIRED**：把编排结果接回 `TaskService`，形成「LLM 编排 + Java 执行」闭环；
-3. **Outbox + Kafka/Redis Stream 适配**：先登记资源，再替换 `InMemoryEventBus`，消费端幂等；
-4. **飞轮样本入库/查询**：从 JSONL 迁到 `wa_flywheel_sample`，接评测与偏好数据；
-5. **前端可观测**：管理端展示最近事件、飞轮样本、编排计划与验收结果。
+### 6.1 链路
+
+```text
+LLM /route（现有）
+  → RouteDecision.plan（最多 3 步，最后一步为写/查询）
+  → Python /orchestrate（PLAN_ONLY）
+  → DISPATCH_REQUIRED
+  → Java executePlan（只读前置 + 最终能力，现有 TaskService）
+  → Python /orchestrate/verify（回传步骤结果）
+  → SSE orchestration(PLAN/VERIFY)
+```
+
+### 6.2 Java 接入
+
+```text
+orchestration/
+  OrchestrationResult.java       # Python 返回的计划/步骤/验收
+  OrchestrationOutcome.java      # Java 消费视图
+  OrchestrationGateway.java      # 编排网关接口（便于单测注入）
+  HttpOrchestrationGateway.java  # HTTP 实现，3s 超时 + 30s 熔断
+  OrchestrationService.java      # 权限裁剪、计划回退、执行后验收
+```
+
+- 开关：`wuye.ai.enabled` + `wuye.ai.orchestration-enabled`（默认 true，仅 AI 开启时生效）；
+- **失败开放**：接口 404/超时/非 2xx 一律跳过编排，回退现有同步流程；
+- **权限裁剪**：只把当前用户可见能力发给 Python；未授权能力仍走原鉴权；
+- **不适用范围**：主 Agent 自省工具（`platform.*`）、批量工具、附件链路（已有专用验收）；
+- **执行前**：`NEEDS_INPUT/FAILED` 直接回问，不执行；`DISPATCH_REQUIRED` 使用 Python 校验后的计划；
+- **执行后**：只对终态任务验收；`NEEDS_INPUT` 以 `orchestration` + `feedback` 事件暴露，不覆盖原任务结果。
+
+### 6.3 Python 验收接口
+
+```http
+POST /internal/v1/ai/orchestrate/verify
+```
+
+```json
+{
+  "traceId": "trc-...",
+  "plan": [{"capabilityId": "property.ticket.query", "args": {"status": "PENDING"}}],
+  "steps": [
+    {"capabilityId": "property.ticket.query", "status": "SUCCEEDED",
+     "output": {"items": []}, "error": null, "missingFields": []}
+  ]
+}
+```
+
+返回 `{verdict, clarification, notes}`，只做结构化验收，不重新调用子 Agent。
+
+### 6.4 真实验证（2026-11-26）
+
+- 启动 Python AI 8700 + Java 8600（`WUYE_AI_ENABLED=true`，mysql profile）；
+- `查询我的待处理工单`：
+  - SSE `orchestration PLAN`：`DISPATCH_REQUIRED`，计划 `property.ticket.query`；
+  - Java 执行时 8402 未启动 → 任务失败；
+  - SSE `orchestration VERIFY`：`FAILED`，澄清为 `ConnectException`；
+- 结论：计划、执行、验收闭环真实跑通；子 Agent 不可用时流程不被编排拖垮。
+
+### 6.5 测试
+
+- 新增 Java：`OrchestrationServiceTest` 5 项、`HttpOrchestrationGatewayTest` 3 项（请求体/令牌/计划解析/验收解析/失败回退）；
+- 新增 Python：`/orchestrate/verify` 4 项（COMPLETE/NEEDS_INPUT/FAILED/HTTP）；
+- 全量：Java **103/103**、Python **27/27**（待全量 Java 回填）。
+
+### 6.6 边界
+
+- 验收目前只覆盖最终任务，只读前置步骤未逐个回传；
+- `NEEDS_INPUT` 只发事件/提示，不自动重新规划或重试；
+- 前端尚未渲染 `orchestration` 事件；管理端展示留到下一阶段；
+- 未接 Outbox/Kafka，事件与编排仍是单进程。
+
+## 7. 下一步
+
+1. **Outbox + Kafka/Redis Stream 适配**：先登记资源，再替换 `InMemoryEventBus`，消费端幂等；
+2. **飞轮样本入库/查询**：从 JSONL 迁到 `wa_flywheel_sample`，接评测与偏好数据；
+3. **前端可观测**：管理端展示最近事件、飞轮样本、编排计划与验收结果；
+4. **编排增强**：回传只读前置步骤结果、`NEEDS_INPUT` 自动重新规划一次；
+5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

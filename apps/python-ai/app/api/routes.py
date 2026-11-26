@@ -8,12 +8,14 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.core.config import settings
 from app.llm.client import DeepSeekClient, LlmUnavailable
-from app.orchestrator import MockDispatcher, Orchestrator, PlanOnlyDispatcher
+from app.orchestrator import MockDispatcher, Orchestrator, PlanOnlyDispatcher, verify_results
 from app.schemas import (
     ExplainRequest,
     ExplainResponse,
     OrchestrationRequest,
     OrchestrationResponse,
+    OrchestrationVerifyRequest,
+    OrchestrationVerifyResponse,
     RecoveryRequest,
     RecoveryResponse,
     RepairRequest,
@@ -196,5 +198,25 @@ def orchestrate(request: OrchestrationRequest) -> OrchestrationResponse:
         response.capabilityId,
         len(response.steps),
         response.rounds,
+    )
+    return response
+
+
+@router.post(
+    "/internal/v1/ai/orchestrate/verify",
+    response_model=OrchestrationVerifyResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def orchestrate_verify(request: OrchestrationVerifyRequest) -> OrchestrationVerifyResponse:
+    """Java 执行完计划后回传结果，Python 只做结构化验收。
+
+    验收只检查字段完整性与步骤状态，不重新调用子 Agent、不改写业务结论。
+    """
+    response = verify_results(request.steps)
+    logger.info(
+        "orchestrate-verify traceId=%s verdict=%s steps=%s",
+        request.traceId,
+        response.verdict,
+        len(request.steps),
     )
     return response

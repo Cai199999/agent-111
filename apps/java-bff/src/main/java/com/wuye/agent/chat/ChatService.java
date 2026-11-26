@@ -17,6 +17,8 @@ import com.wuye.agent.common.Ids;
 import com.wuye.agent.memory.MainAgentTools;
 import com.wuye.agent.memory.MemoryService;
 import com.wuye.agent.memory.UserProfileService;
+import com.wuye.agent.orchestration.OrchestrationOutcome;
+import com.wuye.agent.orchestration.OrchestrationService;
 import com.wuye.agent.routing.LlmRouterClient;
 import com.wuye.agent.routing.PendingIntent;
 import com.wuye.agent.routing.RouteDecision;
@@ -67,6 +69,7 @@ public class ChatService {
     private final MemoryService memoryService;
     private final UserProfileService userProfileService;
     private final ChatAttachmentService attachmentService;
+    private final OrchestrationService orchestrationService;
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
@@ -80,7 +83,8 @@ public class ChatService {
                        TaskService taskService, TaskRecoveryService recoveryService,
                        PolicyService policyService, MemoryService memoryService,
                        UserProfileService userProfileService,
-                       ChatAttachmentService attachmentService, Ids ids) {
+                       ChatAttachmentService attachmentService,
+                       OrchestrationService orchestrationService, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.catalogService = catalogService;
@@ -94,6 +98,7 @@ public class ChatService {
         this.memoryService = memoryService;
         this.userProfileService = userProfileService;
         this.attachmentService = attachmentService;
+        this.orchestrationService = orchestrationService;
         this.ids = ids;
     }
 
@@ -268,16 +273,50 @@ public class ChatService {
                 return;
             }
 
-            if (route.hasPlan() && route.plan().size() > 1) {
+            // 执行前把 LLM 路由/计划交给 Python 编排图校验：
+            // DISPATCH_REQUIRED → 由 Java 执行；NEEDS_INPUT/FAILED → 先回问，不执行。
+            List<RouteDecision.PlanStep> executionSteps = route.plan();
+            Optional<OrchestrationOutcome> orchestrationReview =
+                    orchestrationService.reviewPlan(route, content, user, sessionNo, traceId);
+            if (orchestrationReview.isPresent()) {
+                OrchestrationOutcome outcome = orchestrationReview.get();
+                emit(emitter, "orchestration", orchestrationView("PLAN", outcome));
+                if (outcome.blocking()) {
+                    String message = outcome.clarification() == null || outcome.clarification().isBlank()
+                            ? "这个请求还需要补充信息，请再说明一下。"
+                            : outcome.clarification();
+                    ChatMessage assistant = store.addMessage(session, "ASSISTANT", message,
+                            "TEXT", Map.of("clarification", true, "orchestration", true), null);
+                    emit(emitter, "feedback", Map.of(
+                            "action", "ORCHESTRATION_NEED_INPUT",
+                            "message", message,
+                            "retryable", false));
+                    emit(emitter, "delta", Map.of("content", message));
+                    emit(emitter, "done", Map.of(
+                            "messageNo", assistant.messageNo(),
+                            "status", "CLARIFIED"));
+                    emitter.complete();
+                    memoryService.updateAsync(sessionNo);
+                    return;
+                }
+                if (!outcome.plan().isEmpty()) {
+                    executionSteps = outcome.plan();
+                }
+            }
+
+            List<RouteDecision.PlanStep> planForExecution =
+                    executionSteps == null ? List.of() : executionSteps;
+            if (planForExecution.size() > 1) {
                 emit(emitter, "plan", Map.of(
-                        "steps", route.plan().stream()
+                        "steps", planForExecution.stream()
                                 .map(step -> Map.of(
                                         "capabilityId", step.capabilityId(),
                                         "args", step.args() == null ? Map.of() : step.args()))
                                 .toList()));
             }
 
-            ExecutionResult execution = executePlan(sessionNo, content, route, user, traceId);
+            ExecutionResult execution = executePlan(
+                    sessionNo, content, route, planForExecution, user, traceId);
             Capability capability = execution.capability();
             TaskRecord task = execution.task();
             // 附件闭环需要拿到子 Agent 的最终结果做结构化验收；异步合同审查在此等待完成。
@@ -290,6 +329,25 @@ public class ChatService {
             for (TaskEvent event : task.events) {
                 emit(emitter, "task_event", eventView(task.taskNo, event));
             }
+
+            // 执行后回传结果给 Python 做结构化验收；失败/不可用不影响已得到的任务结果。
+            TaskRecord verifiedTask = task;
+            List<RouteDecision.PlanStep> verifiedPlan = planForExecution;
+            boolean attachmentFlow = attachmentContext != null;
+            orchestrationService.verify(capability, verifiedTask, verifiedPlan, sessionNo, traceId)
+                    .ifPresent(outcome -> {
+                        emit(emitter, "orchestration", orchestrationView("VERIFY", outcome));
+                        if ("NEEDS_INPUT".equals(outcome.verdict())
+                                && !attachmentFlow
+                                && outcome.clarification() != null
+                                && !outcome.clarification().isBlank()) {
+                            emit(emitter, "feedback", Map.of(
+                                    "taskNo", verifiedTask.taskNo,
+                                    "action", "ORCHESTRATION_NEED_INPUT",
+                                    "message", outcome.clarification(),
+                                    "retryable", false));
+                        }
+                    });
 
             // 主 Agent 的结构化验收：只检查子 Agent 结果是否完整，不替子 Agent 做业务判断。
             String attachmentFeedback = attachmentContext == null
@@ -935,8 +993,9 @@ public class ChatService {
     }
 
     private ExecutionResult executePlan(String sessionNo, String content, RouteDecision route,
+                                        List<RouteDecision.PlanStep> plannedSteps,
                                         AuthUser user, String traceId) {
-        List<RouteDecision.PlanStep> steps = route.plan();
+        List<RouteDecision.PlanStep> steps = plannedSteps;
         if (steps == null || steps.isEmpty()) {
             if (route.capabilityId() == null) {
                 throw ApiException.badRequest("CAPABILITY_NOT_FOUND", "没有可执行的最终能力");
@@ -1038,6 +1097,48 @@ public class ChatService {
     }
 
     private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery) {
+    }
+
+    /**
+     * 编排事件视图：只暴露计划与验收摘要，不暴露 output 原文与任何凭据。
+     */
+    private Map<String, Object> orchestrationView(String phase, OrchestrationOutcome outcome) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("phase", phase);
+        view.put("verdict", outcome.verdict());
+        if (outcome.clarification() != null && !outcome.clarification().isBlank()) {
+            view.put("clarification", outcome.clarification());
+        }
+        if (!outcome.notes().isEmpty()) {
+            view.put("notes", outcome.notes());
+        }
+        if (!outcome.plan().isEmpty()) {
+            view.put("plan", outcome.plan().stream()
+                    .map(step -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("capabilityId", step.capabilityId());
+                        item.put("args", step.args() == null ? Map.of() : step.args());
+                        return item;
+                    })
+                    .toList());
+        }
+        if (!outcome.steps().isEmpty()) {
+            view.put("steps", outcome.steps().stream()
+                    .map(step -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("capabilityId", step.capabilityId());
+                        item.put("status", step.status());
+                        if (step.error() != null) {
+                            item.put("error", step.error());
+                        }
+                        if (!step.missingFields().isEmpty()) {
+                            item.put("missingFields", step.missingFields());
+                        }
+                        return item;
+                    })
+                    .toList());
+        }
+        return view;
     }
 
     private Map<String, Object> taskEvent(TaskRecord task) {

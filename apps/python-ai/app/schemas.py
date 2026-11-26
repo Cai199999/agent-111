@@ -189,3 +189,18 @@ class OrchestrationResponse(BaseModel):
     notes: list[str] = Field(default_factory=list)
     rounds: int = 0
     usage: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrchestrationVerifyRequest(BaseModel):
+    """Java 执行完编排计划后回传结果，由 Python 只做结构化验收。"""
+
+    traceId: str | None = None
+    sessionNo: str | None = None
+    plan: list[PlanStep] = Field(default_factory=list)
+    steps: list[OrchestrationStepResult] = Field(default_factory=list)
+
+
+class OrchestrationVerifyResponse(BaseModel):
+    verdict: str = "FAILED"
+    clarification: str | None = None
+    notes: list[str] = Field(default_factory=list)

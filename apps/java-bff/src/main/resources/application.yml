@@ -45,6 +45,8 @@ wuye:
       use-delegation: true
   ai:
     enabled: ${WUYE_AI_ENABLED:false}
+    # 编排网关：仅在 enabled=true 时生效；失败自动回退现有同步流程
+    orchestration-enabled: ${WUYE_ORCHESTRATION_ENABLED:true}
     base-url: ${AI_BASE_URL:http://127.0.0.1:8700}
     internal-token: ${INTERNAL_TOKEN_J2P:}
     timeout-ms: 9000

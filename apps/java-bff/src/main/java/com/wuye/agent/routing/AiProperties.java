@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 public class AiProperties {
 
     private boolean enabled = false;
+    /** 事件/计划编排：默认开启，但仅当 enabled=true 且 Python 可用时生效。 */
+    private boolean orchestrationEnabled = true;
     private String baseUrl = "http://127.0.0.1:8700";
     private String internalToken = "";
     private int timeoutMs = 9000;
@@ -25,6 +27,14 @@ public class AiProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isOrchestrationEnabled() {
+        return orchestrationEnabled;
+    }
+
+    public void setOrchestrationEnabled(boolean orchestrationEnabled) {
+        this.orchestrationEnabled = orchestrationEnabled;
     }
 
     public String getBaseUrl() {

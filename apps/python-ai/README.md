@@ -131,6 +131,7 @@ Content-Type: application/json
 ## 多 Agent 编排骨架
 
 - `POST /internal/v1/ai/orchestrate`：LangGraph `route → plan → dispatch → collect → verify`；
+- `POST /internal/v1/ai/orchestrate/verify`：Java 执行后回传步骤结果，只做结构化验收；
 - 请求可带 `capabilities`、可选 `plan`、`dispatchMode`；
 - `PLAN_ONLY`（默认）只产出派发计划，由 Java BFF 真正调用子 Agent；
 - `MOCK` 只在本地演示/单测中使用，不发网络请求；
