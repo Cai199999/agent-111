@@ -6,8 +6,10 @@ import com.wuye.agent.common.ApiResponse;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.event.EventBus;
 import com.wuye.agent.event.OutboxEventPublisher;
+import com.wuye.agent.flywheel.FlywheelSample;
 import com.wuye.agent.flywheel.FlywheelSampleService;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,6 +66,15 @@ public class EventAdminController {
         data.put("samples", flywheel.recent(limit));
         data.put("stats", flywheel.stats());
         return ApiResponse.ok(data, trace(traceId));
+    }
+
+    /** 离线评测导出：供 `scripts/eval_flywheel.py --api` 使用，单次最多 2000 条。 */
+    @GetMapping("/flywheel/export")
+    public ApiResponse<List<FlywheelSample>> flywheelExport(
+            @RequestParam(defaultValue = "500") int limit,
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        policyService.requireAdmin(AuthContext.require());
+        return ApiResponse.ok(flywheel.export(limit), trace(traceId));
     }
 
     private String trace(String traceId) {

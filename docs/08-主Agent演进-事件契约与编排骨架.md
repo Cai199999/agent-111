@@ -387,10 +387,60 @@ EVENT_OUTBOX_MAX_ATTEMPTS=5
 - 管理端为打开时拉取，无自动刷新/分页；
 - 未做多用户实时观测与告警。
 
-## 10. 下一步
+## 10. 评测流水线（2026-11-26）
+
+### 10.1 入口
+
+```bash
+# 默认 JSONL（默认/测试 profile）
+python3 -I scripts/eval_flywheel.py --input data/flywheel/samples.jsonl
+
+# MySQL profile：走 ADMIN 导出接口（最多 2000 条）
+python3 -I scripts/eval_flywheel.py \
+  --api http://127.0.0.1:8600 --token "$WUYE_TOKEN" --limit 1000 \
+  --since 2026-11-26T01:43:09Z \
+  --report docs/eval/2026-11-26-flywheel-baseline.md \
+  --dataset-out data/flywheel/dataset-20261126.jsonl
+```
+
+- 数据源：JSONL 或 `GET /api/v1/admin/flywheel/export`；
+- 时间过滤：`--since` / `--until`（ISO8601）；
+- 去重：按 `eventId`；
+- 输出：终端摘要、Markdown 报告、候选数据集 JSONL、原始指标 JSON。
+
+### 10.2 指标
+
+- 样本数、去重任务数、会话数、时间范围；
+- 状态分布、成功率、失败/拒绝率；
+- 耗时 avg / P50 / P95 / max；
+- 错误码/分类分布（用户拒绝归一为 `USER_REJECTED/CONFIRM`）；
+- 按 Agent、按能力的调用/成功/失败/平均耗时。
+
+### 10.3 数据集
+
+- 候选数据集保留 `input/output/error/status/durationMs`；
+- `label=null`、`reviewStatus=UNREVIEWED`；
+- 明确“运行痕迹 ≠ 金标”，人工复核后才能进入评测/训练。
+
+### 10.4 基线（2026-11-26，开发库 mock）
+
+- 报告：`docs/eval/2026-11-26-flywheel-baseline.md`；
+- 5 条样本：4 SUCCEEDED、1 REJECTED；成功率 80%；
+- P50 60 ms / P95 212.2 ms / max 217 ms；
+- 3 个 Agent：property/contract/geo；拒绝样本归一为 `USER_REJECTED`；
+- 测试：`scripts/test_eval_flywheel.py` **6/6**。
+
+### 10.5 边界
+
+- 样本量小且来自自造数据，不代表生产分布；
+- 无人工标注/金标，不能计算分诊准确率、答案正确率；
+- 未接 CI 门禁、趋势对比、告警阈值；
+- 候选数据集含业务明文，只允许内网使用。
+
+## 11. 下一步
 
 1. **Kafka/Redis Stream 适配**：先登记资源，再替换 relay 下游，消费端幂等表；
-2. **评测流水线**：样本 → 数据集 → 离线评测 → 报告，形成飞轮闭环；
+2. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
 3. **编排增强**：回传只读前置步骤结果、`NEEDS_INPUT` 自动重新规划一次；
 4. **观测增强**：编排结果落库/历史回放、管理端自动刷新与告警；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

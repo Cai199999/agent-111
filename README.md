@@ -114,6 +114,9 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
   编排失败/超时自动回退现有流程（`wuye.ai.orchestration-enabled` 可关闭）；
 - **可观测**：聊天区展示编排/验收徽标；ADMIN 用户菜单「运行观测」查看最近事件
   （总线缓冲或 Outbox 历史）、Outbox 状态与飞轮样本；
+- **评测流水线**：`scripts/eval_flywheel.py` 从 JSONL 或 ADMIN 导出接口读取样本，
+  生成成功率/耗时/错误/按 Agent 与能力的离线报告，并导出 `label=null` 的候选数据集；
+  基线见 `docs/eval/2026-11-26-flywheel-baseline.md`；
 - 本阶段未接 Kafka / Neo4j / 向量库 / 多实例分布式消费。详见 `docs/08-主Agent演进-事件契约与编排骨架.md`。
 
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。

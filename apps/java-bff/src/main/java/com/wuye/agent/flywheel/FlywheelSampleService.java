@@ -90,6 +90,11 @@ public class FlywheelSampleService implements EventConsumer {
         return store.recent(limit);
     }
 
+    /** 离线评测导出；单次上限 2000，避免管理端接口拉爆内存。 */
+    public List<FlywheelSample> export(int limit) {
+        return store.recent(Math.max(1, Math.min(limit, 2000)));
+    }
+
     public Map<String, Object> stats() {
         Map<String, Object> stats = new LinkedHashMap<>(store.stats());
         stats.put("consumed", consumed.get());

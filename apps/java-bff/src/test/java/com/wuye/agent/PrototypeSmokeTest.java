@@ -574,6 +574,9 @@ class PrototypeSmokeTest {
         assertTrue(samples.contains("\"samples\""), samples);
         assertTrue(samples.contains("\"consumed\""), samples);
 
+        String export = getWithToken("/api/v1/admin/flywheel/export?limit=5", adminToken);
+        assertTrue(export.contains("\"data\":["), export);
+
         String userToken = login("user", "user123");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(userToken);

@@ -191,6 +191,17 @@
   聊天查询显示 `验收 FAILED（失败）` 徽标；Java 全量 107/107。
 - 边界：编排结果只走 SSE 不落库；管理端打开时拉取，无自动刷新/分页/告警。
 
+## 2026-11-26 评测流水线
+
+- `scripts/eval_flywheel.py`：JSONL 或 ADMIN `/api/v1/admin/flywheel/export` 输入；
+  按 eventId 去重，支持 `--since/--until`；输出 Markdown/指标 JSON/候选数据集。
+- 指标：状态分布、成功率、失败率、P50/P95/max、错误码/分类、按 Agent/能力聚合；
+  用户拒绝归一为 `USER_REJECTED/CONFIRM`。
+- 候选数据集 `label=null`、`reviewStatus=UNREVIEWED`，明确“运行痕迹≠金标”。
+- 基线：`docs/eval/2026-11-26-flywheel-baseline.md`；5 条样本、80% 成功率、
+  P95 212.2ms、3 个 Agent；脚本测试 6/6。
+- 边界：样本小且自造；无人工标注/金标；未接 CI/趋势/告警；数据集含明文仅内网。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。
