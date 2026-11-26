@@ -38,6 +38,7 @@ public class AuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.equals("/")
                 || path.equals("/index.html")
+                || path.equals("/platform-overview.html")
                 || path.equals("/favicon.ico")
                 || path.equals("/error")
                 || path.equals("/health")

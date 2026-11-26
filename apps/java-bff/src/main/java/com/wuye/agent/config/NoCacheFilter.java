@@ -23,6 +23,7 @@ public class NoCacheFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return !(path.equals("/")
                 || path.equals("/index.html")
+                || path.equals("/platform-overview.html")
                 || path.startsWith("/js/")
                 || path.startsWith("/css/"));
     }
