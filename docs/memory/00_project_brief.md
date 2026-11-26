@@ -294,16 +294,20 @@
   终态取消 409）；物业 8200 重启后刷新 Manifest 0.11/55/12 后全部通过。
 - 最终回归：Java 130/130、Python 29/29、Mock E2E 101/101、真实 E2E 101/101。
 
-## 2026-11-26 OA 子 Agent 回归
+## 2026-11-26 OA 子 Agent 回归与 Skills
 
-- OA `flow-agent` 1.0.0 启动于 8810；主 Agent 注册表 `oa-entry-agent` 18 能力、0 Skill，
-  health/ready UP；skill-first 自动回退单能力。
-- OA 自身 pytest **158/158**：修复会议夹具固定过期日期、修复 MySQL naive `expires_at`
+- OA `flow-agent` 升级 `1.1.0`，启动于 8810；主 Agent 注册表 `oa-entry-agent`
+  18 能力、12 Skill，health/ready UP。
+- OA 自身 pytest **162/162**：修复会议夹具固定过期日期、修复 MySQL naive `expires_at`
   与 aware UTC 比较导致确认任务 GET 500。
-- 主 Agent → OA：会议室/请假草稿 `submittable=true`；请假提交 `WAITING_CONFIRM`
-  → 确认 `SUCCEEDED`，生成 `LV-20261126-0001`。
+- OA 12 Skills：leave/matter/meeting/seal/purchase/notice/archive/workflow/profile/
+  knowledge/directory/dashboard；任务请求/视图支持 `skillId`，校验归属并落库
+  `fa_canonical_task.skill_id`（Alembic `d7e9f3a2b6c1`）。
+- 主 Agent → OA：请假草稿/提交均带 `skillId=oa.leave`，提交确认 `SUCCEEDED`
+  （`LV-20261126-0002`）；主平台真实 E2E **101/101**。
 - 文档：`docs/11-OA-Agent回归验证.md`。
-- 边界：OA 未声明 Skills；主 Agent E2E 101 不含 OA 业务链路，OA 用自身 pytest + 集成验证。
+- 边界：主 Agent E2E 101 不含 OA 业务链路；OA 用自身 pytest + 集成验证；
+  Skill 不替代 OA 本地角色/dataScope。
 - 合同规则查询口径已由合同侧 `b67db90` 修正：默认/null/ALL 返回全部 ENABLED（52 条，
   含 smoke），SERVICE 37 条；主 Agent 默认与服务合同查询均复测通过。
 - 文档：`docs/10-合同Agent-0.8.0-接入验证.md`。
