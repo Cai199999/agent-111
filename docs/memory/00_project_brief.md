@@ -210,6 +210,15 @@
 - Java 全量 108/108（OrchestrationServiceTest 6 项）。
 - 仍不做：`NEEDS_INPUT` 自动重规划/重试；写操作不自动确认。
 
+## 2026-11-26 运行观测增强
+
+- `OrchestrationAuditStore`：进程内有界 200 条，记录阶段/verdict/能力/步骤状态/澄清，
+  不记录 input/output；`/api/v1/admin/orchestration/recent` 只读查询。
+- 「运行观测」新增最近编排区；打开时每 5 秒自动刷新；PENDING/消费失败/编排失败摘要变红。
+- 无头 Chromium/CDP 实测：面板从 2 条编排记录自动刷新到 4 条，摘要同步更新。
+- Java 全量 110/110（新增 `OrchestrationAuditStoreTest` 2 项）。
+- 边界：编排审计重启清空；轮询非实时；无多用户隔离/告警通知。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

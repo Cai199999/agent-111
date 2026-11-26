@@ -8,6 +8,7 @@ import com.wuye.agent.event.EventBus;
 import com.wuye.agent.event.OutboxEventPublisher;
 import com.wuye.agent.flywheel.FlywheelSample;
 import com.wuye.agent.flywheel.FlywheelSampleService;
+import com.wuye.agent.orchestration.OrchestrationAuditStore;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,15 +31,18 @@ public class EventAdminController {
     private final EventBus eventBus;
     private final OutboxEventPublisher outboxPublisher;
     private final FlywheelSampleService flywheel;
+    private final OrchestrationAuditStore orchestrationAudit;
     private final PolicyService policyService;
     private final Ids ids;
 
     public EventAdminController(EventBus eventBus, OutboxEventPublisher outboxPublisher,
                                 FlywheelSampleService flywheel,
+                                OrchestrationAuditStore orchestrationAudit,
                                 PolicyService policyService, Ids ids) {
         this.eventBus = eventBus;
         this.outboxPublisher = outboxPublisher;
         this.flywheel = flywheel;
+        this.orchestrationAudit = orchestrationAudit;
         this.policyService = policyService;
         this.ids = ids;
     }
@@ -65,6 +69,17 @@ public class EventAdminController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("samples", flywheel.recent(limit));
         data.put("stats", flywheel.stats());
+        return ApiResponse.ok(data, trace(traceId));
+    }
+
+    @GetMapping("/orchestration/recent")
+    public ApiResponse<Map<String, Object>> orchestrationRecent(
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        policyService.requireAdmin(AuthContext.require());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("traces", orchestrationAudit.recent(limit));
+        data.put("stats", orchestrationAudit.stats());
         return ApiResponse.ok(data, trace(traceId));
     }
 

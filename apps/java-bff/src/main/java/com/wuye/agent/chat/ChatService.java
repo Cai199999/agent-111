@@ -17,6 +17,7 @@ import com.wuye.agent.common.Ids;
 import com.wuye.agent.memory.MainAgentTools;
 import com.wuye.agent.memory.MemoryService;
 import com.wuye.agent.memory.UserProfileService;
+import com.wuye.agent.orchestration.OrchestrationAuditStore;
 import com.wuye.agent.orchestration.OrchestrationOutcome;
 import com.wuye.agent.orchestration.OrchestrationResult;
 import com.wuye.agent.orchestration.OrchestrationService;
@@ -71,6 +72,7 @@ public class ChatService {
     private final UserProfileService userProfileService;
     private final ChatAttachmentService attachmentService;
     private final OrchestrationService orchestrationService;
+    private final OrchestrationAuditStore orchestrationAudit;
     private final Ids ids;
     /** 多轮补参状态，按会话隔离；10 分钟过期。 */
     private final Map<String, PendingIntent> pendingIntents = new ConcurrentHashMap<>();
@@ -85,7 +87,8 @@ public class ChatService {
                        PolicyService policyService, MemoryService memoryService,
                        UserProfileService userProfileService,
                        ChatAttachmentService attachmentService,
-                       OrchestrationService orchestrationService, Ids ids) {
+                       OrchestrationService orchestrationService,
+                       OrchestrationAuditStore orchestrationAudit, Ids ids) {
         this.store = store;
         this.registry = registry;
         this.catalogService = catalogService;
@@ -100,6 +103,7 @@ public class ChatService {
         this.userProfileService = userProfileService;
         this.attachmentService = attachmentService;
         this.orchestrationService = orchestrationService;
+        this.orchestrationAudit = orchestrationAudit;
         this.ids = ids;
     }
 
@@ -281,6 +285,7 @@ public class ChatService {
                     orchestrationService.reviewPlan(route, content, user, sessionNo, traceId);
             if (orchestrationReview.isPresent()) {
                 OrchestrationOutcome outcome = orchestrationReview.get();
+                orchestrationAudit.record("PLAN", traceId, sessionNo, outcome);
                 emit(emitter, "orchestration", orchestrationView("PLAN", outcome));
                 if (outcome.blocking()) {
                     String message = outcome.clarification() == null || outcome.clarification().isBlank()
@@ -351,6 +356,7 @@ public class ChatService {
                     List.of()));
             orchestrationService.verify(verifiedSteps, verifiedPlan, sessionNo, traceId)
                     .ifPresent(outcome -> {
+                        orchestrationAudit.record("VERIFY", traceId, sessionNo, outcome);
                         emit(emitter, "orchestration", orchestrationView("VERIFY", outcome));
                         if ("NEEDS_INPUT".equals(outcome.verdict())
                                 && !attachmentFlow

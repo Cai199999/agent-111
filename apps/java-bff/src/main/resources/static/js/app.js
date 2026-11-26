@@ -221,6 +221,7 @@ const els = {
   observabilityMenuItem: document.getElementById('observabilityMenuItem'),
   observabilityModal: document.getElementById('observabilityModal'),
   observabilitySummary: document.getElementById('observabilitySummary'),
+  observabilityOrchestration: document.getElementById('observabilityOrchestration'),
   observabilityEvents: document.getElementById('observabilityEvents'),
   observabilitySamples: document.getElementById('observabilitySamples'),
   observabilityClose: document.getElementById('observabilityClose'),
@@ -387,9 +388,7 @@ function bindEvents() {
   els.dashboardClose.addEventListener('click', () => {
     els.dashboardModal.hidden = true;
   });
-  els.observabilityClose.addEventListener('click', () => {
-    els.observabilityModal.hidden = true;
-  });
+  els.observabilityClose.addEventListener('click', () => closeObservability());
   els.a2aClose.addEventListener('click', () => {
     els.a2aModal.hidden = true;
   });
@@ -1935,26 +1934,46 @@ function renderDashboard(data) {
   els.dashboardTable.replaceChildren(table);
 }
 
+let observabilityTimer = null;
+
 async function openObservability() {
   els.observabilityModal.hidden = false;
   els.observabilitySummary.textContent = '加载中…';
+  els.observabilityOrchestration.replaceChildren();
   els.observabilityEvents.replaceChildren();
   els.observabilitySamples.replaceChildren();
+  await refreshObservability();
+  clearInterval(observabilityTimer);
+  observabilityTimer = setInterval(refreshObservability, 5000);
+}
+
+function closeObservability() {
+  els.observabilityModal.hidden = true;
+  clearInterval(observabilityTimer);
+  observabilityTimer = null;
+}
+
+async function refreshObservability() {
+  if (els.observabilityModal.hidden) return;
   try {
-    const [events, samples] = await Promise.all([
+    const [events, samples, orchestration] = await Promise.all([
       api('/api/v1/admin/events/recent?limit=20'),
       api('/api/v1/admin/flywheel/samples?limit=10'),
+      api('/api/v1/admin/orchestration/recent?limit=20'),
     ]);
-    renderObservability(events, samples);
+    if (els.observabilityModal.hidden) return;
+    renderObservability(events, samples, orchestration);
   } catch (error) {
     els.observabilitySummary.textContent = error.message || '加载失败';
   }
 }
 
-function renderObservability(eventsData, samplesData) {
+function renderObservability(eventsData, samplesData, orchestrationData) {
   const bus = eventsData.stats || {};
   const outbox = eventsData.outbox || {};
   const flywheel = samplesData.stats || {};
+  const orchestration = orchestrationData.stats || {};
+  const verdicts = orchestration.verdicts || {};
   const pending = outbox.pending != null
     ? outbox.pending
     : ((outbox.counts && outbox.counts.PENDING) || 0);
@@ -1964,10 +1983,39 @@ function renderObservability(eventsData, samplesData) {
   const sampleTotal = flywheel.total != null
     ? flywheel.total
     : (flywheel.recent != null ? flywheel.recent : 0);
+  const hasIssue = (bus.failed || 0) > 0
+    || pending > 0
+    || (verdicts.FAILED || 0) > 0;
+  els.observabilitySummary.classList.toggle('warn', hasIssue);
   els.observabilitySummary.textContent =
     `事件 已发布 ${bus.published || 0} · 缓冲 ${bus.buffered || 0} · 消费失败 ${bus.failed || 0}`
     + ` ｜ Outbox ${outbox.backend || '-'} · 已投递 ${dispatched} · PENDING ${pending}`
+    + ` ｜ 编排 ${orchestration.size || 0} 条`
     + ` ｜ 飞轮 ${flywheel.backend || 'JSONL'} · ${sampleTotal} 条`;
+
+  const traces = (orchestrationData.traces || []).slice().reverse();
+  if (!traces.length) {
+    els.observabilityOrchestration.replaceChildren(el('div', 'notify-empty', '暂无编排记录'));
+  } else {
+    els.observabilityOrchestration.replaceChildren(...traces.map((trace) => {
+      const phase = trace.phase === 'VERIFY' ? '验收' : '编排';
+      const verdict = trace.verdict || 'UNKNOWN';
+      const capabilities = (trace.capabilities || []).join(' → ') || '-';
+      const row = el('div', 'audit-row');
+      const main = el('div');
+      main.append(
+        el('div', 'main', `${phase} · ${capabilities}`),
+        el('div', 'meta',
+          `${trace.traceId || '-'} · ${formatDate(trace.occurredAt)}`
+          + (trace.clarification ? ` · ${trace.clarification}` : '')),
+      );
+      const pillClass = verdict === 'COMPLETE'
+        ? 'SUCCEEDED'
+        : (verdict === 'FAILED' ? 'FAILED' : 'PENDING');
+      row.append(main, el('span', `status ${pillClass}`, verdict));
+      return row;
+    }));
+  }
 
   // 进程内缓冲重启后为空；此时用 Outbox 历史补足最近事件。
   const liveEvents = eventsData.events || [];

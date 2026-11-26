@@ -378,25 +378,27 @@ EVENT_OUTBOX_MAX_ATTEMPTS=5
 
 用户菜单新增 ADMIN 可见的「运行观测」：
 
+- **最近编排**：`GET /api/v1/admin/orchestration/recent`；展示阶段、能力链、verdict、
+  澄清文本；只记录能力/状态，不复制 input/output；
 - **最近事件**：优先取进程内总线；重启后缓冲为空时回退 Outbox 历史；
 - **Outbox**：backend、已投递数、PENDING 数；
 - **飞轮样本**：能力、任务号、状态、耗时、发生时间；
-- 数据全部来自既有 ADMIN 接口，只读，不提供重放/删除按钮。
+- 打开时每 5 秒自动刷新；有 PENDING/消费失败/编排失败时摘要变红；
+- 数据全部来自 ADMIN 接口，只读，不提供重放/删除按钮。
 
 ### 9.3 验证（2026-11-26）
 
 - 无头 Chromium + CDP 实测：
-  - 重启后「运行观测」显示 Outbox `已投递 13 · PENDING 0`、3 条飞轮样本，
-    最近事件来自 Outbox 历史；
-  - 聊天发送 `查询我的待处理工单` 后出现 `验收 FAILED（失败）` 徽标，
-    内容为 `property.ticket.query=FAILED · ConnectException`；
-- JS/HTML 语法检查通过；全量 Java **107/107**。
+  - 重启后「运行观测」显示 Outbox 历史、飞轮样本；
+  - 打开面板后从 2 条编排记录自动刷新到 4 条，摘要同步更新；
+  - 聊天发送查询后出现 `验收 COMPLETE` 徽标；
+- JS/HTML 语法检查通过；全量 Java **110/110**（新增 `OrchestrationAuditStoreTest` 2 项）。
 
 ### 9.4 边界
 
-- `orchestration` 结果目前只走 SSE，不落库，历史会话不重放编排状态；
-- 管理端为打开时拉取，无自动刷新/分页；
-- 未做多用户实时观测与告警。
+- 编排审计为进程内有界缓冲（200 条），重启清空；持久化未做；
+- 管理端为 5 秒轮询，不是 WebSocket 实时推送；
+- 未做多用户隔离观测、告警阈值与通知。
 
 ## 10. 评测流水线（2026-11-26）
 
