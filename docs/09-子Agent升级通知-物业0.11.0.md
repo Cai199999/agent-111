@@ -120,10 +120,10 @@
   → 确认后 `SUCCEEDED`，生成真实工单（`GD20261126000179`）；
 - 真实 AI 分析：`property.ticket.ai.analyze` → `skillId=ticket.assist`；
   低风险写直接 `SUCCEEDED`，无 `WAITING_CONFIRM`；
-- `real_agent_smoke.py`：物业 4/4 PASS；合同 4 项因 8400 未启动 FAIL；
-- 全量 E2E（`E2E_REAL=1`，真实数据自适应）：**PASS=97 / FAIL=4**；
-  - **仅 4 项合同失败**：8400 未启动；
+- `real_agent_smoke.py`：最终回归 **8/8 PASS**（物业 4 + 合同 4）；
+- 全量 E2E（`E2E_REAL=1`，真实数据自适应）：最终 **PASS=101 / FAIL=0**；
   - 物业查询/建单/确认/派单/关闭/批量全部通过；
+  - 合同 0.8.0 规则/解析/审查/终态取消同时通过；
   - 真实关闭若子 Agent 按业务状态返回 `20002`，视为链路通过（业务规则拒绝而非集成失败）；
 - 修复：V19 持久化 `skill_id`、只读 ID 字符串→整数归一、恢复重试保留 skillId；
   显式 `ticketId` 确定性路由（派单/关闭/批量）、GIS 巡查前置计划优先、E2E 真实数据自适应。

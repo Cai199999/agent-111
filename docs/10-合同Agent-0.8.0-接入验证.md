@@ -61,24 +61,30 @@
 
 `E2E_REAL=1 BASE_URL=http://127.0.0.1:8600 python3 -I scripts/e2e_full.py`
 
-最新结果：**PASS=99 / FAIL=2**
+最新结果：**PASS=101 / FAIL=0**（89.8s，物业 8200 + 合同 8400 均在线）
 
-- 合同段已通过：
-  - 服务合同规则返回 37 条；
-  - 通过 `contract.resolve` 显式选择 `contractId` 后审查成功，Finding 数可读；
-  - 终态取消按 409 断言通过。
-- 剩余 2 项失败均为 **物业 Agent 8200 在测试后段下线**：
-  - `缺关键信息为追问/确认`：实际为 `ConnectException`；
-  - `工具执行成功`：同样为物业 Agent 不可达。
-- 此前合同段 4 项失败已通过真实数据适配消除：
-  - 使用 `SERVICE` 查询规则；
-  - 显式 resolve + contractId；
-  - 终态取消 409 视为通过。
+- 物业 Agent 重启后强制刷新 Manifest：`0.11.0 / 55 能力 / 12 Skill`；
+- 合同 Agent Card：`0.8.0 / 6 启用能力 / 6 Skill`；
+- 合同默认规则查询 52 条，SERVICE 37 条；
+- 通过 `contract.resolve` 显式选择 `contractId` 后审查成功，10 条 Finding；
+- 终态取消按 409 断言通过；
+- 物业查询/建单/确认/派单/关闭/批量、GIS、通知、审计、编排、观测全部通过。
+
+最终真实回归：
+
+```text
+真实 Agent smoke：8/8
+真实全量 E2E：101/101
+Mock 全量 E2E：101/101
+Java：130/130
+Python：29/29
+```
 
 ## 4. 结论与待办
 
-**合同 Agent 0.8.0 已可被主 Agent 正常调用**：Manifest/Card/Skill、委托签发、合同解析、
-审查、Finding 返回均验证通过。
+**合同 Agent 0.8.0 已完整接入主 Agent**：Manifest/Card/Skill、委托签发、合同解析、
+规则查询、审查、Finding 返回、终态取消均验证通过；物业 0.11.0 同时在线时，
+真实全量 E2E 达到 **101/101**。
 
 仍需合同 Agent 侧或测试侧处理：
 
