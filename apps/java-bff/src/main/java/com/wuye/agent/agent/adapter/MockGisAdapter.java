@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -33,7 +32,6 @@ import org.springframework.stereotype.Component;
  * <p>不接真实 GIS 引擎，只返回可演示的地块/变化图斑/巡查任务数据。</p>
  */
 @Component
-@ConditionalOnProperty(name = "wuye.agent.mode", havingValue = "mock", matchIfMissing = true)
 public class MockGisAdapter implements AgentAdapter {
 
     private static final String AGENT_KEY = "geo-asset-agent";

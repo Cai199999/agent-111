@@ -205,7 +205,7 @@ def main() -> int:
     status, text = root.get("/", raw=True, headers={"Accept": "text/html"})
     check("UI index 可访问", status == 200 and "物业主 Agent" in text, (status, text[:200]))
     status, text = root.get("/js/app.js", raw=True)
-    check("UI JS 版本 uninstall1", status == 200 and "20261121-uninstall1" in text)
+    check("UI JS 可观测入口", status == 200 and "orchestration-badge" in text)
     check("UI 含动态 Agent 卸载按钮逻辑",
           status == 200 and "uninstallAgent" in text and "agent-remove" in text)
     check("UI CSS 可访问", root.get("/css/app.css")[0] == 200)

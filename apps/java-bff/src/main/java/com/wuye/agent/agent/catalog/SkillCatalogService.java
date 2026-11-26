@@ -174,8 +174,15 @@ public class SkillCatalogService {
             }
             List<String> taskTypes = strings(map.get("taskTypes"),
                     map.get("taskType"), map.get("tasks"));
-            List<String> capabilityIds = strings(map.get("capabilityIds"),
-                    map.get("capabilities"), map.get("capabilityIds"));
+            // 真实 0.11.0 Manifest：capabilities 是 taskType 列表，
+            // capabilityIds 才是完整能力 ID；旧 Mock 只有 capabilities（完整 ID）。
+            List<String> capabilityIds = strings(map.get("capabilityIds"));
+            List<String> capabilitiesField = strings(map.get("capabilities"));
+            if (capabilityIds.isEmpty()) {
+                capabilityIds = capabilitiesField;
+            } else if (taskTypes.isEmpty()) {
+                taskTypes = capabilitiesField;
+            }
             if (taskTypes.isEmpty() && capabilityIds.isEmpty()) {
                 // 没有覆盖范围无法用于选择，跳过而不是猜。
                 continue;
@@ -213,6 +220,14 @@ public class SkillCatalogService {
             }
             boolean readOnly = bool(map.get("readOnly"), false);
             String name = text(map.get("displayName"), map.get("name"), id);
+            String taskType = text(map.get("taskType"));
+            if (taskType == null) {
+                // 物业 0.11.0 用 name 表示 taskType（如 ticket.query）；
+                // 其他方言可能用人类可读名称，此时退回能力 ID 末段。
+                String rawName = text(map.get("name"));
+                taskType = rawName != null && rawName.contains(".")
+                        ? rawName : lastSegment(id);
+            }
             List<String> modes = strings(map.get("executionModes"), map.get("executionMode"));
             if (modes.isEmpty()) {
                 modes = List.of("SYNC");
@@ -220,7 +235,7 @@ public class SkillCatalogService {
             capabilities.add(new Capability(
                     id,
                     agentKey,
-                    text(map.get("taskType"), lastSegment(id)),
+                    taskType,
                     namespace(id),
                     name,
                     text(map.get("description"), name),

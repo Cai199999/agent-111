@@ -43,6 +43,24 @@ class SkillCatalogServiceTest {
     }
 
     @Test
+    void parsesRealPropertyManifestShape() {
+        FakeAdapter adapter = new FakeAdapter(realManifest());
+        AdapterRegistry registry = new AdapterRegistry(List.of(adapter));
+        SkillCatalogService catalog = new SkillCatalogService(registry);
+
+        var capability = catalog.capabilities("fake-agent").get(0);
+        assertEquals("property.ticket.query", capability.capabilityId());
+        assertEquals("ticket.query", capability.taskType());
+        assertFalse(capability.requiresConfirmation());
+
+        var skill = catalog.skills("fake-agent").get(0);
+        assertEquals("repair.intake", skill.skillId());
+        assertEquals(List.of("ticket.query"), skill.taskTypes());
+        assertEquals(List.of("property.ticket.query"), skill.capabilityIds());
+        assertTrue(skill.requiresConfirmation());
+    }
+
+    @Test
     void refreshDetectsNewManifestVersionAndSkill() {
         FakeAdapter adapter = new FakeAdapter(manifest("0.11.0", "skill.create"));
         AdapterRegistry registry = new AdapterRegistry(List.of(adapter));
@@ -75,6 +93,30 @@ class SkillCatalogServiceTest {
         assertEquals(1, result.get("capabilities"));
         assertTrue(registry.capability("fake.ticket.create").isPresent());
         assertTrue(registry.capability("fake.ticket.create").get().readOnly() == false);
+    }
+
+    private static Map<String, Object> realManifest() {
+        Map<String, Object> capability = new LinkedHashMap<>();
+        capability.put("capabilityId", "property.ticket.query");
+        capability.put("name", "ticket.query");
+        capability.put("description", "查询当前 Actor 可见工单");
+        capability.put("readOnly", true);
+        capability.put("requiresConfirmation", false);
+        capability.put("executionModes", List.of("SYNC", "ASYNC"));
+
+        Map<String, Object> skill = new LinkedHashMap<>();
+        skill.put("skillId", "repair.intake");
+        skill.put("name", "报修受理");
+        skill.put("description", "整理报修信息并创建工单");
+        skill.put("capabilities", List.of("ticket.query"));
+        skill.put("capabilityIds", List.of("property.ticket.query"));
+        skill.put("requiresConfirmation", true);
+
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put("version", "0.11.0");
+        manifest.put("capabilities", List.of(capability));
+        manifest.put("skills", List.of(skill));
+        return manifest;
     }
 
     private static Map<String, Object> manifest(String version, String skillId) {

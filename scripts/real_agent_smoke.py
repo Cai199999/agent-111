@@ -80,10 +80,15 @@ def unwrap_property(body):
 
 def main() -> int:
     env = load_env()
-    property_base = env.get("AGENT_PROPERTY_BASE_URL", "http://127.0.0.1:8402").rstrip("/")
-    property_token = env.get("AGENT_PROPERTY_INTERNAL_TOKEN", "")
-    contract_base = env.get("AGENT_CONTRACT_BASE_URL", "http://127.0.0.1:8400").rstrip("/")
-    contract_token = env.get("AGENT_CONTRACT_INTERNAL_TOKEN", "")
+    # 允许命令行环境覆盖，便于主 Agent 指向实际启动端口（如 8200）。
+    property_base = (os.getenv("AGENT_PROPERTY_BASE_URL")
+                     or env.get("AGENT_PROPERTY_BASE_URL", "http://127.0.0.1:8402")).rstrip("/")
+    property_token = (os.getenv("AGENT_PROPERTY_INTERNAL_TOKEN")
+                      or env.get("AGENT_PROPERTY_INTERNAL_TOKEN", ""))
+    contract_base = (os.getenv("AGENT_CONTRACT_BASE_URL")
+                     or env.get("AGENT_CONTRACT_BASE_URL", "http://127.0.0.1:8400")).rstrip("/")
+    contract_token = (os.getenv("AGENT_CONTRACT_INTERNAL_TOKEN")
+                      or env.get("AGENT_CONTRACT_INTERNAL_TOKEN", ""))
 
     print(f"property={property_base} token_len={len(property_token)}")
     print(f"contract={contract_base} token_len={len(contract_token)}")

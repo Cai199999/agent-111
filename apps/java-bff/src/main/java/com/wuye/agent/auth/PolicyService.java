@@ -1,6 +1,5 @@
 package com.wuye.agent.auth;
 
-import com.wuye.agent.agent.install.DynamicAgentRegistry;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.common.ApiException;
 import java.util.List;
@@ -13,17 +12,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class PolicyService {
 
-    private final DynamicAgentRegistry dynamicAgentRegistry;
-
-    public PolicyService(DynamicAgentRegistry dynamicAgentRegistry) {
-        this.dynamicAgentRegistry = dynamicAgentRegistry;
-    }
-
     public boolean canUseCapability(AuthUser user, String capabilityId) {
-        // 运行时安装的 Agent 能力：管理员可临时使用（演示态），
-        // 生产化应改为安装审批 + 角色授权。
-        if (user != null && user.isAdmin()
-                && dynamicAgentRegistry.isDynamicCapability(capabilityId)) {
+        // ADMIN 是平台超级管理员：Manifest 新增能力无需逐条补权限表；
+        // 子 Agent 仍会按 Actor 本地角色做权威校验，主 Agent 不越权调用。
+        if (user != null && user.isAdmin()) {
             return true;
         }
         return user != null && user.hasPermission("capability:" + capabilityId);
