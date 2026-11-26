@@ -1970,6 +1970,7 @@ async function refreshObservability() {
 
 function renderObservability(eventsData, samplesData, orchestrationData) {
   const bus = eventsData.stats || {};
+  const stream = eventsData.stream || {};
   const outbox = eventsData.outbox || {};
   const flywheel = samplesData.stats || {};
   const orchestration = orchestrationData.stats || {};
@@ -1983,12 +1984,21 @@ function renderObservability(eventsData, samplesData, orchestrationData) {
   const sampleTotal = flywheel.total != null
     ? flywheel.total
     : (flywheel.recent != null ? flywheel.recent : 0);
+  const streamBackend = stream.backend || 'MEMORY';
+  const streamText = streamBackend === 'REDIS'
+    ? `Stream 长度 ${stream.length || 0} · pending ${stream.pending || 0}`
+      + ` · DLQ ${stream.dlqLength || 0}`
+    : 'Stream 本地';
   const hasIssue = (bus.failed || 0) > 0
     || pending > 0
-    || (verdicts.FAILED || 0) > 0;
+    || (verdicts.FAILED || 0) > 0
+    || (stream.pending || 0) > 0
+    || (stream.dlqLength || 0) > 0
+    || stream.error;
   els.observabilitySummary.classList.toggle('warn', hasIssue);
   els.observabilitySummary.textContent =
     `事件 已发布 ${bus.published || 0} · 缓冲 ${bus.buffered || 0} · 消费失败 ${bus.failed || 0}`
+    + ` ｜ ${streamText}`
     + ` ｜ Outbox ${outbox.backend || '-'} · 已投递 ${dispatched} · PENDING ${pending}`
     + ` ｜ 编排 ${orchestration.size || 0} 条`
     + ` ｜ 飞轮 ${flywheel.backend || 'JSONL'} · ${sampleTotal} 条`;

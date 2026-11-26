@@ -582,6 +582,9 @@ class PrototypeSmokeTest {
         assertTrue(orchestration.contains("\"traces\""), orchestration);
         assertTrue(orchestration.contains("\"stats\""), orchestration);
 
+        String stream = getWithToken("/api/v1/admin/events/stream", adminToken);
+        assertTrue(stream.contains("\"backend\":\"MEMORY\""), stream);
+
         String userToken = login("user", "user123");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(userToken);

@@ -510,14 +510,32 @@ EVENT_REDIS_MAXLEN=10000
 ### 11.5 边界
 
 - 单 consumer group；多实例需各自唯一 `EVENT_REDIS_CONSUMER`，同组竞争消费；
-- 未做消费者 lag 告警、死信队列、Stream 归档；
+- 未做消费者 lag 告警、Stream 归档；
 - 未接 Kafka；跨实例顺序由 Redis Stream 单 key 顺序近似保证；
 - Redis DB 0 与他人共享，只靠 `wuye_agent:` 前缀隔离。
+
+### 11.6 健康观测与死信（2026-11-26）
+
+- `EventStreamHealth` 接口：memory 返回 `MEMORY`，redis 返回：
+  - `length` / `pending` / `consumers` / `lastDeliveredId` / `dlqLength`；
+  - 本地计数 `delivered` / `failed` / `deadLettered` / `lastReadAt` / `lastError`；
+- `GET /api/v1/admin/events/stream`（ADMIN）；
+- `/events/recent` 同时返回 `stream` 健康视图；运行观测摘要显示
+  `Stream 长度 / pending / DLQ`，异常时变红；
+- 坏消息处理：
+  - 解析/投递失败 → 写 `wuye_agent:events:dlq`（MAXLEN ≈ 5000）→ ACK；
+  - DLQ 写失败 → 不 ACK，留待重启补读，避免静默丢失；
+- 真实验证：
+  - 启动后 `length=4 / pending=0`；
+  - 注入非法事件 → `failed=1 / deadLettered=1 / dlqLength=1`，主 Stream `pending=0`；
+  - 随后正常任务继续消费，`delivered=2`，飞轮新增样本；
+  - `SCAN wuye_agent:*` 只有 `wuye_agent:events` 与 `wuye_agent:events:dlq`；
+- Java 全量 **112/112**。
 
 ## 12. 下一步
 
 1. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
 2. **编排增强**：`NEEDS_INPUT` 自动重新规划一次（仅只读计划）；
-3. **观测增强**：编排结果落库/历史回放、消费者 lag/告警；
-4. **Redis 生产化**：死信队列、Stream 归档、多实例压测；
+3. **观测增强**：编排结果落库/历史回放、消费者 lag 告警；
+4. **Redis 生产化**：Stream 归档、DLQ 重放工具、多实例压测；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

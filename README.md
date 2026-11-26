@@ -106,6 +106,8 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - **Redis Stream**：`EVENT_BACKEND=redis` 时 Outbox relay 写入 `wuye_agent:events`，
   订阅者 `XREADGROUP` 消费后投递本地总线；前缀/Stream 已登记 `RESOURCES.md`；
   默认 `memory`，不启用 Redis；
+- **Stream 健康与死信**：`GET /api/v1/admin/events/stream` 返回长度/pending/DLQ/消费计数；
+  坏消息写 `wuye_agent:events:dlq` 后 ACK，DLQ 写失败则不 ACK；运行观测摘要显示 Stream 状态；
 - 飞轮消费者把任务终态样本落 `data/flywheel/samples.jsonl`（默认/测试）或
   `wa_flywheel_sample`（mysql profile，V16），ADMIN 可查
   `GET /api/v1/admin/flywheel/samples`；只做数据出口，不接训练；

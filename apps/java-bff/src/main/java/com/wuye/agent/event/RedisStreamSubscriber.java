@@ -2,7 +2,10 @@ package com.wuye.agent.event;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -16,6 +19,7 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
 import org.springframework.data.redis.connection.stream.StreamReadOptions;
+import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.StreamOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -35,9 +39,12 @@ public class RedisStreamSubscriber implements SmartLifecycle {
     private final StringRedisTemplate redis;
     private final RedisEventCodec codec;
     private final EventBus eventBus;
+    private final RedisStreamHealth health;
     private final String stream;
     private final String group;
     private final String consumer;
+    private final String dlq;
+    private final long dlqMaxLen;
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile boolean running;
     private Thread worker;
@@ -46,15 +53,21 @@ public class RedisStreamSubscriber implements SmartLifecycle {
             StringRedisTemplate redis,
             RedisEventCodec codec,
             EventBus eventBus,
+            RedisStreamHealth health,
             @Value("${wuye.event.redis.stream:wuye_agent:events}") String stream,
             @Value("${wuye.event.redis.group:wuye_agent-bff}") String group,
-            @Value("${wuye.event.redis.consumer:bff-1}") String consumer) {
+            @Value("${wuye.event.redis.consumer:bff-1}") String consumer,
+            @Value("${wuye.event.redis.dlq:wuye_agent:events:dlq}") String dlq,
+            @Value("${wuye.event.redis.dlq-maxlen:5000}") long dlqMaxLen) {
         this.redis = redis;
         this.codec = codec;
         this.eventBus = eventBus;
+        this.health = health;
         this.stream = stream;
         this.group = group;
         this.consumer = consumer;
+        this.dlq = dlq;
+        this.dlqMaxLen = Math.max(100, dlqMaxLen);
     }
 
     @Override
@@ -143,26 +156,62 @@ public class RedisStreamSubscriber implements SmartLifecycle {
     }
 
     private void handle(MapRecord<String, String, String> record) {
-        try {
-            String json = record.getValue().get("event");
-            if (json == null || json.isBlank()) {
-                log.warn("redis stream record without event field id={}", record.getId());
-            } else {
+        String json = record.getValue().get("event");
+        boolean shouldAck;
+        if (json == null || json.isBlank()) {
+            health.recordFailure("redis stream record without event field");
+            shouldAck = deadLetter(record, null, "missing event field");
+        } else {
+            try {
                 EventEnvelope event = codec.decode(json);
                 eventBus.publish(event);
+                health.recordDelivered(1);
+                shouldAck = true;
                 log.debug("redis stream event delivered id={} type={} eventId={}",
                         record.getId(), event.eventType(), event.eventId());
+            } catch (Exception ex) {
+                health.recordFailure(ex.getMessage());
+                // 坏消息进 DLQ；DLQ 写失败则不 ACK，留待重启补读。
+                shouldAck = deadLetter(record, json, ex.getMessage());
             }
-        } catch (Exception ex) {
-            // 坏消息不阻塞 consumer：记录后 ACK，后续可通过 Outbox 历史排查。
-            log.warn("redis stream event handle failed id={} error={}",
-                    record.getId(), ex.getMessage());
+        }
+        if (!shouldAck) {
+            return;
         }
         try {
             redis.opsForStream().acknowledge(stream, group, record.getId());
         } catch (Exception ex) {
+            health.recordFailure("ack failed: " + ex.getMessage());
             log.warn("redis stream ack failed id={} error={}",
                     record.getId(), ex.getMessage());
+        }
+    }
+
+    private boolean deadLetter(MapRecord<String, String, String> record, String json, String error) {
+        try {
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("originalId", record.getId().getValue());
+            fields.put("error", error == null ? "unknown" : error);
+            fields.put("at", Instant.now().toString());
+            if (json != null) {
+                fields.put("event", json);
+            }
+            redis.opsForStream().add(
+                    StreamRecords.mapBacked(fields).withStreamKey(dlq));
+            try {
+                redis.opsForStream().trim(dlq, dlqMaxLen, true);
+            } catch (Exception trimEx) {
+                log.warn("redis stream dlq trim failed dlq={} error={}",
+                        dlq, trimEx.getMessage());
+            }
+            health.recordDeadLetter();
+            log.warn("redis stream dead letter id={} dlq={} error={}",
+                    record.getId(), dlq, error);
+            return true;
+        } catch (Exception ex) {
+            log.warn("redis stream dead letter failed id={} error={}",
+                    record.getId(), ex.getMessage());
+            return false;
         }
     }
 

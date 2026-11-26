@@ -99,6 +99,8 @@ wuye:
       group: ${EVENT_REDIS_GROUP:wuye_agent-bff}
       consumer: ${EVENT_REDIS_CONSUMER:bff-1}
       maxlen: ${EVENT_REDIS_MAXLEN:10000}
+      dlq: ${EVENT_REDIS_DLQ:wuye_agent:events:dlq}
+      dlq-maxlen: ${EVENT_REDIS_DLQ_MAXLEN:5000}
   flywheel:
     # 任务终态样本落 JSONL，供离线评测/偏好数据使用
     root: ${FLYWHEEL_ROOT:data/flywheel}

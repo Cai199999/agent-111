@@ -229,7 +229,17 @@
 - 实测：应用 Redis 模式启动，backlog 2 条消费；新任务 XLEN=4、lag=0、pending=0；
   本地总线 4 条、飞轮 +2、Outbox 全 DISPATCHED；`SCAN wuye_agent:*` 仅 stream。
 - 全量 Java 112/112（新增 `RedisEventCodecTest` 2 项）。
-- 边界：单 group；多实例需唯一 consumer；无 lag 告警/死信/归档；未接 Kafka。
+- 边界：单 group；多实例需唯一 consumer；无 lag 告警/归档；未接 Kafka。
+
+## 2026-11-26 Redis 健康观测与死信
+
+- `EventStreamHealth`（memory/redis 两实现）；`GET /api/v1/admin/events/stream`；
+  `/events/recent` 返回 `stream`，运行观测显示长度/pending/DLQ，异常变红。
+- 坏消息写 `wuye_agent:events:dlq`（MAXLEN 5000）后 ACK；DLQ 写失败不 ACK，留待重启补读。
+- 实测：注入非法事件 → failed=1/deadLettered=1/DLQ=1，主 Stream pending=0；
+  随后正常任务继续消费，飞轮新增；`SCAN wuye_agent:*` 仅主 Stream + DLQ。
+- Java 全量 112/112。
+- 边界：无 lag 告警/归档/DLQ 重放工具；死信与 poison 事件保留在 Redis（本项目前缀内）。
 
 ## 下一步
 
