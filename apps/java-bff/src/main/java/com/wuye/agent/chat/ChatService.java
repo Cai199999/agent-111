@@ -18,6 +18,7 @@ import com.wuye.agent.memory.MainAgentTools;
 import com.wuye.agent.memory.MemoryService;
 import com.wuye.agent.memory.UserProfileService;
 import com.wuye.agent.orchestration.OrchestrationOutcome;
+import com.wuye.agent.orchestration.OrchestrationResult;
 import com.wuye.agent.orchestration.OrchestrationService;
 import com.wuye.agent.routing.LlmRouterClient;
 import com.wuye.agent.routing.PendingIntent;
@@ -334,7 +335,21 @@ public class ChatService {
             TaskRecord verifiedTask = task;
             List<RouteDecision.PlanStep> verifiedPlan = planForExecution;
             boolean attachmentFlow = attachmentContext != null;
-            orchestrationService.verify(capability, verifiedTask, verifiedPlan, sessionNo, traceId)
+            // 异步任务在 waitForTask 后状态可能变化：用最新终态替换最后一个步骤，
+            // 只读前置步骤保留原结果。
+            List<OrchestrationResult.StepResult> verifiedSteps =
+                    new ArrayList<>(execution.steps());
+            if (!verifiedSteps.isEmpty()) {
+                verifiedSteps.remove(verifiedSteps.size() - 1);
+            }
+            verifiedSteps.add(new OrchestrationResult.StepResult(
+                    capability.capabilityId(),
+                    capability.agentKey(),
+                    verifiedTask.status.name(),
+                    verifiedTask.output,
+                    verifiedTask.error == null ? null : verifiedTask.error.message(),
+                    List.of()));
+            orchestrationService.verify(verifiedSteps, verifiedPlan, sessionNo, traceId)
                     .ifPresent(outcome -> {
                         emit(emitter, "orchestration", orchestrationView("VERIFY", outcome));
                         if ("NEEDS_INPUT".equals(outcome.verdict())
@@ -1004,6 +1019,7 @@ public class ChatService {
         }
 
         Map<String, Object> args = new LinkedHashMap<>(route.args() == null ? Map.of() : route.args());
+        List<OrchestrationResult.StepResult> stepResults = new ArrayList<>();
 
         // 先执行只读前置步骤（如 profile.get），把结果合并进最终参数
         for (int i = 0; i < steps.size() - 1; i++) {
@@ -1021,12 +1037,15 @@ public class ChatService {
             if (preTask.status != TaskStatus.SUCCEEDED) {
                 RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, pre,
                         step.args() == null ? Map.of() : step.args(), preTask, user.actorId(), traceId);
+                stepResults.add(orchestrationStep(recovery.capability(), recovery.task()));
                 if (recovery.clarification() || recovery.task().status != TaskStatus.SUCCEEDED) {
-                    return new ExecutionResult(recovery.capability(), recovery.task(), recovery);
+                    return new ExecutionResult(recovery.capability(), recovery.task(), recovery,
+                            stepResults);
                 }
                 mergeOutput(args, recovery.task().output);
                 continue;
             }
+            stepResults.add(orchestrationStep(pre, preTask));
             mergeOutput(args, preTask.output);
         }
 
@@ -1059,7 +1078,19 @@ public class ChatService {
         TaskRecord task = taskService.submit(sessionNo, capability, args, user.actorId(), traceId);
         RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, capability,
                 args, task, user.actorId(), traceId);
-        return new ExecutionResult(recovery.capability(), recovery.task(), recovery);
+        stepResults.add(orchestrationStep(recovery.capability(), recovery.task()));
+        return new ExecutionResult(recovery.capability(), recovery.task(), recovery, stepResults);
+    }
+
+    private static OrchestrationResult.StepResult orchestrationStep(Capability capability,
+                                                                    TaskRecord task) {
+        return new OrchestrationResult.StepResult(
+                capability.capabilityId(),
+                capability.agentKey(),
+                task == null ? "FAILED" : task.status.name(),
+                task == null ? null : task.output,
+                task == null || task.error == null ? null : task.error.message(),
+                List.of());
     }
 
     private void mergeOutput(Map<String, Object> args, Object output) {
@@ -1096,7 +1127,8 @@ public class ChatService {
         }
     }
 
-    private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery) {
+    private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery,
+                                   List<OrchestrationResult.StepResult> steps) {
     }
 
     /**

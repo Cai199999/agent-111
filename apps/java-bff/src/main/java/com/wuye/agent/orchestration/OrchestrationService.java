@@ -83,34 +83,59 @@ public class OrchestrationService {
     }
 
     /**
-     * 执行后结构化验收。只对终态任务生效；非终态任务无需验收。
+     * 单任务验收（兼容旧调用）：只验证最终能力。
      */
     public Optional<OrchestrationOutcome> verify(Capability capability, TaskRecord task,
                                                  List<RouteDecision.PlanStep> plan,
                                                  String sessionNo, String traceId) {
-        if (!enabled() || capability == null || task == null || !task.status.terminal()) {
+        if (capability == null || task == null) {
             return Optional.empty();
         }
-        OrchestrationResult.StepResult step = new OrchestrationResult.StepResult(
+        return verify(List.of(toStep(capability, task)), plan, sessionNo, traceId);
+    }
+
+    /**
+     * 多步骤验收：包含只读前置步骤与最终步骤；任一非终态则跳过。
+     */
+    public Optional<OrchestrationOutcome> verify(List<OrchestrationResult.StepResult> steps,
+                                                 List<RouteDecision.PlanStep> plan,
+                                                 String sessionNo, String traceId) {
+        if (!enabled() || steps == null || steps.isEmpty()) {
+            return Optional.empty();
+        }
+        if (steps.stream().anyMatch(step -> !terminal(step.status()))) {
+            return Optional.empty();
+        }
+        try {
+            return gateway.verify(new OrchestrationGateway.VerifyRequest(
+                    traceId, sessionNo, plan, steps)).map(result -> new OrchestrationOutcome(
+                    result.verdict(),
+                    result.clarification(),
+                    plan,
+                    // Python 验收响应只回状态；SSE 需要展示的步骤取自 Java 侧事实。
+                    result.steps().isEmpty() ? steps : result.steps(),
+                    result.notes()));
+        } catch (Exception ex) {
+            log.warn("编排验收失败，保留原任务结果 traceId={} error={}", traceId, ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private static OrchestrationResult.StepResult toStep(Capability capability, TaskRecord task) {
+        return new OrchestrationResult.StepResult(
                 capability.capabilityId(),
                 capability.agentKey(),
                 task.status.name(),
                 task.output,
                 task.error == null ? null : task.error.message(),
                 List.of());
-        try {
-            return gateway.verify(new OrchestrationGateway.VerifyRequest(
-                    traceId, sessionNo, plan, List.of(step))).map(result -> new OrchestrationOutcome(
-                    result.verdict(),
-                    result.clarification(),
-                    plan,
-                    // Python 验收响应只回状态；SSE 需要展示的步骤取自 Java 侧事实。
-                    result.steps().isEmpty() ? List.of(step) : result.steps(),
-                    result.notes()));
-        } catch (Exception ex) {
-            log.warn("编排验收失败，保留原任务结果 traceId={} error={}", traceId, ex.getMessage());
-            return Optional.empty();
-        }
+    }
+
+    private static boolean terminal(String status) {
+        return "SUCCEEDED".equals(status)
+                || "FAILED".equals(status)
+                || "REJECTED".equals(status)
+                || "CANCELLED".equals(status);
     }
 
     private boolean enabled() {

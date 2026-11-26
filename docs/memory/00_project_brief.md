@@ -202,6 +202,14 @@
   P95 212.2ms、3 个 Agent；脚本测试 6/6。
 - 边界：样本小且自造；无人工标注/金标；未接 CI/趋势/告警；数据集含明文仅内网。
 
+## 2026-11-26 编排多步骤验收
+
+- `ChatService.ExecutionResult` 增加步骤结果；`executePlan` 记录只读前置步骤与最终步骤；
+  异步最终任务用 `waitForTask` 后的最新状态替换最后一步。
+- `OrchestrationService.verify` 支持多步骤：非终态跳过、任一 FAILED→FAILED、缺字段→NEEDS_INPUT。
+- Java 全量 108/108（OrchestrationServiceTest 6 项）。
+- 仍不做：`NEEDS_INPUT` 自动重规划/重试；写操作不自动确认。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

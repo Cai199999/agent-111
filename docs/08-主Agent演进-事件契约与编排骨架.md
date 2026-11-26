@@ -274,10 +274,21 @@ POST /internal/v1/ai/orchestrate/verify
 
 ### 6.6 边界
 
-- 验收目前只覆盖最终任务，只读前置步骤未逐个回传；
 - `NEEDS_INPUT` 只发事件/提示，不自动重新规划或重试；
-- 前端尚未渲染 `orchestration` 事件；管理端展示留到下一阶段；
 - 未接 Outbox/Kafka，事件与编排仍是单进程。
+
+### 6.7 多步骤验收（2026-11-26）
+
+- `ChatService.ExecutionResult` 新增步骤结果列表；
+- `executePlan` 记录每个只读前置步骤与最终步骤的能力、状态、输出/错误；
+- 异步最终任务在 `waitForTask` 后用最新状态替换最后一步，前置步骤保留；
+- `OrchestrationService.verify` 接收多步骤：
+  - 任一步骤非终态 → 跳过验收；
+  - 任一步骤 `FAILED` → `FAILED`；
+  - 任一步骤缺字段 → `NEEDS_INPUT`；
+- `OrchestrationServiceTest` 新增多步骤用例，Java 全量 **108/108**。
+
+仍不做：基于 `NEEDS_INPUT` 自动重规划/重试；写操作绝不自动确认。
 
 ## 7. Outbox 持久化（2026-11-26）
 
@@ -441,6 +452,6 @@ python3 -I scripts/eval_flywheel.py \
 
 1. **Kafka/Redis Stream 适配**：先登记资源，再替换 relay 下游，消费端幂等表；
 2. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
-3. **编排增强**：回传只读前置步骤结果、`NEEDS_INPUT` 自动重新规划一次；
+3. **编排增强**：`NEEDS_INPUT` 自动重新规划一次（仅只读计划）；
 4. **观测增强**：编排结果落库/历史回放、管理端自动刷新与告警；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

@@ -129,6 +129,25 @@ class OrchestrationServiceTest {
     }
 
     @Test
+    void verifyMultipleStepsSendsEveryStep() {
+        gateway.verifyResult = Optional.of(new OrchestrationResult(
+                "FAILED", "执行失败：property.ticket.create: boom", List.of(), List.of(), List.of()));
+        List<OrchestrationResult.StepResult> steps = List.of(
+                new OrchestrationResult.StepResult("property.profile.get", "property-maintenance",
+                        "SUCCEEDED", Map.of("contactName", "张三"), null, List.of()),
+                new OrchestrationResult.StepResult("property.ticket.create", "property-maintenance",
+                        "FAILED", null, "boom", List.of()));
+
+        Optional<OrchestrationOutcome> result = service.verify(
+                steps, List.of(), "ws_1", "trc_1");
+
+        assertTrue(result.isPresent());
+        assertEquals("FAILED", result.get().verdict());
+        assertEquals(2, gateway.lastVerify.steps().size());
+        assertEquals(steps, result.get().steps());
+    }
+
+    @Test
     void nonTerminalTaskIsNotVerified() {
         TaskRecord task = new TaskRecord("wt_1", "ws_1", "property-maintenance",
                 "property.ticket.create", "client_1", "10001", "SYNC",
