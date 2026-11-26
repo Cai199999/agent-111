@@ -1135,8 +1135,16 @@ public class ChatService {
                 "changeNo")) {
             Object value = map.get(key);
             if (value != null) {
-                args.putIfAbsent(key, value);
+                args.putIfAbsent(key, normalizeNumericId(key, value));
             }
+        }
+        // 工单详情常见形状：{ticketNo, id}；AI 分析等能力只接受 ticketId。
+        Object ticketId = map.get("ticketId");
+        if (ticketId == null && map.get("ticketNo") != null) {
+            ticketId = map.get("id");
+        }
+        if (ticketId != null) {
+            args.putIfAbsent("ticketId", normalizeNumericId("ticketId", ticketId));
         }
         // 只读查询常见包络：{items:[...]} 或 {result:[...]}；唯一候选时继续合并。
         Object items = map.get("items");
@@ -1147,6 +1155,31 @@ public class ChatService {
                 && list.get(0) instanceof Map<?, ?> item) {
             mergeMap(args, item);
         }
+    }
+
+    /**
+     * 子 Agent 的只读结果常把 ID 返回为字符串，而写能力 schema 要求 integer。
+     * 只对明确的 ID 字段做数字归一，避免把普通字符串误转成数字。
+     */
+    private static Object normalizeNumericId(String key, Object value) {
+        if (!(value instanceof String text)) {
+            return value;
+        }
+        return switch (key) {
+            case "projectId", "buildingId", "roomId", "customerId",
+                 "assigneeId", "ticketId" -> {
+                String trimmed = text.trim();
+                if (!trimmed.matches("-?\\d+")) {
+                    yield value;
+                }
+                try {
+                    yield Long.parseLong(trimmed);
+                } catch (NumberFormatException ex) {
+                    yield value;
+                }
+            }
+            default -> value;
+        };
     }
 
     private record ExecutionResult(Capability capability, TaskRecord task, RecoveryOutcome recovery,

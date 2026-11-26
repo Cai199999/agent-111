@@ -187,15 +187,16 @@ public class MySqlStore implements Store {
         }
         jdbc.update("""
                         INSERT INTO wa_task_binding (
-                            task_no, session_no, tenant_id, agent_key, capability_id, client_task_id,
-                            actor_id, execution_mode, child_task_id, status,
+                            task_no, session_no, tenant_id, agent_key, capability_id, skill_id,
+                            client_task_id, actor_id, execution_mode, child_task_id, status,
                             input_json, output_json, error_json,
                             confirmation_status, confirmation_title, confirmation_risk,
                             confirmation_fields_json, confirmation_expires_at, confirmation_state,
                             confirmation_token_cipher, progress, current_step,
                             cancel_supported, cancel_reason, created_at, started_at, finished_at
-                        ) VALUES (?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, '0', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE
+                            skill_id = VALUES(skill_id),
                             child_task_id = VALUES(child_task_id),
                             status = VALUES(status),
                             input_json = VALUES(input_json),
@@ -215,8 +216,9 @@ public class MySqlStore implements Store {
                             started_at = VALUES(started_at),
                             finished_at = VALUES(finished_at)
                         """,
-                task.taskNo, task.sessionNo, task.agentKey, task.capabilityId, task.clientTaskId,
-                task.actorId, task.executionMode, task.childTaskId, task.status.name(),
+                task.taskNo, task.sessionNo, task.agentKey, task.capabilityId, task.skillId,
+                task.clientTaskId, task.actorId, task.executionMode, task.childTaskId,
+                task.status.name(),
                 json(task.input), json(task.output), json(task.error),
                 task.confirmationStatus,
                 confirmation == null ? null : confirmation.title(),
@@ -330,6 +332,7 @@ public class MySqlStore implements Store {
                 readMap(rs.getString("input_json")),
                 safeInstant(rs, "created_at"));
         task.childTaskId = rs.getString("child_task_id");
+        task.skillId = rs.getString("skill_id");
         task.status = TaskStatus.valueOf(rs.getString("status"));
         task.output = readObject(rs.getString("output_json"));
         task.error = readError(rs.getString("error_json"));

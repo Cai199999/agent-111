@@ -102,17 +102,36 @@
 
 ### 4.2 验证
 
-- 底座 Mock 升级到 `0.11.0`，声明 10 个代表性 Skill + 22 个能力（真实 55/12 由 Manifest 同步）；
+**Mock 环境**
+
+- 底座 Mock 升级到 `0.11.0`，声明 10 个代表性 Skill + 22 个能力；
 - Agent Card：`version=0.11.0`，skills 含 `property.ticket.lifecycle` / `property.ticket.analyze`；
 - `分析 GD20261119000107 这张工单`：路由 `property.ticket.ai.analyze`，
   `skillId=property.ticket.analyze`，`SUCCEEDED` 且无 `WAITING_CONFIRM`；
 - Manifest 刷新：`version=0.11.0, capabilities=22, skills=10, source=MANIFEST`；
-- Java **119/119**、Python **29/29**。
+- Mock 全量 E2E **101/101**。
+
+**真实物业 Agent（8200，2026-11-26）**
+
+- Manifest 同步：`version=0.11.0`、`capabilities=55`、`skills=12`；
+- Agent Card：55 能力 / 12 Skill；
+- 真实只读查询：`property.ticket.query` → `skillId=ticket.track` → `SUCCEEDED`；
+- 真实建单：`property.ticket.create` → `skillId=repair.intake` → `WAITING_CONFIRM`
+  → 确认后 `SUCCEEDED`，生成真实工单（`GD20261126000179`）；
+- 真实 AI 分析：`property.ticket.ai.analyze` → `skillId=ticket.assist`；
+  低风险写直接 `SUCCEEDED`，无 `WAITING_CONFIRM`；
+- `real_agent_smoke.py`：物业 4/4 PASS；合同 4 项因 8400 未启动 FAIL；
+- 全量 E2E（真实模式）：**PASS=85 / FAIL=11**；
+  - 4 项合同失败：8400 未启动；
+  - 7 项工单失败：E2E 断言写死 mock 工单号（如 `GD20261119000107`）与 mock 处理人，
+    真实数据下不匹配；真实建单/确认链路本身通过；
+- 修复：V19 持久化 `skill_id`、只读 ID 字符串→整数归一、恢复重试保留 skillId。
 
 ### 4.3 边界
 
-- 真实物业 8402 未启动，55 能力/12 Skill 的活体目录与 `capabilities/resolve` 未验证；
+- 合同 Agent 8400 未启动，合同能力与合同 E2E 未验证；
 - `capabilities/resolve` 未接入主 Agent 目录（主 Agent 仍以 Manifest/本地鉴权为准）；
 - 知识文档 multipart 未接主 Agent 上传入口；
 - Skill 只做任务选择封装，不替代委托 scope 与子 Agent 本地角色校验；
-- 主 Agent 仍绝不自动确认，实际确认由子 Agent `WAITING_CONFIRM` 驱动。
+- 主 Agent 仍绝不自动确认，实际确认由子 Agent `WAITING_CONFIRM` 驱动；
+- 现有 E2E 的诊断断言按 mock 数据编写，真实数据需要独立的真实数据 E2E 脚本。

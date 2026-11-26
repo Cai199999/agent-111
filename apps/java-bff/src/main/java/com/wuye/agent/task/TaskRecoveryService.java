@@ -99,8 +99,8 @@ public class TaskRecoveryService {
             for (int attempt = 1; attempt <= 2; attempt++) {
                 sleep(200L * attempt);
                 humanInterventionService.autoResolve(current.taskNo, "已自动重试");
-                TaskRecord retry = taskService.submit(sessionNo, capability,
-                        args == null ? Map.of() : args, actorId, traceId);
+                TaskRecord retry = resubmit(sessionNo, capability,
+                        args == null ? Map.of() : args, actorId, traceId, task.skillId);
                 if (isUsable(retry)) {
                     return RecoveryOutcome.recovered(retry, capability, "RETRIED");
                 }
@@ -162,7 +162,9 @@ public class TaskRecoveryService {
                 merged.putAll(decision.args());
             }
             humanInterventionService.autoResolve(task.taskNo, "已自动修复并重试");
-            TaskRecord retry = taskService.submit(sessionNo, target, merged, actorId, traceId);
+            String retrySkillId = target.capabilityId().equals(task.capabilityId)
+                    ? task.skillId : null;
+            TaskRecord retry = resubmit(sessionNo, target, merged, actorId, traceId, retrySkillId);
             if (retry.status == TaskStatus.FAILED) {
                 if (depth == 0) {
                     return recover(sessionNo, userMessage, target, merged, retry,
@@ -184,6 +186,14 @@ public class TaskRecoveryService {
             return RecoveryOutcome.fallback(task, capability, "NO_CAPABILITY", message);
         }
         return null;
+    }
+
+    private TaskRecord resubmit(String sessionNo, Capability capability, Map<String, Object> args,
+                                String actorId, String traceId, String skillId) {
+        // Skill 只在同一能力重试时保留；换能力时由上层重新选择，避免子 Agent 400。
+        return skillId == null || skillId.isBlank()
+                ? taskService.submit(sessionNo, capability, args, actorId, traceId)
+                : taskService.submit(sessionNo, capability, args, actorId, traceId, skillId);
     }
 
     private static boolean isDecisionCategory(String category) {

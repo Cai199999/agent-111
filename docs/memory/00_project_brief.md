@@ -266,6 +266,21 @@
 - 边界：真实 8402 未启动，55/12 与 capabilities/resolve 未活体验证；
   知识文档 multipart 未接；Skill 不替代 scope/本地授权；不自动确认。
 
+## 2026-11-26 真实物业 Agent 联调（8200）
+
+- 物业 Agent 实际在 8200（不是 8402）；Manifest 0.11.0 / 55 能力 / 12 Skill。
+- 主 Agent 真实模式：Manifest 同步成功；Agent Card 55/12；
+  只读查询 SUCCEEDED（ticket.track）；建单 WAITING_CONFIRM → 确认 SUCCEEDED
+  （repair.intake，真实工单 GD20261126000179）；AI 分析低风险直执行
+  （ticket.assist，无 WAITING_CONFIRM）。
+- 修复：V19 `wa_task_binding.skill_id` 持久化；只读 ID 字符串归一为整数；
+  恢复重试保留 skillId；MANIFEST schema 的 taskType 取 `name`；
+  Skill 区分 taskTypes 与 capabilityIds；ADMIN 可调用新增能力；GIS Mock 在 http 模式可用。
+- 测试：Java 120/120、Python 29/29、Mock E2E 101/101；
+  真实全量 E2E 85/96：4 项合同（8400 未启动）+ 7 项 mock 数据断言不匹配。
+- 边界：合同未验证；真实数据 E2E 需独立脚本；capabilities/resolve 未接；
+  知识文档上传未接；不自动确认。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。
