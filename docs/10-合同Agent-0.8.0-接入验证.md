@@ -45,16 +45,17 @@
 | 项目 | 结果 |
 |---|---|
 | Agent Card | `0.8.0`，6 个启用能力，6 个 Skill |
-| `contract.rule.list` 不传 contractType | `SUCCEEDED`，`rules=[]` |
-| `contract.rule.list(contractType=SERVICE)` | `SUCCEEDED`，36 条（31 DRAFT + 5 PUBLISHED） |
-| `publishedOnly=true` | 5 条 PUBLISHED |
+| `contract.rule.list` 不传 contractType | `SUCCEEDED`，**52 条**（含 smoke 规则；种子 25 条） |
+| `contract.rule.list(contractType=ALL)` | 52 条，与缺省一致 |
+| `contract.rule.list(contractType=SERVICE)` | **37 条**（SERVICE + 通用规则） |
+| `publishedOnly=true` | 只返回 PUBLISHED |
 | `contract.resolve("物业服务合同")` | `SUCCEEDED`，10 个候选，需显式选择 |
 | `审查合同 <contractId>` | `SUCCEEDED`，`skillId=contract.review`，`findingsCount=10` |
 | 终态取消 | 返回 409，符合 0.8.0 契约 |
 
-> 重要差异：合同侧说明“默认返回全部 ENABLED”，但当前 8400 实际在 `contractType` 缺省时
-> 返回 0，传入 `SERVICE` 才返回 36。可能是运行中的 BFF 未重启到 4f9c83b，或 contractType
-> 仍为必填；需要合同侧确认。主 Agent E2E 使用“服务合同”提示以显式触发 `SERVICE`。
+> 合同侧已在 `b67db90` 修正规则查询口径：缺省/null/空白/`ALL` 均返回全部 ENABLED；
+> `SERVICE` 返回 SERVICE + 通用规则。主 Agent 侧已验证默认 52、SERVICE 37，均与大 Agent
+> 查询语义一致；无需主 Agent 代码改动。
 
 ### 3.3 全量 E2E（真实模式）
 
@@ -63,7 +64,7 @@
 最新结果：**PASS=99 / FAIL=2**
 
 - 合同段已通过：
-  - 服务合同规则返回 36 条；
+  - 服务合同规则返回 37 条；
   - 通过 `contract.resolve` 显式选择 `contractId` 后审查成功，Finding 数可读；
   - 终态取消按 409 断言通过。
 - 剩余 2 项失败均为 **物业 Agent 8200 在测试后段下线**：
@@ -81,8 +82,8 @@
 
 仍需合同 Agent 侧或测试侧处理：
 
-1. 确认 8400 运行版本是否已包含 4f9c83b：当前 `contract.rule.list` 不传 `contractType` 返回 0，
-   与“默认返回全部 ENABLED”不一致；若 contractType 仍为必填，请在契约中明确。
+1. 合同规则查询口径已在 `b67db90` 修正：默认/null/ALL 返回全部 ENABLED，SERVICE 返回
+   SERVICE + 通用规则；主 Agent 默认与 SERVICE 查询均已复测通过。
 2. 合同同名场景已按新契约：主 Agent 先 resolve，再由编排层/用户显式选择 contractId。
 3. 合同取消已按终态 409 处理；E2E 不再构造长任务。
-4. 合同 Agent 内部测试套件仍由合同项目自行执行；本次在主 Agent 侧做真实集成验证。
+4. 合同 Agent 内部测试套件仍由合同项目自行执行（62/62）；本次在主 Agent 侧做真实集成验证。

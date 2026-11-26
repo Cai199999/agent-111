@@ -292,8 +292,8 @@
 - 验证：真实 Agent smoke **8/8**（物业 4 + 合同 4）；真实全量 E2E **99/101**；
   合同段全部通过（SERVICE 36 规则、resolve 显式 contractId、审查 10 Findings、终态取消 409）；
   仅 2 项物业失败因 8200 在测试后段下线。
-- 合同规则查询注意：当前 8400 在 `contractType` 缺省时返回 0，传 `SERVICE` 返回 36；
-  与“默认全部 ENABLED”口径不一致，待合同侧确认版本/契约。
+- 合同规则查询口径已由合同侧 `b67db90` 修正：默认/null/ALL 返回全部 ENABLED（52 条，
+  含 smoke），SERVICE 37 条；主 Agent 默认与服务合同查询均复测通过。
 - 文档：`docs/10-合同Agent-0.8.0-接入验证.md`。
 - Java 全量 130/130。
 
