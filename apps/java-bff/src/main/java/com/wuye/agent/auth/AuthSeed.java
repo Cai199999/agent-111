@@ -35,6 +35,7 @@ public final class AuthSeed {
                 "capability:property.profile.get",
                 "capability:property.knowledge.search",
                 "capability:property.ticket.similar",
+                "capability:property.ticket.ai.analyze",
                 "capability:gis.parcel.query",
                 "capability:gis.change.query"));
         ROLE_PERMISSIONS.put("USER", Set.of(
@@ -66,6 +67,7 @@ public final class AuthSeed {
                 "capability:property.ticket.assign",
                 "capability:property.ticket.cancel",
                 "capability:property.ticket.export",
+                "capability:property.ticket.ai.analyze",
                 "capability:contract.review",
                 "capability:contract.resolve",
                 "capability:contract.rule.create",

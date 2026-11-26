@@ -18,6 +18,7 @@ public record TaskView(
         String sessionNo,
         String agentKey,
         String capabilityId,
+        String skillId,
         TaskStatus status,
         String executionMode,
         Map<String, Object> input,
@@ -37,7 +38,7 @@ public record TaskView(
 ) {
     public static TaskView from(TaskRecord task) {
         return new TaskView(
-                task.taskNo, task.sessionNo, task.agentKey, task.capabilityId,
+                task.taskNo, task.sessionNo, task.agentKey, task.capabilityId, task.skillId,
                 task.status, task.executionMode, task.input, task.output, task.error,
                 confirmationView(task.confirmation, task.input), task.confirmationStatus, task.events,
                 task.progress, task.currentStep, task.cancelSupported, task.cancelable(),

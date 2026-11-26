@@ -33,6 +33,8 @@ public final class TaskRecord {
     public volatile String traceId;
     /** 租户隔离标识；原型阶段来自登录用户，缺省为 "0"。 */
     public volatile String tenantId = "0";
+    /** 任务级 Skill（子 Agent 0.11.0+）；只做选择封装，不替代能力与授权。 */
+    public volatile String skillId;
     public volatile TaskStatus status = TaskStatus.PENDING;
     public volatile Object output;
     public volatile AgentError error;

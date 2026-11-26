@@ -13,6 +13,7 @@ public record AdapterTaskRequest(
         String executionMode,
         String actorId,
         String traceId,
-        String correlationId
+        String correlationId,
+        String skillId
 ) {
 }

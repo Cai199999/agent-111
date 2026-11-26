@@ -43,7 +43,7 @@ public class MockPropertyAdapter implements AgentAdapter {
             AGENT_KEY,
             "物业运维 Agent（Mock）",
             "property-v08",
-            "0.9.0",
+            "0.11.0",
             "wrapped",
             "/agent/v1/health",
             "/agent/v1/ready",
@@ -70,7 +70,9 @@ public class MockPropertyAdapter implements AgentAdapter {
                     capability("property.ticket.comment.add", "ticket.comment.add", "评论", false, true),
                     capability("property.ticket.material.add", "ticket.material.add", "材料", false, true),
                     capability("property.ticket.visit.add", "ticket.visit.add", "回访", false, true),
-                    capability("property.ticket.export", "ticket.export", "导出 Excel", false, true)
+                    capability("property.ticket.export", "ticket.export", "导出 Excel", false, true),
+                    // 0.11.0：低风险写，requiresConfirmation=false，直接执行。
+                    capability("property.ticket.ai.analyze", "ticket.ai.analyze", "AI 分析工单", false, false)
             ));
 
     private static Capability capability(String id, String taskType, String name,
@@ -85,6 +87,92 @@ public class MockPropertyAdapter implements AgentAdapter {
     }
 
     @Override
+    public boolean supportsManifest() {
+        return true;
+    }
+
+    /**
+     * 模拟物业 0.11.0 Manifest：版本 + 任务级 Skills。
+     * 真实环境由 HTTP Adapter 从 /agent/v1/manifest 拉取，解析逻辑相同。
+     */
+    @Override
+    public Map<String, Object> manifest() {
+        Map<String, Object> manifest = new LinkedHashMap<>();
+        manifest.put("agentId", AGENT_KEY);
+        manifest.put("version", "0.11.0");
+        manifest.put("capabilities", descriptor.capabilities().stream()
+                .map(capability -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("capabilityId", capability.capabilityId());
+                    item.put("taskType", capability.taskType());
+                    item.put("displayName", capability.displayName());
+                    item.put("description", capability.description());
+                    item.put("readOnly", capability.readOnly());
+                    item.put("requiresConfirmation", capability.requiresConfirmation());
+                    item.put("executionModes", capability.executionModes());
+                    item.put("enabled", capability.enabled());
+                    return item;
+                })
+                .toList());
+        manifest.put("skills", List.of(
+                skill("property.ticket.query", "工单查询",
+                        List.of("ticket.query", "ticket.detail", "ticket.similar"),
+                        List.of("property.ticket.query", "property.ticket.detail",
+                                "property.ticket.similar"), false, false),
+                skill("property.ticket.create", "创建工单",
+                        List.of("ticket.create"), List.of("property.ticket.create"),
+                        false, true),
+                skill("property.ticket.assign", "派单",
+                        List.of("ticket.assign"), List.of("property.ticket.assign"),
+                        false, true),
+                skill("property.ticket.lifecycle", "工单流转",
+                        List.of("ticket.accept", "ticket.resolve", "ticket.verify",
+                                "ticket.close", "ticket.cancel", "ticket.hold",
+                                "ticket.resume", "ticket.finish"),
+                        List.of("property.ticket.accept", "property.ticket.resolve",
+                                "property.ticket.verify", "property.ticket.close",
+                                "property.ticket.cancel", "property.ticket.hold",
+                                "property.ticket.resume", "property.ticket.finish"),
+                        false, true),
+                skill("property.ticket.comment", "工单沟通",
+                        List.of("ticket.comment.add", "ticket.material.add", "ticket.visit.add"),
+                        List.of("property.ticket.comment.add", "property.ticket.material.add",
+                                "property.ticket.visit.add"), false, true),
+                skill("property.ticket.export", "工单导出",
+                        List.of("ticket.export"), List.of("property.ticket.export"),
+                        false, true),
+                skill("property.ticket.analyze", "AI 工单分析",
+                        List.of("ticket.ai.analyze"), List.of("property.ticket.ai.analyze"),
+                        false, false),
+                skill("property.profile", "个人资料",
+                        List.of("profile.get", "profile.update"),
+                        List.of("property.profile.get", "property.profile.update"),
+                        false, true),
+                skill("property.knowledge", "物业知识检索",
+                        List.of("knowledge.search"), List.of("property.knowledge.search"),
+                        false, false),
+                skill("property.masterdata", "主数据选项",
+                        List.of("masterdata.options"), List.of("property.masterdata.options"),
+                        false, false)
+        ));
+        return manifest;
+    }
+
+    private static Map<String, Object> skill(String skillId, String displayName,
+                                             List<String> taskTypes, List<String> capabilityIds,
+                                             boolean partial, boolean requiresConfirmation) {
+        Map<String, Object> skill = new LinkedHashMap<>();
+        skill.put("skillId", skillId);
+        skill.put("displayName", displayName);
+        skill.put("description", displayName);
+        skill.put("taskTypes", taskTypes);
+        skill.put("capabilities", capabilityIds);
+        skill.put("partial", partial);
+        skill.put("requiresConfirmation", requiresConfirmation);
+        return skill;
+    }
+
+    @Override
     public AdapterResult submit(AdapterTaskRequest request) {
         String childTaskId = "tsk_p_" + childSeq.incrementAndGet();
         State state = new State(childTaskId);
@@ -94,6 +182,17 @@ public class MockPropertyAdapter implements AgentAdapter {
         states.put(childTaskId, state);
 
         switch (request.capabilityId()) {
+            case "property.ticket.ai.analyze" -> {
+                // 0.11.0 低风险写：requiresConfirmation=false，直接返回分析结果。
+                String ticketNo = string(request.input(), "ticketNo", "GD20261119000107");
+                Map<String, Object> analysis = new LinkedHashMap<>();
+                analysis.put("ticketNo", ticketNo);
+                analysis.put("summary", "现场为水管漏水，建议优先派给给排水班组。");
+                analysis.put("causes", List.of("管件老化", "接口松动"));
+                analysis.put("actions", List.of("关闭入户总阀", "更换管件", "回访确认"));
+                analysis.put("risk", "NORMAL");
+                return succeed(state, analysis);
+            }
             case "property.ticket.query" -> {
                 String keyword = string(request.input(), "keyword", "");
                 String status = string(request.input(), "status", "");

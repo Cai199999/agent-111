@@ -2,6 +2,7 @@ package com.wuye.agent.api;
 
 import com.wuye.agent.agent.adapter.AgentAdapter;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
+import com.wuye.agent.agent.catalog.ManifestSyncService;
 import com.wuye.agent.agent.install.AgentInstallService;
 import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.AgentHealth;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Agent 目录/能力/健康，以及运行时安装/卸载。
  *
  * <p>安装支持模板与 Agent Card URL；卸载仅允许运行时安装的动态 Agent。
- * Manifest 自动同步/版本校验仍是后续项。</p>
+ * Manifest 支持启动同步与 ADMIN 强制刷新（能力/Skill 目录）。</p>
  */
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -36,13 +37,16 @@ public class AgentAdminController {
 
     private final AdapterRegistry registry;
     private final AgentInstallService installService;
+    private final ManifestSyncService manifestSync;
     private final PolicyService policyService;
     private final Ids ids;
 
     public AgentAdminController(AdapterRegistry registry, AgentInstallService installService,
+                                ManifestSyncService manifestSync,
                                 PolicyService policyService, Ids ids) {
         this.registry = registry;
         this.installService = installService;
+        this.manifestSync = manifestSync;
         this.policyService = policyService;
         this.ids = ids;
     }
@@ -70,6 +74,18 @@ public class AgentAdminController {
             throw ApiException.notFound("AGENT_NOT_FOUND", "Agent 未注册：" + agentKey);
         }
         return ApiResponse.ok(adapter.health(), trace(traceId));
+    }
+
+    /** 强制刷新 Manifest：版本变化后立即更新能力/Skill 目录；仅 ADMIN。 */
+    @PostMapping("/agents/{agentKey}/manifest/refresh")
+    public ApiResponse<Map<String, Object>> refreshManifest(
+            @PathVariable String agentKey,
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId) {
+        policyService.requireAdmin(AuthContext.require());
+        if (registry.get(agentKey) == null) {
+            throw ApiException.notFound("AGENT_NOT_FOUND", "Agent 未注册：" + agentKey);
+        }
+        return ApiResponse.ok(manifestSync.sync(agentKey), trace(traceId));
     }
 
     /** 受控安装：模板安装或从 Agent Card URL 安装；仅 ADMIN。 */

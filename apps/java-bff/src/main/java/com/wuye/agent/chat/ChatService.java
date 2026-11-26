@@ -3,6 +3,7 @@ package com.wuye.agent.chat;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.AgentCatalogService;
 import com.wuye.agent.agent.catalog.OptionCatalogService;
+import com.wuye.agent.agent.catalog.SkillCatalogService;
 import com.wuye.agent.agent.install.DynamicAgentRegistry;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.agent.model.Confirmation;
@@ -62,6 +63,7 @@ public class ChatService {
     private final AdapterRegistry registry;
     private final AgentCatalogService catalogService;
     private final OptionCatalogService optionCatalogService;
+    private final SkillCatalogService skillCatalog;
     private final DynamicAgentRegistry dynamicAgentRegistry;
     private final Router router;
     private final LlmRouterClient llmRouterClient;
@@ -81,6 +83,7 @@ public class ChatService {
 
     public ChatService(Store store, AdapterRegistry registry, AgentCatalogService catalogService,
                        OptionCatalogService optionCatalogService,
+                       SkillCatalogService skillCatalog,
                        DynamicAgentRegistry dynamicAgentRegistry,
                        Router router, LlmRouterClient llmRouterClient,
                        TaskService taskService, TaskRecoveryService recoveryService,
@@ -93,6 +96,7 @@ public class ChatService {
         this.registry = registry;
         this.catalogService = catalogService;
         this.optionCatalogService = optionCatalogService;
+        this.skillCatalog = skillCatalog;
         this.dynamicAgentRegistry = dynamicAgentRegistry;
         this.router = router;
         this.llmRouterClient = llmRouterClient;
@@ -226,6 +230,7 @@ public class ChatService {
             routeEvent.put("confidence", route.confidence());
             routeEvent.put("router", route.router());
             routeEvent.put("reason", route.reason());
+            routeEvent.put("skillId", route.skillId());
             emit(emitter, "route", routeEvent);
 
             if (route.needClarification()) {
@@ -321,8 +326,12 @@ public class ChatService {
                                 .toList()));
             }
 
+            // Skill-first：优先采用 LLM 返回且覆盖该能力的 Skill；
+            // 否则按 Manifest 的覆盖关系确定性选择，多个候选不猜。
+            String routeSkillId = route.capabilityId() == null ? null
+                    : skillCatalog.resolveForCapability(route.capabilityId(), route.skillId());
             ExecutionResult execution = executePlan(
-                    sessionNo, content, route, planForExecution, user, traceId);
+                    sessionNo, content, route, planForExecution, routeSkillId, user, traceId);
             Capability capability = execution.capability();
             TaskRecord task = execution.task();
             // 附件闭环需要拿到子 Agent 的最终结果做结构化验收；异步合同审查在此等待完成。
@@ -627,14 +636,15 @@ public class ChatService {
             String question = "找到多个" + candidateLabel + "候选："
                     + candidateNames(candidates) + "。请明确是哪一个？";
             return new RouteDecision(capabilityId, args, route.confidence(), true,
-                    question, route.reason(), List.of(), route.missingFields(), route.router());
+                    question, route.reason(), List.of(), route.missingFields(),
+                    route.router(), null);
         }
         if (!changed) {
             return route;
         }
         // 只读解析已经补齐关键 ID；剩余字段交给 schema 校验/自修复，不在这里继续追问。
         return new RouteDecision(capabilityId, args, Math.max(route.confidence(), 0.9),
-                false, null, route.reason(), List.of(), List.of(), route.router());
+                false, null, route.reason(), List.of(), List.of(), route.router(), null);
     }
 
     private Lookup lookup(String capabilityId, Map<String, Object> input,
@@ -1015,6 +1025,7 @@ public class ChatService {
 
     private ExecutionResult executePlan(String sessionNo, String content, RouteDecision route,
                                         List<RouteDecision.PlanStep> plannedSteps,
+                                        String routeSkillId,
                                         AuthUser user, String traceId) {
         List<RouteDecision.PlanStep> steps = plannedSteps;
         if (steps == null || steps.isEmpty()) {
@@ -1039,7 +1050,8 @@ public class ChatService {
                         "规划的前置步骤必须是只读能力：" + pre.capabilityId());
             }
             TaskRecord preTask = taskService.submit(sessionNo, pre,
-                    step.args() == null ? Map.of() : step.args(), user.actorId(), traceId);
+                    step.args() == null ? Map.of() : step.args(), user.actorId(), traceId,
+                    skillCatalog.resolveForCapability(pre.capabilityId(), null));
             if (preTask.status != TaskStatus.SUCCEEDED) {
                 RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, pre,
                         step.args() == null ? Map.of() : step.args(), preTask, user.actorId(), traceId);
@@ -1081,7 +1093,11 @@ public class ChatService {
             }
         }
 
-        TaskRecord task = taskService.submit(sessionNo, capability, args, user.actorId(), traceId);
+        String finalSkillId = finalStep.capabilityId().equals(route.capabilityId())
+                ? routeSkillId
+                : skillCatalog.resolveForCapability(finalStep.capabilityId(), null);
+        TaskRecord task = taskService.submit(sessionNo, capability, args,
+                user.actorId(), traceId, finalSkillId);
         RecoveryOutcome recovery = recoveryService.recover(sessionNo, content, capability,
                 args, task, user.actorId(), traceId);
         stepResults.add(orchestrationStep(recovery.capability(), recovery.task()));
@@ -1185,6 +1201,7 @@ public class ChatService {
         event.put("sessionNo", task.sessionNo);
         event.put("agentKey", task.agentKey);
         event.put("capabilityId", task.capabilityId);
+        event.put("skillId", task.skillId);
         event.put("status", task.status.name());
         event.put("executionMode", task.executionMode);
         event.put("cancelSupported", task.cancelSupported);

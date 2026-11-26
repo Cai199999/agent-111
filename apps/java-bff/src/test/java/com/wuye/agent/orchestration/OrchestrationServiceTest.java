@@ -61,7 +61,7 @@ class OrchestrationServiceTest {
 
         Optional<OrchestrationOutcome> result = service.reviewPlan(
                 new RouteDecision("property.ticket.create", Map.of("description", "灯坏了"),
-                        0.9, false, null, "test", List.of(), List.of(), "LLM"),
+                        0.9, false, null, "test", List.of(), List.of(), "LLM", null),
                 "1栋大堂灯不亮", user, "ws_1", "trc_1");
 
         assertTrue(result.isPresent());
@@ -80,7 +80,7 @@ class OrchestrationServiceTest {
 
         Optional<OrchestrationOutcome> result = service.reviewPlan(
                 new RouteDecision("property.ticket.create", Map.of(), 0.9, false,
-                        null, "test", List.of(), List.of(), "LLM"),
+                        null, "test", List.of(), List.of(), "LLM", null),
                 "帮我处理", user, "ws_1", "trc_1");
 
         assertTrue(result.isPresent());
@@ -98,7 +98,7 @@ class OrchestrationServiceTest {
 
         Optional<OrchestrationOutcome> result = off.reviewPlan(
                 new RouteDecision("property.ticket.create", Map.of(), 0.9, false,
-                        null, "test", List.of(), List.of(), "LLM"),
+                        null, "test", List.of(), List.of(), "LLM", null),
                 "帮我处理", user, "ws_1", "trc_1");
 
         assertTrue(result.isEmpty());

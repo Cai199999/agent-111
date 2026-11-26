@@ -341,7 +341,9 @@ public class AgentInstallService {
                 name = text(item, "name", "displayName");
                 description = text(item, "description");
                 readOnly = bool(item, "readOnly", false);
-                confirm = bool(item, "requiresConfirmation", !readOnly);
+                // 0.11.0：WRITE 不等于必须确认，以显式 requiresConfirmation 为准；
+                // 缺省不推断，实际确认仍由子 Agent 的 WAITING_CONFIRM 决定。
+                confirm = bool(item, "requiresConfirmation", false);
                 modes = stringList(item.get("executionModes"), List.of("SYNC"));
                 enabled = bool(item, "enabled", true);
             }

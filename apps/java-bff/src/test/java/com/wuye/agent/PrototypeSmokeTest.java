@@ -565,6 +565,49 @@ class PrototypeSmokeTest {
     }
 
     @Test
+    void propertyTaskCarriesManifestSkillId() throws Exception {
+        String session = createSession();
+
+        String sse = send(session, "查询我的待处理工单");
+
+        assertTrue(sse.contains("\"skillId\":\"property.ticket.query\""), sse);
+        assertTrue(sse.contains("property.ticket.query"), sse);
+    }
+
+    @Test
+    void lowRiskAiAnalysisDoesNotRequireConfirmation() throws Exception {
+        String session = createSession();
+
+        String sse = send(session, "分析 GD20261119000107 这张工单");
+
+        assertTrue(sse.contains("property.ticket.ai.analyze"), sse);
+        assertTrue(sse.contains("\"skillId\":\"property.ticket.analyze\""), sse);
+        assertTrue(sse.contains("SUCCEEDED"), sse);
+        assertTrue(!sse.contains("WAITING_CONFIRM"), sse);
+    }
+
+    @Test
+    void agentCardExposesSkillsAndManifestVersion() throws Exception {
+        String card = getWithToken("/api/v1/agents/property-maintenance/card", adminToken);
+
+        assertTrue(card.contains("\"version\":\"0.11.0\""), card);
+        assertTrue(card.contains("\"skills\""), card);
+        assertTrue(card.contains("property.ticket.lifecycle"), card);
+        assertTrue(card.contains("property.ticket.analyze"), card);
+    }
+
+    @Test
+    void adminCanRefreshManifest() throws Exception {
+        JsonNode refreshed = postForData(
+                "/api/v1/admin/agents/property-maintenance/manifest/refresh", Map.of());
+
+        assertEquals("0.11.0", refreshed.path("version").asText(), refreshed.toString());
+        assertEquals(10, refreshed.path("skills").asInt(), refreshed.toString());
+        assertEquals(22, refreshed.path("capabilities").asInt(), refreshed.toString());
+        assertEquals("MANIFEST", refreshed.path("source").asText(), refreshed.toString());
+    }
+
+    @Test
     void adminCanInspectEventBusAndFlywheel() throws Exception {
         String events = getWithToken("/api/v1/admin/events/recent?limit=5", adminToken);
         assertTrue(events.contains("\"stats\""), events);

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.catalog.OptionCatalogService;
+import com.wuye.agent.agent.catalog.SkillCatalogService;
+import com.wuye.agent.agent.model.AgentSkill;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.memory.MainAgentTools;
 import com.wuye.agent.memory.UserProfileOutcome;
@@ -43,6 +45,7 @@ public class PythonAiClient implements LlmRouterClient {
     private final AdapterRegistry registry;
     private final CapabilitySchemaService schemaService;
     private final OptionCatalogService optionCatalogService;
+    private final SkillCatalogService skillCatalog;
     private final LlmUsageStore usageStore;
     private final ObjectMapper mapper;
     private final HttpClient http;
@@ -52,11 +55,13 @@ public class PythonAiClient implements LlmRouterClient {
     public PythonAiClient(AiProperties properties, AdapterRegistry registry,
                           CapabilitySchemaService schemaService,
                           OptionCatalogService optionCatalogService,
+                          SkillCatalogService skillCatalog,
                           LlmUsageStore usageStore, ObjectMapper mapper) {
         this.properties = properties;
         this.registry = registry;
         this.schemaService = schemaService;
         this.optionCatalogService = optionCatalogService;
+        this.skillCatalog = skillCatalog;
         this.usageStore = usageStore;
         this.mapper = mapper;
         this.http = HttpClient.newBuilder()
@@ -94,6 +99,7 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("userMessage", message);
             body.put("recentTurns", List.of());
             body.put("capabilities", capabilityPayload());
+            body.put("skills", skillPayload());
             body.put("optionCatalog", optionCatalogService.options());
             if (sessionSummary != null && !sessionSummary.isBlank()) {
                 body.put("sessionSummary", sessionSummary);
@@ -290,6 +296,7 @@ public class PythonAiClient implements LlmRouterClient {
 
     private RouteDecision toDecision(JsonNode data) {
         String capabilityId = text(data, "capabilityId");
+        String skillId = text(data, "skillId");
         boolean clarify = data.path("needClarification").asBoolean(false);
         double confidence = data.path("confidence").asDouble(0);
         String clarification = text(data, "clarification");
@@ -342,10 +349,10 @@ public class PythonAiClient implements LlmRouterClient {
         if (capabilityId == null) {
             return new RouteDecision(null, args, confidence, true,
                     clarification == null ? "能再说具体一点吗？" : clarification,
-                    reason, plan, missing, "LLM");
+                    reason, plan, missing, "LLM", skillId);
         }
         return new RouteDecision(capabilityId, args, confidence, clarify,
-                clarification, reason, plan, missing, "LLM");
+                clarification, reason, plan, missing, "LLM", skillId);
     }
 
     @Override
@@ -364,6 +371,7 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("errorCode", errorCode);
             body.put("errorMessage", errorMessage);
             body.put("capabilities", capabilityPayload());
+            body.put("skills", skillPayload());
             body.put("optionCatalog", optionCatalogService.options());
 
             HttpRequest.Builder builder = HttpRequest.newBuilder(
@@ -421,6 +429,7 @@ public class PythonAiClient implements LlmRouterClient {
             body.put("errorMessage", errorMessage);
             body.put("errorCategory", errorCategory);
             body.put("capabilities", capabilityPayload());
+            body.put("skills", skillPayload());
             body.put("optionCatalog", optionCatalogService.options());
 
             HttpRequest.Builder builder = HttpRequest.newBuilder(
@@ -480,6 +489,8 @@ public class PythonAiClient implements LlmRouterClient {
         for (Capability capability : registry.capabilities()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("capabilityId", capability.capabilityId());
+            item.put("agentKey", capability.agentKey());
+            item.put("taskType", capability.taskType());
             item.put("displayName", capability.displayName());
             item.put("description", capability.description());
             item.put("readOnly", capability.readOnly());
@@ -491,6 +502,23 @@ public class PythonAiClient implements LlmRouterClient {
             payload.add(item);
         }
         payload.addAll(MainAgentTools.payload());
+        return payload;
+    }
+
+    private List<Map<String, Object>> skillPayload() {
+        List<Map<String, Object>> payload = new ArrayList<>();
+        for (AgentSkill skill : skillCatalog.allSkills()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("skillId", skill.skillId());
+            item.put("agentKey", skill.agentKey());
+            item.put("displayName", skill.displayName());
+            item.put("description", skill.description());
+            item.put("taskTypes", skill.taskTypes());
+            item.put("capabilities", skill.capabilityIds());
+            item.put("partial", skill.partial());
+            item.put("requiresConfirmation", skill.requiresConfirmation());
+            payload.add(item);
+        }
         return payload;
     }
 

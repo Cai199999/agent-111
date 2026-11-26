@@ -56,4 +56,12 @@ public interface AgentAdapter {
     default Map<String, Object> manifest() {
         return Map.of();
     }
+
+    /**
+     * 是否支持 Manifest 同步。HTTP Adapter 与声明了 Manifest 的 Mock 返回 true；
+     * 纯内存/演示 Adapter 默认 false，避免启动时对不存在 manifest 的端点探活。
+     */
+    default boolean supportsManifest() {
+        return false;
+    }
 }

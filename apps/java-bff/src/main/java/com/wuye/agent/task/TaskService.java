@@ -77,6 +77,14 @@ public class TaskService {
 
     public TaskRecord submit(String sessionNo, Capability capability, Map<String, Object> input,
                              String actorId, String traceId) {
+        return submit(sessionNo, capability, input, actorId, traceId, null);
+    }
+
+    /**
+     * 带 Skill 的任务提交。skillId 只做任务选择封装，不替代能力白名单与子 Agent 鉴权。
+     */
+    public TaskRecord submit(String sessionNo, Capability capability, Map<String, Object> input,
+                             String actorId, String traceId, String skillId) {
         AgentAdapter adapter = registry.get(capability.agentKey());
         if (adapter == null) {
             throw ApiException.notFound("AGENT_NOT_FOUND", "子 Agent 未注册：" + capability.agentKey());
@@ -90,6 +98,7 @@ public class TaskService {
                 input == null ? Map.of() : input, Instant.now());
         task.traceId = traceId;
         task.tenantId = currentTenantId();
+        task.skillId = skillId;
         store.putTask(task);
         publishRequested(task, traceId);
 
@@ -115,7 +124,7 @@ public class TaskService {
 
         AdapterTaskRequest request = new AdapterTaskRequest(
                 capability.capabilityId(), capability.taskType(), task.input, clientTaskId,
-                executionMode, actorId, traceId, traceId);
+                executionMode, actorId, traceId, traceId, skillId);
         try {
             apply(task, adapter.submit(request), traceId);
         } catch (Exception ex) {
@@ -360,6 +369,7 @@ public class TaskService {
         payload.put("actorId", task.actorId);
         payload.put("tenantId", task.tenantId);
         payload.put("childTaskId", task.childTaskId);
+        payload.put("skillId", task.skillId);
         return payload;
     }
 

@@ -16,6 +16,7 @@ from app.schemas import (
     RepairResponse,
     RouteRequest,
     RouteResponse,
+    SkillIn,
 )
 
 SYSTEM_PROMPT = """你是"物业主 Agent"的任务规划与路由决策器。
@@ -24,6 +25,7 @@ SYSTEM_PROMPT = """你是"物业主 Agent"的任务规划与路由决策器。
 
 JSON 字段：
 - capabilityId: string|null，最终要执行的能力
+- skillId: string|null，优先选择的任务级 Skill；必须覆盖最终 capabilityId
 - intent: string|null，简短意图名
 - args: object，最终能力的参数
 - confidence: number，0 到 1
@@ -36,7 +38,9 @@ JSON 字段：
 
 规则：
 1) 用户问题跨域（例如只说"知识库"）时，capabilityId=null，needClarification=true，追问是物业还是合同。
-2) 写操作仍然只做路由和参数准备，最终由主 Agent 让用户确认。
+2) 写操作只做路由和参数准备；是否需要人工确认以 requiresConfirmation 为准，
+   不要仅因 readOnly=false 就判断必须确认；主 Agent 绝不自动确认，
+   子 Agent 返回 WAITING_CONFIRM 时才展示确认。
 3) 不要输出工具调用、代码、SQL 或任何执行指令。
 4) 不确定时宁可追问，不要猜错域或编造 ID。
 5) 必须检查能力 inputSchema.required：缺必填字段时写入 missingFields 并追问，不要猜。
@@ -61,7 +65,11 @@ JSON 字段：
 13) 不要把用户整句话当作 ID；不要把“物业服务合同”“江北 A-01 地块”等名称编造成 contractId/parcelNo。
 14) 如果用户一次要求多个独立操作（不同工单/不同对象/不同处理人），使用 capabilityId=batch.execute；
     items 每项一个操作，每项 args 带 keyword/description 和 assigneeName/assigneeId；
-    不要把两个工单合并成一个 assign，也不要只处理第一个。"""
+    不要把两个工单合并成一个 assign，也不要只处理第一个。
+15) 如果输入里有 skills：优先选择 skillId，并确保 capabilityId 属于该 Skill 的
+    capabilities，或该能力的 taskType 属于 Skill 的 taskTypes；
+    Skill 未覆盖或 partial=true 且不覆盖时 skillId=null，回退单能力，不要硬套 Skill。
+16) Skill 不替代委托 scope 与子 Agent 本地角色校验；不要凭 Skill 声称用户有权限。"""
 
 RECOVERY_PROMPT = """你是"物业主 Agent"的 A2A 自修复决策器。
 一次子 Agent 调用失败了。请根据用户原始请求、失败能力、参数和错误，决定下一步。
@@ -124,6 +132,18 @@ class RouteService:
             data["needClarification"] = True
             data.setdefault("clarification", "这个能力当前不可用，请换一种说法。")
 
+        skills = {skill.skillId: skill for skill in request.skills}
+        skill_id = _as_text(data.get("skillId"))
+        if skill_id is not None:
+            skill = skills.get(skill_id)
+            if skill is None:
+                skill_id = None
+            elif capability_id is not None and not _skill_covers(
+                skill, allowed.get(capability_id)
+            ):
+                # Skill 未覆盖该能力或 partial 未覆盖：回退单能力，不猜。
+                skill_id = None
+
         confidence = _clamp_float(data.get("confidence"), 0.0)
         need_clarification = bool(data.get("needClarification", False))
         clarification = _as_text(data.get("clarification"))
@@ -149,6 +169,7 @@ class RouteService:
         return RouteResponse(
             intent=_as_text(data.get("intent")),
             capabilityId=capability_id,
+            skillId=skill_id,
             args=args,
             confidence=confidence,
             needClarification=need_clarification,
@@ -185,7 +206,8 @@ class RouteService:
         }
         data, usage = self.client.chat_json(
             REPAIR_PROMPT,
-            "请修正参数，只输出 JSON：\n" + json.dumps(payload, ensure_ascii=False, indent=2),
+            "请修正参数，只输出 JSON：\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2),
         )
         args = data.get("args")
         if not isinstance(args, dict):
@@ -198,7 +220,6 @@ class RouteService:
             reason=_as_text(data.get("reason")),
             usage=usage,
         )
-
 
     def recover(self, request: RecoveryRequest) -> RecoveryResponse:
         """失败反馈 -> 自修复动作。LLM 只做决策，由 Java 侧执行或追问。"""
@@ -237,7 +258,11 @@ class RouteService:
         if capability_id is not None and capability_id not in allowed:
             capability_id = None
         # 只有 RETRY 可以回退到原能力；ALTERNATIVE 编造的能力必须丢弃，不能误执行。
-        if action == "RETRY" and capability_id is None and request.capabilityId in allowed:
+        if (
+            action == "RETRY"
+            and capability_id is None
+            and request.capabilityId in allowed
+        ):
             capability_id = request.capabilityId
 
         args = data.get("args")
@@ -275,8 +300,12 @@ class RouteService:
         )
 
 
-def _parse_plan(raw_plan: Any, allowed: dict[str, CapabilityIn],
-                capability_id: str | None, final_args: dict[str, Any]) -> list[PlanStep]:
+def _parse_plan(
+    raw_plan: Any,
+    allowed: dict[str, CapabilityIn],
+    capability_id: str | None,
+    final_args: dict[str, Any],
+) -> list[PlanStep]:
     plan: list[PlanStep] = []
     if isinstance(raw_plan, list):
         for item in raw_plan[:3]:
@@ -286,17 +315,29 @@ def _parse_plan(raw_plan: Any, allowed: dict[str, CapabilityIn],
             if cid not in allowed:
                 continue
             args = item.get("args")
-            plan.append(PlanStep(capabilityId=cid, args=args if isinstance(args, dict) else {}))
+            plan.append(
+                PlanStep(capabilityId=cid, args=args if isinstance(args, dict) else {})
+            )
     if capability_id is not None:
         if not plan or plan[-1].capabilityId != capability_id:
             plan.append(PlanStep(capabilityId=capability_id, args=final_args))
     return plan
 
 
+def _skill_covers(skill: SkillIn, capability: CapabilityIn | None) -> bool:
+    if capability is None:
+        return False
+    if capability.capabilityId in skill.capabilities:
+        return True
+    return bool(capability.taskType and capability.taskType in skill.taskTypes)
+
+
 def build_user_prompt(request: RouteRequest) -> str:
     capabilities = [
         {
             "capabilityId": cap.capabilityId,
+            "agentKey": cap.agentKey,
+            "taskType": cap.taskType,
             "displayName": cap.displayName,
             "description": cap.description,
             "readOnly": cap.readOnly,
@@ -305,6 +346,19 @@ def build_user_prompt(request: RouteRequest) -> str:
         }
         for cap in request.capabilities
     ]
+    skills = [
+        {
+            "skillId": skill.skillId,
+            "agentKey": skill.agentKey,
+            "displayName": skill.displayName,
+            "description": skill.description,
+            "taskTypes": skill.taskTypes,
+            "capabilities": skill.capabilities,
+            "partial": skill.partial,
+            "requiresConfirmation": skill.requiresConfirmation,
+        }
+        for skill in request.skills
+    ]
     turns = [
         {"role": turn.role, "content": turn.content}
         for turn in request.recentTurns[-6:]
@@ -312,6 +366,7 @@ def build_user_prompt(request: RouteRequest) -> str:
     payload = {
         "currentDomain": request.currentDomain,
         "capabilities": capabilities,
+        "skills": skills,
         "recentTurns": turns,
         "userMessage": request.userMessage,
         "optionCatalog": request.optionCatalog,

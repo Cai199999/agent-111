@@ -5,7 +5,7 @@
 - **项目**：`wuye-agent`（主 Agent / 单对话框编排 Agent）
 - **目标**：用一个对话框统一接入物业、合同、时空资产等子 Agent，并提供可扩展、可运行时安装/卸载的 Agent 接入层。
 - **子 Agent**：
-  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.9.0）
+  - `property-maintenance`：物业报修/工单/派单/现场/回访/知识（协议 `agent-task-v1` 0.11.0，任务级 Skills）
   - `contract-review`：合同审查/规则/知识（协议 `agent-task-v1` 0.7.0）
   - `geo-asset-agent`：地块/遥感变化图斑/巡查任务（演示用 Mock，`gis-v01`）
   - 运行时安装：`inspection-agent`、`policy-qa-agent`、`customer-service-agent`（模板/Agent Card URL）
@@ -248,6 +248,23 @@
 - 只存阶段/verdict/能力/步骤状态/澄清，不含 input/output。
 - 实测：V16→V17；一次查询产生 PLAN+VERIFY 两条；重启后 `/orchestration/recent`
   仍返回同样记录；Java 全量 112/112。
+
+## 2026-11-26 物业 Agent 0.11.0 适配
+
+- 通知固化：`docs/09-子Agent升级通知-物业0.11.0.md`。
+- 新增 `AgentSkill` / `SkillCatalogService`（Manifest 版本化缓存 5 分钟、强制刷新）/
+  `ManifestSyncService`（启动同步 + ADMIN 刷新，动态 Agent 启动不主动探活）。
+- LLM 路由新增 `skills` 请求与 `skillId` 响应；Java 解析后校验覆盖关系，
+  不匹配则按 Manifest 确定性回退；`RouteDecision/TaskRecord/AdapterTaskRequest/TaskView/SSE`
+  全链路带 `skillId`，HTTP 提交带 `skillId`。
+- Agent Card 使用真正的 Skill 列表与 Manifest 版本；Mock 升级 0.11.0，
+  10 个代表 Skill + 22 能力（真实 55/12 由 Manifest 同步）。
+- 确认语义改为 `requiresConfirmation` 为准；AI 分析低风险写直接执行；
+  V18 增加 `capability:property.ticket.ai.analyze`；HTTP 400 归为 VALIDATION。
+- 实测：Card version 0.11.0、10 skills；刷新返回 capabilities=22/skills=10/source=MANIFEST；
+  AI 分析 SUCCEEDED 且无 WAITING_CONFIRM；Java 119/119、Python 29/29。
+- 边界：真实 8402 未启动，55/12 与 capabilities/resolve 未活体验证；
+  知识文档 multipart 未接；Skill 不替代 scope/本地授权；不自动确认。
 
 ## 下一步
 

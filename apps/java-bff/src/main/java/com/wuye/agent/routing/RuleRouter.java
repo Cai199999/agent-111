@@ -107,7 +107,7 @@ public class RuleRouter implements Router {
                         "按合同名称先解析再审查",
                         List.of(new RouteDecision.PlanStep("contract.resolve", Map.of("query", text)),
                                 new RouteDecision.PlanStep("contract.review", Map.of())),
-                        List.of(), "RULE");
+                        List.of(), "RULE", null);
             }
             if (containsAny(text, "解析", "查找合同", "查合同", "定位合同")) {
                 return RouteDecision.route("contract.resolve",
@@ -184,7 +184,7 @@ public class RuleRouter implements Router {
                     List.of(new RouteDecision.PlanStep("gis.parcel.query",
                                     Map.of("keyword", text)),
                             new RouteDecision.PlanStep("gis.patrol.create", args)),
-                    List.of(), "RULE");
+                    List.of(), "RULE", null);
         }
         if (containsAny(text, "遥感", "变化图斑", "图斑", "影像", "变化检测")) {
             Map<String, Object> args = new LinkedHashMap<>();
@@ -252,10 +252,22 @@ public class RuleRouter implements Router {
                         List.of(new RouteDecision.PlanStep("property.ticket.query",
                                         Map.of("keyword", text)),
                                 new RouteDecision.PlanStep("property.ticket.assign", finalArgs)),
-                        List.of(), "RULE");
+                        List.of(), "RULE", null);
             }
             return RouteDecision.clarify("请说明要派哪张工单，例如“3栋2单元漏水那个工单”。",
                     "派单缺少工单描述");
+        }
+
+        // 0.11.0：AI 工单分析是低风险写，requiresConfirmation=false，直接执行。
+        if ((containsAny(text, "ai分析", "AI 分析", "智能分析", "分析工单")
+                || (text.contains("分析") && ticketNo != null))
+                && (ticketNo != null || text.contains("工单"))) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            if (ticketNo != null) {
+                args.put("ticketNo", ticketNo);
+            }
+            return RouteDecision.route("property.ticket.ai.analyze", args, 0.9,
+                    "命中 AI 工单分析");
         }
 
         // 工单生命周期动作：用户可只描述工单，ticketNo 交给主 Agent 语义解析。
@@ -354,7 +366,7 @@ public class RuleRouter implements Router {
         if (ticketNo == null) {
             return new RouteDecision(capabilityId, Map.of(), 0.85, true,
                     "请描述要处理的工单，例如“3栋2单元漏水那个工单”。",
-                    "命中工单操作", List.of(), List.of("ticketNo"), "RULE");
+                    "命中工单操作", List.of(), List.of("ticketNo"), "RULE", null);
         }
         return RouteDecision.route(capabilityId, Map.of("ticketNo", ticketNo), 0.9,
                 "命中工单操作");

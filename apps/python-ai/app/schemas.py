@@ -9,11 +9,26 @@ from pydantic import BaseModel, Field
 
 class CapabilityIn(BaseModel):
     capabilityId: str
+    agentKey: str | None = None
+    taskType: str | None = None
     displayName: str | None = None
     description: str | None = None
     readOnly: bool = False
     requiresConfirmation: bool = False
     inputSchema: dict[str, Any] | None = None
+
+
+class SkillIn(BaseModel):
+    """子 Agent 任务级 Skill（agent-task-v1 >= 0.11.0）。"""
+
+    skillId: str
+    agentKey: str | None = None
+    displayName: str | None = None
+    description: str | None = None
+    taskTypes: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    partial: bool = False
+    requiresConfirmation: bool = False
 
 
 class TurnIn(BaseModel):
@@ -33,6 +48,7 @@ class RouteRequest(BaseModel):
     userMessage: str = Field(min_length=1, max_length=4000)
     recentTurns: list[TurnIn] = Field(default_factory=list)
     capabilities: list[CapabilityIn] = Field(default_factory=list)
+    skills: list[SkillIn] = Field(default_factory=list)
     currentDomain: str | None = None
     optionCatalog: dict[str, Any] | None = None
     pending: PendingContext | None = None
@@ -48,6 +64,7 @@ class PlanStep(BaseModel):
 class RouteResponse(BaseModel):
     intent: str | None = None
     capabilityId: str | None = None
+    skillId: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     confidence: float = 0.0
     needClarification: bool = False

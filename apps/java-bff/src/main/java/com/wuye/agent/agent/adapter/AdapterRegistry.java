@@ -70,6 +70,27 @@ public class AdapterRegistry {
         return capabilities.values().stream().filter(Capability::enabled).toList();
     }
 
+    public synchronized List<Capability> capabilitiesForAgent(String agentKey) {
+        return capabilities.values().stream()
+                .filter(capability -> capability.agentKey().equals(agentKey))
+                .filter(Capability::enabled)
+                .toList();
+    }
+
+    /**
+     * Manifest 同步：替换某个 Agent 的能力目录，不动其他 Agent 与 Adapter 实例。
+     * 空列表视为无效同步，避免子 Agent 暂时不可达时清空目录。
+     */
+    public synchronized void replaceCapabilities(String agentKey, List<Capability> incoming) {
+        if (agentKey == null || incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        capabilities.entrySet().removeIf(entry -> entry.getValue().agentKey().equals(agentKey));
+        for (Capability capability : incoming) {
+            capabilities.put(capability.capabilityId(), capability);
+        }
+    }
+
     public synchronized Optional<Capability> capability(String capabilityId) {
         Capability capability = capabilities.get(capabilityId);
         return capability != null && capability.enabled() ? Optional.of(capability) : Optional.empty();

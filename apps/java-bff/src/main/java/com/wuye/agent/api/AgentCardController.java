@@ -2,8 +2,10 @@ package com.wuye.agent.api;
 
 import com.wuye.agent.agent.adapter.AdapterRegistry;
 import com.wuye.agent.agent.catalog.AgentCatalogService;
+import com.wuye.agent.agent.catalog.SkillCatalogService;
 import com.wuye.agent.agent.model.AgentDescriptor;
 import com.wuye.agent.agent.model.AgentHealth;
+import com.wuye.agent.agent.model.AgentSkill;
 import com.wuye.agent.agent.model.Capability;
 import com.wuye.agent.auth.AuthContext;
 import com.wuye.agent.auth.AuthUser;
@@ -34,13 +36,16 @@ public class AgentCardController {
 
     private final AdapterRegistry registry;
     private final AgentCatalogService catalogService;
+    private final SkillCatalogService skillCatalog;
     private final PolicyService policyService;
     private final Ids ids;
 
     public AgentCardController(AdapterRegistry registry, AgentCatalogService catalogService,
+                               SkillCatalogService skillCatalog,
                                PolicyService policyService, Ids ids) {
         this.registry = registry;
         this.catalogService = catalogService;
+        this.skillCatalog = skillCatalog;
         this.policyService = policyService;
         this.ids = ids;
     }
@@ -138,24 +143,35 @@ public class AgentCardController {
         card.put("subAgents", registry.descriptors().stream()
                 .map(descriptor -> Map.of(
                         "agentId", descriptor.agentKey(),
-                        "version", descriptor.contractVersion(),
+                        "version", skillCatalog.version(descriptor.agentKey()) == null
+                                ? descriptor.contractVersion()
+                                : skillCatalog.version(descriptor.agentKey()),
                         "dialect", descriptor.dialect()))
                 .toList());
         return card;
     }
 
     private Map<String, Object> subAgentCard(AgentDescriptor descriptor) {
+        String version = skillCatalog.version(descriptor.agentKey());
+        List<Capability> capabilities = registry.capabilitiesForAgent(descriptor.agentKey());
+        if (capabilities.isEmpty()) {
+            capabilities = descriptor.capabilities();
+        }
+        List<AgentSkill> skills = skillCatalog.skills(descriptor.agentKey());
+
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("agentId", descriptor.agentKey());
         card.put("name", descriptor.displayName());
-        card.put("version", descriptor.contractVersion());
+        card.put("version", version == null ? descriptor.contractVersion() : version);
         card.put("protocol", "agent-task-v1");
         card.put("dialect", descriptor.dialect());
         card.put("envelope", descriptor.envelope());
         card.put("a2aCompatibility", "dialect-adapter");
-        card.put("capabilities", descriptor.capabilities().stream()
+        card.put("capabilities", capabilities.stream()
                 .map(this::capabilityView)
                 .toList());
+        // 0.11.0：skills 是真正的任务级 Skill 列表，不再复用能力列表。
+        card.put("skills", skills.stream().map(skillCatalog::view).toList());
         card.put("endpoints", Map.of(
                 "health", descriptor.healthPath(),
                 "ready", descriptor.readyPath(),

@@ -35,7 +35,7 @@ public class AgentCatalogService {
                 continue;
             }
             List<CapabilityView> capabilities = policyService
-                    .allowedCapabilities(user, descriptor.capabilities())
+                    .allowedCapabilities(user, registry.capabilitiesForAgent(descriptor.agentKey()))
                     .stream()
                     .map(AgentCatalogService::view)
                     .toList();

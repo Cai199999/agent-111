@@ -132,7 +132,7 @@ class HttpAdapterTest {
 
     private AdapterTaskRequest request(String capabilityId, String taskType) {
         return new AdapterTaskRequest(capabilityId, taskType, Map.of("ticketNo", "GD1"),
-                "client-1", "SYNC", "10001", "trc-1", "trc-1");
+                "client-1", "SYNC", "10001", "trc-1", "trc-1", null);
     }
 
     private void handleProperty(HttpExchange exchange) throws IOException {

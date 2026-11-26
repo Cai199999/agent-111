@@ -26,7 +26,7 @@ public class HttpPropertyAdapter extends AbstractHttpAdapter {
                 AGENT_KEY,
                 "物业运维 Agent",
                 "property-v08",
-                "0.9.0",
+                "0.11.0",
                 "wrapped",
                 "/agent/v1/health",
                 "/agent/v1/ready",
@@ -53,7 +53,9 @@ public class HttpPropertyAdapter extends AbstractHttpAdapter {
                         cap("property.ticket.comment.add", "ticket.comment.add", "评论", false, true, "SYNC", true),
                         cap("property.ticket.material.add", "ticket.material.add", "材料", false, true, "SYNC", true),
                         cap("property.ticket.visit.add", "ticket.visit.add", "回访", false, true, "SYNC", true),
-                        cap("property.ticket.export", "ticket.export", "导出 Excel", false, true, "ASYNC", true)
+                        cap("property.ticket.export", "ticket.export", "导出 Excel", false, true, "ASYNC", true),
+                        // 0.11.0：低风险写，requiresConfirmation=false。
+                        cap("property.ticket.ai.analyze", "ticket.ai.analyze", "AI 分析工单", false, false, "SYNC", true)
                 ));
     }
 

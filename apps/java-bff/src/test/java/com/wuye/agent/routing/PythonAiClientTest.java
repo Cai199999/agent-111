@@ -12,6 +12,7 @@ import com.wuye.agent.agent.adapter.MockContractAdapter;
 import com.wuye.agent.agent.adapter.MockPropertyAdapter;
 import com.wuye.agent.agent.catalog.CapabilitySchemaService;
 import com.wuye.agent.agent.catalog.OptionCatalogService;
+import com.wuye.agent.agent.catalog.SkillCatalogService;
 import com.wuye.agent.agent.http.AgentHttpProperties;
 import com.wuye.agent.agent.http.HttpAgentSupport;
 import com.wuye.agent.common.Ids;
@@ -34,6 +35,7 @@ class PythonAiClientTest {
     private HttpServer server;
     private int port;
     private final AtomicReference<String> seenToken = new AtomicReference<>();
+    private final AtomicReference<String> seenBody = new AtomicReference<>();
     private PythonAiClient client;
 
     @BeforeEach
@@ -62,7 +64,8 @@ class PythonAiClientTest {
         OptionCatalogService optionCatalogService = new OptionCatalogService(
                 agentProperties, agentSupport, mapper, new Ids());
         client = new PythonAiClient(properties, registry, schemaService,
-                optionCatalogService, new InMemoryLlmUsageStore(), mapper);
+                optionCatalogService, new SkillCatalogService(registry),
+                new InMemoryLlmUsageStore(), mapper);
     }
 
     @AfterEach
@@ -82,6 +85,10 @@ class PythonAiClientTest {
         assertEquals(0.92, decision.get().confidence(), 0.001);
         assertEquals("j2p-token", seenToken.get());
         assertFalse(decision.get().needClarification());
+        assertEquals("property.ticket.query", decision.get().skillId());
+        assertTrue(seenBody.get().contains("\"skills\""), seenBody.get());
+        assertTrue(seenBody.get().contains("\"skillId\":\"property.ticket.query\""),
+                seenBody.get());
     }
 
     @Test
@@ -151,9 +158,11 @@ class PythonAiClientTest {
 
     private void handle(HttpExchange exchange) throws IOException {
         seenToken.set(exchange.getRequestHeaders().getFirst("X-Internal-Token"));
+        seenBody.set(new String(exchange.getRequestBody().readAllBytes(),
+                StandardCharsets.UTF_8));
         String body = """
-                {"capabilityId":"property.ticket.query","intent":"ticket.query",
-                 "args":{"status":"PENDING"},"confidence":0.92,
+                {"capabilityId":"property.ticket.query","skillId":"property.ticket.query",
+                 "intent":"ticket.query","args":{"status":"PENDING"},"confidence":0.92,
                  "needClarification":false,"reason":"query","usage":{"totalTokens":12}}
                 """;
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);

@@ -56,6 +56,9 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
             if (request.correlationId() != null) {
                 body.put("correlationId", request.correlationId());
             }
+            if (request.skillId() != null && !request.skillId().isBlank()) {
+                body.put("skillId", request.skillId());
+            }
             HttpAgentSupport.HttpResult result = support.post(endpoint, "/agent/v1/tasks", body,
                     request.actorId(), request.traceId(), true);
             return parseTask(result, null);
@@ -170,6 +173,11 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
      * 拉取可选 Manifest（个人中心等通用表单）。
      * 短超时 + 失败返回空，避免某个子 Agent 不可达拖慢整个页面。
      */
+    @Override
+    public boolean supportsManifest() {
+        return true;
+    }
+
     @Override
     public Map<String, Object> manifest() {
         try {
@@ -363,6 +371,12 @@ public abstract class AbstractHttpAdapter implements AgentAdapter {
         if (httpStatus == 503) {
             return new AgentError(normalized.isBlank() ? "DOWNSTREAM_UNAVAILABLE" : normalized,
                     "DEPENDENCY", true, message);
+        }
+        if (httpStatus == 400) {
+            // 0.11.0 未知能力/参数错误在提交期返回 400；统一归为 VALIDATION，
+            // 由自修复服务转成追问或修正，而不是当成基础设施故障。
+            return new AgentError(normalized.isBlank() ? "VALIDATION_ERROR" : normalized,
+                    "VALIDATION", false, message);
         }
         if (dialect == AgentDialect.PROPERTY) {
             return propertyError(normalized, message);

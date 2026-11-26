@@ -16,7 +16,8 @@ public record RouteDecision(
         String reason,
         List<PlanStep> plan,
         List<String> missingFields,
-        String router
+        String router,
+        String skillId
 ) {
     public record PlanStep(String capabilityId, Map<String, Object> args) {
     }
@@ -24,17 +25,17 @@ public record RouteDecision(
     public static RouteDecision route(String capabilityId, Map<String, Object> args,
                                       double confidence, String reason) {
         return new RouteDecision(capabilityId, args, confidence, false, null, reason,
-                List.of(), List.of(), "RULE");
+                List.of(), List.of(), "RULE", null);
     }
 
     public static RouteDecision clarify(String question, String reason) {
         return new RouteDecision(null, Map.of(), 0, true, question, reason,
-                List.of(), List.of(), "RULE");
+                List.of(), List.of(), "RULE", null);
     }
 
     public RouteDecision withRouter(String newRouter) {
         return new RouteDecision(capabilityId, args, confidence, needClarification,
-                clarification, reason, plan, missingFields, newRouter);
+                clarification, reason, plan, missingFields, newRouter, skillId);
     }
 
     public boolean hasPlan() {

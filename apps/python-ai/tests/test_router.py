@@ -11,6 +11,7 @@ from app.schemas import (
     RecoveryRequest,
     RepairRequest,
     RouteRequest,
+    SkillIn,
     SummarizeRequest,
     UserProfileRequest,
 )
@@ -52,6 +53,65 @@ def request(message: str) -> RouteRequest:
     )
 
 
+def test_skill_is_validated_and_included_in_prompt():
+    client = FakeClient(
+        {
+            "capabilityId": "property.ticket.query",
+            "skillId": "property.ticket.query",
+            "confidence": 0.9,
+        }
+    )
+    service = RouteService(
+        client, Settings(deepseek_api_key="fake", confidence_threshold=0.55)
+    )
+    request_with_skill = RouteRequest(
+        userMessage="查工单",
+        capabilities=[capability("property.ticket.query")],
+        skills=[
+            SkillIn(
+                skillId="property.ticket.query",
+                capabilities=["property.ticket.query"],
+                taskTypes=["ticket.query"],
+            )
+        ],
+    )
+
+    response = service.route(request_with_skill)
+
+    assert response.capabilityId == "property.ticket.query"
+    assert response.skillId == "property.ticket.query"
+    assert '"skillId"' in client.calls[0][1]
+    assert '"skills"' in client.calls[0][1]
+
+
+def test_skill_not_covering_capability_falls_back():
+    client = FakeClient(
+        {
+            "capabilityId": "property.ticket.query",
+            "skillId": "contract.review",
+            "confidence": 0.9,
+        }
+    )
+    service = RouteService(
+        client, Settings(deepseek_api_key="fake", confidence_threshold=0.55)
+    )
+    request_with_skill = RouteRequest(
+        userMessage="查工单",
+        capabilities=[capability("property.ticket.query")],
+        skills=[
+            SkillIn(
+                skillId="contract.review",
+                capabilities=["contract.review"],
+            )
+        ],
+    )
+
+    response = service.route(request_with_skill)
+
+    assert response.capabilityId == "property.ticket.query"
+    assert response.skillId is None
+
+
 def test_valid_capability_is_returned():
     client = FakeClient(
         {
@@ -63,7 +123,9 @@ def test_valid_capability_is_returned():
             "reason": "用户问待处理工单",
         }
     )
-    service = RouteService(client, Settings(deepseek_api_key="fake", confidence_threshold=0.55))
+    service = RouteService(
+        client, Settings(deepseek_api_key="fake", confidence_threshold=0.55)
+    )
 
     response = service.route(request("我有哪些待处理工单？"))
 
@@ -200,7 +262,10 @@ def test_summarize_keeps_current_session_only():
 def test_profile_extracts_stable_preference():
     client = FakeClient(
         {
-            "profile": {"preferredTicketTypeCode": "PUMP", "commonIntents": ["ticket.create"]},
+            "profile": {
+                "preferredTicketTypeCode": "PUMP",
+                "commonIntents": ["ticket.create"],
+            },
             "changed": True,
             "confidence": 0.82,
             "reason": "用户多次选择水泵故障",
@@ -355,7 +420,9 @@ def test_low_confidence_requires_clarification():
             "needClarification": False,
         }
     )
-    service = RouteService(client, Settings(deepseek_api_key="fake", confidence_threshold=0.55))
+    service = RouteService(
+        client, Settings(deepseek_api_key="fake", confidence_threshold=0.55)
+    )
 
     response = service.route(request("查点东西"))
 
