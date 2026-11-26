@@ -241,6 +241,14 @@
 - Java 全量 112/112。
 - 边界：无 lag 告警/归档/DLQ 重放工具；死信与 poison 事件保留在 Redis（本项目前缀内）。
 
+## 2026-11-26 编排审计落库
+
+- V17 `wa_orchestration_trace`；`OrchestrationTraceStore` 内存/MySQL 两实现；
+  `OrchestrationAuditStore` 改为规整后交给 store。
+- 只存阶段/verdict/能力/步骤状态/澄清，不含 input/output。
+- 实测：V16→V17；一次查询产生 PLAN+VERIFY 两条；重启后 `/orchestration/recent`
+  仍返回同样记录；Java 全量 112/112。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

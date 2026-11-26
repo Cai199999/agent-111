@@ -396,9 +396,24 @@ EVENT_OUTBOX_MAX_ATTEMPTS=5
 
 ### 9.4 边界
 
-- 编排审计为进程内有界缓冲（200 条），重启清空；持久化未做；
+- memory profile 的编排审计为进程内有界缓冲（200 条），重启清空；
+- mysql profile 已落 `wa_orchestration_trace`（V17），跨重启保留；
 - 管理端为 5 秒轮询，不是 WebSocket 实时推送；
 - 未做多用户隔离观测、告警阈值与通知。
+
+### 9.5 编排审计落库（2026-11-26）
+
+| 组件 | 说明 |
+|---|---|
+| `V17__orchestration_trace.sql` | `wa_orchestration_trace`：阶段/判定/能力/状态/澄清/时间 |
+| `OrchestrationTraceStore` | append / recent / stats |
+| `InMemoryOrchestrationTraceStore` | 默认/测试 profile，有界 200 条 |
+| `MySqlOrchestrationTraceStore` | mysql profile，跨重启回放 |
+
+- 每行只含能力列表与步骤状态，不含 input/output 原文；
+- 真实验证：mysql 启动应用 → Flyway v16→v17；一次查询产生 2 条记录
+  （PLAN `DISPATCH_REQUIRED`、VERIFY `COMPLETE`）；重启后接口仍返回同样记录；
+- 全量 Java **112/112**。
 
 ## 10. 评测流水线（2026-11-26）
 
@@ -536,6 +551,6 @@ EVENT_REDIS_MAXLEN=10000
 
 1. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
 2. **编排增强**：`NEEDS_INPUT` 自动重新规划一次（仅只读计划）；
-3. **观测增强**：编排结果落库/历史回放、消费者 lag 告警；
+3. **观测增强**：消费者 lag 告警、编排失败趋势与通知；
 4. **Redis 生产化**：Stream 归档、DLQ 重放工具、多实例压测；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

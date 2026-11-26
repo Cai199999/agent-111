@@ -1,10 +1,7 @@
 package com.wuye.agent.orchestration;
 
 import java.time.Instant;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,20 +10,22 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * 编排结果近实时审计（进程内有界环形缓冲）。
+ * 编排审计：把每次 PLAN/VERIFY 规整为可观测记录，再交给存储。
  *
  * <p>只记录阶段/判定/能力/步骤状态与澄清文本，不记录 input/output 原文，
- * 避免把业务数据复制到观测面。重启后清空；持久化留到后续。</p>
+ * 避免把业务数据复制到观测面。memory 有界，MySQL 跨重启保留。</p>
  */
 @Component
 public class OrchestrationAuditStore {
 
-    private static final int CAPACITY = 200;
+    private final OrchestrationTraceStore store;
 
-    private final Deque<Trace> traces = new ArrayDeque<>();
+    public OrchestrationAuditStore(OrchestrationTraceStore store) {
+        this.store = store;
+    }
 
-    public synchronized void record(String phase, String traceId, String sessionNo,
-                                    OrchestrationOutcome outcome) {
+    public void record(String phase, String traceId, String sessionNo,
+                       OrchestrationOutcome outcome) {
         if (outcome == null) {
             return;
         }
@@ -40,7 +39,7 @@ public class OrchestrationAuditStore {
                 statuses.add(step.status);
             }
         }
-        traces.addLast(new Trace(
+        store.append(new OrchestrationTrace(
                 traceId,
                 sessionNo,
                 phase,
@@ -49,35 +48,14 @@ public class OrchestrationAuditStore {
                 List.copyOf(capabilities),
                 List.copyOf(statuses),
                 Instant.now()));
-        while (traces.size() > CAPACITY) {
-            traces.removeFirst();
-        }
     }
 
-    public synchronized List<Trace> recent(int limit) {
-        int size = Math.max(0, Math.min(limit, traces.size()));
-        int skip = Math.max(0, traces.size() - size);
-        List<Trace> list = new ArrayList<>(size);
-        int index = 0;
-        for (Trace trace : traces) {
-            if (index++ >= skip) {
-                list.add(trace);
-            }
-        }
-        return list;
+    public List<OrchestrationTrace> recent(int limit) {
+        return store.recent(limit);
     }
 
-    public synchronized Map<String, Object> stats() {
-        Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("capacity", CAPACITY);
-        stats.put("size", traces.size());
-        Map<String, Long> verdicts = new LinkedHashMap<>();
-        for (Trace trace : traces) {
-            verdicts.merge(trace.verdict() == null ? "UNKNOWN" : trace.verdict(),
-                    1L, Long::sum);
-        }
-        stats.put("verdicts", verdicts);
-        return stats;
+    public Map<String, Object> stats() {
+        return store.stats();
     }
 
     private List<RouteStep> planAndSteps(OrchestrationOutcome outcome) {
@@ -92,17 +70,5 @@ public class OrchestrationAuditStore {
     }
 
     private record RouteStep(String capabilityId, String status) {
-    }
-
-    public record Trace(
-            String traceId,
-            String sessionNo,
-            String phase,
-            String verdict,
-            String clarification,
-            List<String> capabilities,
-            List<String> statuses,
-            Instant occurredAt
-    ) {
     }
 }

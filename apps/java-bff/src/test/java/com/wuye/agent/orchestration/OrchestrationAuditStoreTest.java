@@ -15,7 +15,7 @@ class OrchestrationAuditStoreTest {
 
     @Test
     void recordsPlanAndVerifyWithoutPayloads() {
-        OrchestrationAuditStore store = new OrchestrationAuditStore();
+        OrchestrationAuditStore store = new OrchestrationAuditStore(new InMemoryOrchestrationTraceStore());
         store.record("PLAN", "trc-1", "ws-1", new OrchestrationOutcome(
                 "DISPATCH_REQUIRED", null,
                 List.of(new RouteDecision.PlanStep("property.profile.get", Map.of())),
@@ -28,7 +28,7 @@ class OrchestrationAuditStoreTest {
                         "FAILED", null, "boom", List.of())),
                 List.of()));
 
-        List<OrchestrationAuditStore.Trace> traces = store.recent(10);
+        List<OrchestrationTrace> traces = store.recent(10);
 
         assertEquals(2, traces.size());
         assertEquals("PLAN", traces.get(0).phase());
@@ -42,7 +42,7 @@ class OrchestrationAuditStoreTest {
 
     @Test
     void recentKeepsNewestAndHonorsLimit() {
-        OrchestrationAuditStore store = new OrchestrationAuditStore();
+        OrchestrationAuditStore store = new OrchestrationAuditStore(new InMemoryOrchestrationTraceStore());
         for (int i = 0; i < 5; i++) {
             store.record("PLAN", "trc-" + i, "ws", new OrchestrationOutcome(
                     "DISPATCH_REQUIRED", null,
@@ -50,7 +50,7 @@ class OrchestrationAuditStoreTest {
                     List.of(), List.of()));
         }
 
-        List<OrchestrationAuditStore.Trace> traces = store.recent(2);
+        List<OrchestrationTrace> traces = store.recent(2);
 
         assertEquals(2, traces.size());
         assertEquals("trc-3", traces.get(0).traceId());

@@ -117,8 +117,9 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - **编排闭环**：Java 在现有 LLM 路由后调用 `/orchestrate` 校验计划，消费 `DISPATCH_REQUIRED`
   执行，再把终态结果回传 `/orchestrate/verify`；SSE 输出 `orchestration` 事件（PLAN/VERIFY）。
   编排失败/超时自动回退现有流程（`wuye.ai.orchestration-enabled` 可关闭）；
-- **可观测**：聊天区展示编排/验收徽标；ADMIN 用户菜单「运行观测」查看最近编排、
-  最近事件（总线缓冲或 Outbox 历史）、Outbox 状态与飞轮样本；打开时 5 秒自动刷新；
+- **可观测**：聊天区展示编排/验收徽标；ADMIN 用户菜单「运行观测」查看最近编排
+  （mysql profile 落 `wa_orchestration_trace`，重启保留）、最近事件（总线缓冲或 Outbox 历史）、
+  Outbox 状态与飞轮样本；打开时 5 秒自动刷新；
 - **评测流水线**：`scripts/eval_flywheel.py` 从 JSONL 或 ADMIN 导出接口读取样本，
   生成成功率/耗时/错误/按 Agent 与能力的离线报告，并导出 `label=null` 的候选数据集；
   基线见 `docs/eval/2026-11-26-flywheel-baseline.md`；
