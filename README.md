@@ -129,7 +129,7 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 
 ## 当前状态
 
-- 设计文档已同步到子 Agent 最新契约：物业 `0.11.0`（任务级 Skills）、合同 `0.7.0`。
+- 设计文档已同步到子 Agent 最新契约：物业 `0.11.0`（任务级 Skills）、合同 `0.8.0`（Skills + docx 导入）。
 - 子 Agent P0 整改已落地：委托令牌签发、Manifest 元数据、健康/就绪、`clientTaskId` 回查、取消、事件 `seq/afterSeq`。
 - 物业 0.11.0 适配：Manifest 版本化缓存/强制刷新、Skill 优先选择与 `skillId` 全链路透传、
   Agent Card 真 Skill 列表、`requiresConfirmation` 确认语义、提交期 400/60001 映射；

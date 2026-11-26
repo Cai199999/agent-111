@@ -108,6 +108,12 @@ public class HybridRouter implements Router {
                 || decision.args() == null || !decision.args().containsKey("parcelNo"))) {
             return rule;
         }
+        // 合同按名称审查：规则已有 resolve → review 计划时优先，避免 LLM 只追问 contractId。
+        if (rule.hasPlan() && !rule.needClarification()
+                && capabilityId != null && capabilityId.startsWith("contract.")
+                && (decision.needClarification() || decision.plan().isEmpty())) {
+            return rule;
+        }
         return decision;
     }
 }

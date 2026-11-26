@@ -283,6 +283,17 @@
 - 边界：合同未验证；capabilities/resolve 未接；知识文档上传未接；不自动确认；
   真实关闭可能被业务状态规则拒绝（20002）。
 
+## 2026-11-26 合同 Agent 0.8.0 接入
+
+- 合同 Agent 8400/8500 启动；Manifest 0.8.0，9 能力（6 启用）/6 Skill；Agent Card 0.8.0。
+- 修复主 Agent 委托租户对齐：委托签发请求头原用用户租户 0、claims 用端点租户 1，
+  导致 TENANT_MISMATCH；现统一用端点租户，并补委托日志。
+- 合同名称审查走 resolve→review 计划，查询词清洗；显式 contractId 审查成功（10 条 Finding）。
+- 验证：真实 Agent smoke **8/8**（物业 4 + 合同 4）；真实全量 E2E **96/101**；
+  合同失败来自 rules=[]、同名合同 10 个候选、取消不适用；GIS 项目 1 项失败。
+- 文档：`docs/10-合同Agent-0.8.0-接入验证.md`。
+- 待合同侧确认：`contract.rule.list` 是否应返回 DRAFT 规则；否则先发布种子规则。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

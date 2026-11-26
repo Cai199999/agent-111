@@ -108,7 +108,8 @@ public class RuleRouter implements Router {
                 // 用户只给了合同名称（如“物业服务合同”）：先 resolve 再 review，不要求编造 ID。
                 return new RouteDecision("contract.review", Map.of(), 0.85, false, null,
                         "按合同名称先解析再审查",
-                        List.of(new RouteDecision.PlanStep("contract.resolve", Map.of("query", text)),
+                        List.of(new RouteDecision.PlanStep("contract.resolve",
+                                        Map.of("query", contractQuery(text))),
                                 new RouteDecision.PlanStep("contract.review", Map.of())),
                         List.of(), "RULE", null);
             }
@@ -403,6 +404,22 @@ public class RuleRouter implements Router {
         }
         return RouteDecision.route(capabilityId, args, 0.9,
                 ticketId != null ? "命中工单操作+工单ID" : "命中工单操作");
+    }
+
+    /** 去掉“帮我/审一下”等指令词，保留合同名称本身作为 resolve 查询。 */
+    private static String contractQuery(String text) {
+        String query = text == null ? "" : text.trim();
+        for (String prefix : List.of("帮我", "请", "麻烦", "审查", "审核", "审一下", "看一下", "看下", "查一下")) {
+            while (query.startsWith(prefix)) {
+                query = query.substring(prefix.length()).trim();
+            }
+        }
+        for (String suffix : List.of("这份合同", "这个合同")) {
+            if (query.endsWith(suffix) && query.length() > suffix.length()) {
+                query = query.substring(0, query.length() - suffix.length()).trim();
+            }
+        }
+        return query.isBlank() ? text : query;
     }
 
     private static Long parseLong(String value) {

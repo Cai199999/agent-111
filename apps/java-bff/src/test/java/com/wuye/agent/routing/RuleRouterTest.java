@@ -66,6 +66,16 @@ class RuleRouterTest {
     }
 
     @Test
+    void contractReviewByNameUsesCleanResolveQuery() {
+        RouteDecision decision = router.route("帮我审一下物业服务合同");
+
+        assertEquals("contract.review", decision.capabilityId());
+        assertTrue(decision.hasPlan());
+        assertEquals("contract.resolve", decision.plan().get(0).capabilityId());
+        assertEquals("物业服务合同", decision.plan().get(0).args().get("query"));
+    }
+
+    @Test
     void queryTicketStillRoutesToQuery() {
         RouteDecision decision = router.route("查询工单");
         assertEquals("property.ticket.query", decision.capabilityId());

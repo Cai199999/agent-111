@@ -106,8 +106,12 @@ public class HttpAgentSupport {
             if (notBlank(roles)) {
                 builder.header("X-Actor-Roles", roles);
             }
-            String tenantId = sameActor && notBlank(current.tenantId())
-                    ? current.tenantId() : endpoint.getTenantId();
+            // 子 Agent 端点登记的租户优先，并同时用于委托签发请求头与 claims；
+            // 否则合同 Agent 会判定 X-Tenant-Id 与委托 tenantId 冲突。
+            String tenantId = notBlank(endpoint.getTenantId())
+                    ? endpoint.getTenantId()
+                    : (sameActor && notBlank(current.tenantId())
+                    ? current.tenantId() : null);
             if (notBlank(tenantId)) {
                 builder.header("X-Tenant-Id", tenantId);
             }
@@ -125,7 +129,14 @@ public class HttpAgentSupport {
                 String delegation = delegationToken(endpoint, actorId, traceId);
                 if (delegation != null) {
                     builder.header("X-Delegation-Token", delegation);
+                    log.debug("delegation attached audience={} actor={}",
+                            endpoint.getAudience(), actorId);
+                } else {
+                    log.warn("delegation unavailable audience={} actor={}",
+                            endpoint.getAudience(), actorId);
                 }
+            } else if (withDelegation) {
+                log.debug("delegation disabled audience={}", endpoint.getAudience());
             }
 
             if (body == null) {
@@ -172,12 +183,15 @@ public class HttpAgentSupport {
             HttpResult result = send("POST", endpoint, endpoint.getDelegationPath(), request,
                     actorId, traceId, false);
             if (result.status() < 200 || result.status() >= 300) {
-                log.debug("委托令牌签发不可用 status={} audience={}", result.status(), endpoint.getAudience());
+                log.warn("委托令牌签发不可用 status={} audience={} body={}",
+                        result.status(), endpoint.getAudience(), truncate(result.raw()));
                 return null;
             }
             JsonNode data = result.body().has("data") ? result.body().get("data") : result.body();
             String token = text(data, "token", "delegationToken", "accessToken");
             if (token == null) {
+                log.warn("委托令牌响应缺少 token audience={} body={}",
+                        endpoint.getAudience(), truncate(result.raw()));
                 return null;
             }
             long ttl = data.has("expiresInSeconds") ? data.get("expiresInSeconds").asLong(600) : 600;
@@ -248,6 +262,13 @@ public class HttpAgentSupport {
                     text(item, "value", "text")));
         }
         return fields;
+    }
+
+    private static String truncate(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= 300 ? value : value.substring(0, 300);
     }
 
     public static String text(JsonNode node, String... names) {

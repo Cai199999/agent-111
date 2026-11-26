@@ -84,6 +84,20 @@ class HybridRouterTest {
     }
 
     @Test
+    void contractReviewPlanBeatsLlmClarification() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.clarify("请提供 contractId", "missing")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("帮我审一下物业服务合同");
+
+        assertEquals("contract.review", decision.capabilityId());
+        assertTrue(decision.hasPlan());
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
     void llmCanAskForClarification() {
         AtomicInteger calls = new AtomicInteger();
         LlmRouterClient llm = message -> {

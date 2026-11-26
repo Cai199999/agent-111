@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * 合同 Agent 真实 HTTP Adapter（contract-v07）。
+ * 合同 Agent 真实 HTTP Adapter（contract-v08 / 0.8.0）。
  * 通过 AGENT_CONTRACT_BASE_URL（默认 8400）接入；写能力依赖委托令牌签发。
  */
 @Component
@@ -25,8 +25,8 @@ public class HttpContractAdapter extends AbstractHttpAdapter {
         return new AgentDescriptor(
                 AGENT_KEY,
                 "合同审查 Agent",
-                "contract-v07",
-                "0.7.0",
+                "contract-v08",
+                "0.8.0",
                 "raw",
                 "/health",
                 "/ready",
@@ -38,7 +38,10 @@ public class HttpContractAdapter extends AbstractHttpAdapter {
                         cap("contract.resolve", "contract.resolve", "解析合同", true, false, "SYNC", true),
                         cap("contract.review", "contract.review", "合同审查", true, false, "ASYNC", true),
                         cap("contract.rule.create", "contract.rule.create", "创建审查规则", false, true, "ASYNC", true),
-                        cap("contract.import", "contract.import", "导入合同", false, true, "ASYNC", false)
+                        cap("contract.import", "contract.import", "导入合同（docx）", false, true, "ASYNC", true),
+                        cap("external.legal.search", "external.legal.search", "法规检索（未接入）", true, false, "SYNC", false),
+                        cap("external.counterparty.lookup", "external.counterparty.lookup", "工商/司法查询（未接入）", true, false, "SYNC", false),
+                        cap("external.ocr.extract", "external.ocr.extract", "OCR（未接入）", true, false, "SYNC", false)
                 ));
     }
 
