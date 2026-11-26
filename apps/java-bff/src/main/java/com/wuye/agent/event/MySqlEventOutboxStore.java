@@ -2,8 +2,11 @@ package com.wuye.agent.event;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,19 +91,38 @@ public class MySqlEventOutboxStore implements EventOutboxStore {
                         ORDER BY created_at
                         LIMIT ?
                         """.formatted(SELECT_COLUMNS),
-                (rs, rowNum) -> new EventEnvelope(
-                        rs.getString("event_id"),
-                        rs.getString("event_type"),
-                        rs.getInt("event_version"),
-                        instant(rs.getTimestamp("occurred_at")),
-                        rs.getString("source"),
-                        rs.getString("trace_id"),
-                        rs.getString("actor_id"),
-                        rs.getString("tenant_id"),
-                        rs.getString("subject"),
-                        rs.getString("idempotency_key"),
-                        payload(rs.getString("payload_json"))),
+                (rs, rowNum) -> mapEvent(rs),
                 Math.max(1, limit));
+    }
+
+    @Override
+    public List<EventEnvelope> recent(int limit) {
+        List<EventEnvelope> rows = jdbc.query("""
+                        SELECT %s
+                        FROM wa_event_outbox
+                        ORDER BY created_at DESC
+                        LIMIT ?
+                        """.formatted(SELECT_COLUMNS),
+                (rs, rowNum) -> mapEvent(rs),
+                Math.max(1, limit));
+        // 接口约定时间升序；SQL 用 DESC 取最近 N 条，再反转。
+        Collections.reverse(rows);
+        return rows;
+    }
+
+    private EventEnvelope mapEvent(ResultSet rs) throws SQLException {
+        return new EventEnvelope(
+                rs.getString("event_id"),
+                rs.getString("event_type"),
+                rs.getInt("event_version"),
+                instant(rs.getTimestamp("occurred_at")),
+                rs.getString("source"),
+                rs.getString("trace_id"),
+                rs.getString("actor_id"),
+                rs.getString("tenant_id"),
+                rs.getString("subject"),
+                rs.getString("idempotency_key"),
+                payload(rs.getString("payload_json")));
     }
 
     @Override

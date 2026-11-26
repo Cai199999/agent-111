@@ -181,6 +181,16 @@
   含 input/error/durationMs；ADMIN API 可查。
 - 边界：未接评测流水线/标注/导出；样本含业务明文，仅内网；无保留期/脱敏策略。
 
+## 2026-11-26 前端可观测
+
+- 聊天区新增 `orchestration` SSE 徽标：阶段/verdict/计划或步骤/澄清；同一气泡保留最新状态。
+- 用户菜单新增 ADMIN「运行观测」：最近事件（总线为空时回退 Outbox 历史）、
+  Outbox 已投递/PENDING、飞轮样本；全部只读。
+- `EventOutboxStore.recent` 新增内存/MySQL 实现，管理端接口返回 `outboxEvents`。
+- 无头 Chromium + CDP 实测：重启后观测页显示 Outbox 已投递、飞轮样本；
+  聊天查询显示 `验收 FAILED（失败）` 徽标；Java 全量 107/107。
+- 边界：编排结果只走 SSE 不落库；管理端打开时拉取，无自动刷新/分页/告警。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

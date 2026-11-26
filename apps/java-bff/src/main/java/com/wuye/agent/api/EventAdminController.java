@@ -50,6 +50,8 @@ public class EventAdminController {
         data.put("events", eventBus.recent(limit));
         data.put("stats", eventBus.stats());
         data.put("outbox", outboxPublisher.stats());
+        // 重启后进程内缓冲为空，用 Outbox 历史补足管理端观测。
+        data.put("outboxEvents", outboxPublisher.recent(limit));
         return ApiResponse.ok(data, trace(traceId));
     }
 

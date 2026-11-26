@@ -75,6 +75,10 @@ public class OutboxEventPublisher implements EventPublisher {
         return stats;
     }
 
+    public java.util.List<EventEnvelope> recent(int limit) {
+        return enabled ? outbox.recent(limit) : java.util.List.of();
+    }
+
     private void dispatch(EventEnvelope event) {
         try {
             eventBus.publish(event);

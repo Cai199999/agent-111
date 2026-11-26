@@ -218,6 +218,12 @@ const els = {
   dashboardFunnel: document.getElementById('dashboardFunnel'),
   dashboardTable: document.getElementById('dashboardTable'),
   dashboardClose: document.getElementById('dashboardClose'),
+  observabilityMenuItem: document.getElementById('observabilityMenuItem'),
+  observabilityModal: document.getElementById('observabilityModal'),
+  observabilitySummary: document.getElementById('observabilitySummary'),
+  observabilityEvents: document.getElementById('observabilityEvents'),
+  observabilitySamples: document.getElementById('observabilitySamples'),
+  observabilityClose: document.getElementById('observabilityClose'),
   a2aMenuItem: document.getElementById('a2aMenuItem'),
   a2aModal: document.getElementById('a2aModal'),
   a2aSummary: document.getElementById('a2aSummary'),
@@ -353,6 +359,7 @@ function bindEvents() {
     if (!action) return;
     els.userDropdown.hidden = true;
     if (action === 'dashboard') openDashboard();
+    if (action === 'observability') openObservability();
     if (action === 'a2a') openA2A();
     if (action === 'human') openHumanTasks();
     if (action === 'audit') openAudit();
@@ -379,6 +386,9 @@ function bindEvents() {
   els.settingsSave.addEventListener('click', saveSettings);
   els.dashboardClose.addEventListener('click', () => {
     els.dashboardModal.hidden = true;
+  });
+  els.observabilityClose.addEventListener('click', () => {
+    els.observabilityModal.hidden = true;
   });
   els.a2aClose.addEventListener('click', () => {
     els.a2aModal.hidden = true;
@@ -462,6 +472,9 @@ function renderCurrentUser() {
   const isAdmin = (state.me.roles || []).includes('ADMIN');
   if (els.dashboardMenuItem) {
     els.dashboardMenuItem.hidden = !isAdmin;
+  }
+  if (els.observabilityMenuItem) {
+    els.observabilityMenuItem.hidden = !isAdmin;
   }
   if (els.a2aMenuItem) {
     els.a2aMenuItem.hidden = !isAdmin;
@@ -839,6 +852,9 @@ function handleEvent(event, data, assistant) {
     case 'route':
       showRoute(assistant, data.capabilityId, data.confidence, data.reason);
       break;
+    case 'orchestration':
+      renderOrchestration(assistant, data);
+      break;
     case 'delta':
       appendDelta(assistant, data.content || '');
       break;
@@ -944,13 +960,15 @@ function appendAssistantMessage(initialText) {
   const bubble = el('div', 'bubble');
   const route = el('div', 'route-badge');
   route.hidden = true;
+  const orchestration = el('div', 'orchestration-badge');
+  orchestration.hidden = true;
   const text = el('div', 'text', initialText || '');
   const cards = el('div', 'cards');
-  bubble.append(route, text, cards);
+  bubble.append(orchestration, route, text, cards);
   root.append(el('div', 'avatar', 'AI'), bubble);
   els.messages.append(root);
   scrollToBottom();
-  return { root, bubble, route, text, cards };
+  return { root, bubble, route, orchestration, text, cards };
 }
 
 function wrapBubble(children) {
@@ -967,6 +985,39 @@ function showRoute(assistant, capabilityId, confidence, reason) {
     el('span', '', confidence != null ? `· ${Math.round(confidence * 100)}%` : ''),
     el('span', '', reason ? `· ${reason}` : ''),
   );
+}
+
+const ORCHESTRATION_LABELS = {
+  COMPLETE: '通过',
+  DISPATCH_REQUIRED: '待执行',
+  NEEDS_INPUT: '需补充',
+  FAILED: '失败',
+};
+
+function renderOrchestration(assistant, data) {
+  if (!assistant || !assistant.orchestration || !data) return;
+  const phase = data.phase === 'VERIFY' ? '验收' : '编排';
+  const verdict = data.verdict || 'UNKNOWN';
+  const details = [];
+  if (phase === '编排' && Array.isArray(data.plan) && data.plan.length) {
+    details.push(`计划 ${data.plan.map((step) => step.capabilityId).join(' → ')}`);
+  }
+  if (Array.isArray(data.steps) && data.steps.length) {
+    details.push(data.steps.map((step) => `${step.capabilityId}=${step.status}`).join('，'));
+  }
+  if (data.clarification) details.push(data.clarification);
+  assistant.orchestration.hidden = false;
+  assistant.orchestration.className = [
+    'orchestration-badge',
+    phase === '验收' ? 'verify' : 'plan',
+    verdict === 'FAILED' ? 'failed' : '',
+  ].filter(Boolean).join(' ');
+  assistant.orchestration.replaceChildren(
+    el('span', '', phase),
+    el('strong', '', `${verdict}${ORCHESTRATION_LABELS[verdict] ? `（${ORCHESTRATION_LABELS[verdict]}）` : ''}`),
+    ...(details.length ? [el('span', 'orch-detail', details.join(' · '))] : []),
+  );
+  scrollToBottom();
 }
 
 function appendDelta(assistant, content) {
@@ -1882,6 +1933,77 @@ function renderDashboard(data) {
     table.append(row);
   }
   els.dashboardTable.replaceChildren(table);
+}
+
+async function openObservability() {
+  els.observabilityModal.hidden = false;
+  els.observabilitySummary.textContent = '加载中…';
+  els.observabilityEvents.replaceChildren();
+  els.observabilitySamples.replaceChildren();
+  try {
+    const [events, samples] = await Promise.all([
+      api('/api/v1/admin/events/recent?limit=20'),
+      api('/api/v1/admin/flywheel/samples?limit=10'),
+    ]);
+    renderObservability(events, samples);
+  } catch (error) {
+    els.observabilitySummary.textContent = error.message || '加载失败';
+  }
+}
+
+function renderObservability(eventsData, samplesData) {
+  const bus = eventsData.stats || {};
+  const outbox = eventsData.outbox || {};
+  const flywheel = samplesData.stats || {};
+  const pending = outbox.pending != null
+    ? outbox.pending
+    : ((outbox.counts && outbox.counts.PENDING) || 0);
+  const dispatched = outbox.dispatched != null
+    ? outbox.dispatched
+    : ((outbox.counts && outbox.counts.DISPATCHED) || 0);
+  const sampleTotal = flywheel.total != null
+    ? flywheel.total
+    : (flywheel.recent != null ? flywheel.recent : 0);
+  els.observabilitySummary.textContent =
+    `事件 已发布 ${bus.published || 0} · 缓冲 ${bus.buffered || 0} · 消费失败 ${bus.failed || 0}`
+    + ` ｜ Outbox ${outbox.backend || '-'} · 已投递 ${dispatched} · PENDING ${pending}`
+    + ` ｜ 飞轮 ${flywheel.backend || 'JSONL'} · ${sampleTotal} 条`;
+
+  // 进程内缓冲重启后为空；此时用 Outbox 历史补足最近事件。
+  const liveEvents = eventsData.events || [];
+  const events = liveEvents.length ? liveEvents : (eventsData.outboxEvents || []);
+  if (!events.length) {
+    els.observabilityEvents.replaceChildren(el('div', 'notify-empty', '暂无事件'));
+  } else {
+    els.observabilityEvents.replaceChildren(...events.slice().reverse().map((event) => {
+      const row = el('div', 'audit-row');
+      const main = el('div');
+      main.append(
+        el('div', 'main', event.eventType || '-'),
+        el('div', 'meta',
+          `${event.subject || '-'} · ${event.actorId || '-'} · ${formatDate(event.occurredAt)}`),
+      );
+      row.append(main, el('span', 'obs-version', `v${event.eventVersion || 1}`));
+      return row;
+    }));
+  }
+
+  const samples = samplesData.samples || [];
+  if (!samples.length) {
+    els.observabilitySamples.replaceChildren(el('div', 'notify-empty', '暂无样本'));
+  } else {
+    els.observabilitySamples.replaceChildren(...samples.slice().reverse().map((sample) => {
+      const row = el('div', 'audit-row');
+      const main = el('div');
+      main.append(
+        el('div', 'main', `${capabilityLabel(sample.capabilityId)} · ${sample.taskNo || '-'}`),
+        el('div', 'meta',
+          `${sample.agentKey || '-'} · ${sample.durationMs || 0} ms · ${formatDate(sample.occurredAt)}`),
+      );
+      row.append(main, el('span', `status ${sample.status || 'PENDING'}`, statusLabel(sample.status)));
+      return row;
+    }));
+  }
 }
 
 const ACTION_LABELS = {

@@ -112,6 +112,8 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
 - **编排闭环**：Java 在现有 LLM 路由后调用 `/orchestrate` 校验计划，消费 `DISPATCH_REQUIRED`
   执行，再把终态结果回传 `/orchestrate/verify`；SSE 输出 `orchestration` 事件（PLAN/VERIFY）。
   编排失败/超时自动回退现有流程（`wuye.ai.orchestration-enabled` 可关闭）；
+- **可观测**：聊天区展示编排/验收徽标；ADMIN 用户菜单「运行观测」查看最近事件
+  （总线缓冲或 Outbox 历史）、Outbox 状态与飞轮样本；
 - 本阶段未接 Kafka / Neo4j / 向量库 / 多实例分布式消费。详见 `docs/08-主Agent演进-事件契约与编排骨架.md`。
 
 详见 [`apps/java-bff/README.md`](apps/java-bff/README.md)。

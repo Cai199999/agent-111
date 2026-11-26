@@ -90,6 +90,7 @@
           </button>
           <div id="userDropdown" class="dropdown" hidden>
             <button type="button" data-action="dashboard" id="dashboardMenuItem">数据看板</button>
+            <button type="button" data-action="observability" id="observabilityMenuItem">运行观测</button>
             <button type="button" data-action="a2a" id="a2aMenuItem">A2A 能力</button>
             <button type="button" data-action="human" id="humanMenuItem">人工介入</button>
             <button type="button" data-action="audit" id="auditMenuItem">审计日志</button>
@@ -170,6 +171,20 @@
     <div id="dashboardTable"></div>
     <div class="modal-actions">
       <button id="dashboardClose" class="btn" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="observabilityModal" class="modal" hidden>
+  <div class="modal-card wide" role="dialog" aria-modal="true" aria-labelledby="observabilityTitle">
+    <div id="observabilityTitle" class="modal-title">运行观测</div>
+    <div id="observabilitySummary" class="dashboard-note">加载中…</div>
+    <div class="dashboard-section">最近事件</div>
+    <div id="observabilityEvents" class="audit-list"></div>
+    <div class="dashboard-section">飞轮样本</div>
+    <div id="observabilitySamples" class="audit-list"></div>
+    <div class="modal-actions">
+      <button id="observabilityClose" class="btn" type="button">关闭</button>
     </div>
   </div>
 </div>

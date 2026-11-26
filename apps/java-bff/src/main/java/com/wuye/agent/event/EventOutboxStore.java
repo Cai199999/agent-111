@@ -16,6 +16,9 @@ public interface EventOutboxStore {
     /** 待投递事件，按创建时间升序。 */
     List<EventEnvelope> pending(int limit);
 
+    /** 最近事件（含已投递），按时间升序；用于重启后的管理端观测。 */
+    List<EventEnvelope> recent(int limit);
+
     void markDispatched(String eventId);
 
     /** 投递失败：累加 attempts，超过上限后标记 FAILED，不再无限重试。 */
