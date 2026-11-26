@@ -45,25 +45,34 @@
 | 项目 | 结果 |
 |---|---|
 | Agent Card | `0.8.0`，6 个启用能力，6 个 Skill |
-| `contract.rule.list` | 任务 `SUCCEEDED`，但 `rules=[]` |
-| `contract.resolve("物业服务合同")` | `SUCCEEDED`，10 个候选 |
+| `contract.rule.list` 不传 contractType | `SUCCEEDED`，`rules=[]` |
+| `contract.rule.list(contractType=SERVICE)` | `SUCCEEDED`，36 条（31 DRAFT + 5 PUBLISHED） |
+| `publishedOnly=true` | 5 条 PUBLISHED |
+| `contract.resolve("物业服务合同")` | `SUCCEEDED`，10 个候选，需显式选择 |
 | `审查合同 <contractId>` | `SUCCEEDED`，`skillId=contract.review`，`findingsCount=10` |
+| 终态取消 | 返回 409，符合 0.8.0 契约 |
 
-> `contract.rule.list` 为空：合同 0.8.0 很可能只向 Agent 暴露已发布规则，而种子规则仍是
-> `DRAFT_UNREVIEWED`。需要合同 Agent 侧确认是否应给 ADMIN 返回草稿，或先发布规则。
+> 重要差异：合同侧说明“默认返回全部 ENABLED”，但当前 8400 实际在 `contractType` 缺省时
+> 返回 0，传入 `SERVICE` 才返回 36。可能是运行中的 BFF 未重启到 4f9c83b，或 contractType
+> 仍为必填；需要合同侧确认。主 Agent E2E 使用“服务合同”提示以显式触发 `SERVICE`。
 
 ### 3.3 全量 E2E（真实模式）
 
 `E2E_REAL=1 BASE_URL=http://127.0.0.1:8600 python3 -I scripts/e2e_full.py`
 
-- **PASS=96 / FAIL=5**
-- 失败项：
-  - `合同规则返回`：E2E 期望 `R-CON-001`，但真实 `rules=[]`；
-  - `合同审查最终成功` / `合同审查风险数`：E2E 用名称“物业服务合同”，实际有 10 个同名候选，
-    主 Agent 正确地要求指定 contractId，未自动猜；
-  - `合同审查可取消`：真实审查已完成，取消不适用；
-  - `巡查自动带出地块`：GIS 检查，不属于合同链路。
-- 手工用明确 `contractId` 审查已 `SUCCEEDED` 且产出 10 条 Finding，证明合同集成链路可用。
+最新结果：**PASS=99 / FAIL=2**
+
+- 合同段已通过：
+  - 服务合同规则返回 36 条；
+  - 通过 `contract.resolve` 显式选择 `contractId` 后审查成功，Finding 数可读；
+  - 终态取消按 409 断言通过。
+- 剩余 2 项失败均为 **物业 Agent 8200 在测试后段下线**：
+  - `缺关键信息为追问/确认`：实际为 `ConnectException`；
+  - `工具执行成功`：同样为物业 Agent 不可达。
+- 此前合同段 4 项失败已通过真实数据适配消除：
+  - 使用 `SERVICE` 查询规则；
+  - 显式 resolve + contractId；
+  - 终态取消 409 视为通过。
 
 ## 4. 结论与待办
 
@@ -72,7 +81,8 @@
 
 仍需合同 Agent 侧或测试侧处理：
 
-1. 确认 `contract.rule.list` 是否应返回 DRAFT 规则；否则先发布种子规则，E2E 才能验证规则内容。
-2. 真实 E2E 合同段改用显式 `contractId`（或先 resolve 再选择），名称同名时不应自动猜。
-3. 合同取消检查需要长任务或明确“已终态不可取消”的预期。
-4. 合同 Agent 内部测试套件仍由合同项目自行执行；本次只在主 Agent 侧做集成验证。
+1. 确认 8400 运行版本是否已包含 4f9c83b：当前 `contract.rule.list` 不传 `contractType` 返回 0，
+   与“默认返回全部 ENABLED”不一致；若 contractType 仍为必填，请在契约中明确。
+2. 合同同名场景已按新契约：主 Agent 先 resolve，再由编排层/用户显式选择 contractId。
+3. 合同取消已按终态 409 处理；E2E 不再构造长任务。
+4. 合同 Agent 内部测试套件仍由合同项目自行执行；本次在主 Agent 侧做真实集成验证。

@@ -101,11 +101,15 @@ public class HybridRouter implements Router {
                 && (decision.args() == null || !decision.args().containsKey("parcelNo"))))) {
             return rule;
         }
-        // GIS 巡查需要先解析地块；规则已有只读前置计划时优先，避免 LLM 漏掉 parcelNo。
+        // GIS 巡查需要先解析地块；规则已有只读前置计划时优先，
+        // LLM 只给出地块名称（P-xxxx 之外的字符串）时也回退规则解析。
+        Object decisionParcel = decision.args() == null
+                ? null : decision.args().get("parcelNo");
+        boolean resolvedParcel = decisionParcel != null
+                && String.valueOf(decisionParcel).matches("P-\\d{4}-\\d+");
         if (rule.hasPlan() && !rule.needClarification()
                 && capabilityId != null && capabilityId.startsWith("gis.")
-                && (decision.plan().isEmpty()
-                || decision.args() == null || !decision.args().containsKey("parcelNo"))) {
+                && (decision.plan().isEmpty() || !resolvedParcel)) {
             return rule;
         }
         // 合同按名称审查：规则已有 resolve → review 计划时优先，避免 LLM 只追问 contractId。
@@ -114,6 +118,28 @@ public class HybridRouter implements Router {
                 && (decision.needClarification() || decision.plan().isEmpty())) {
             return rule;
         }
+        // 批量操作：规则已解析出显式 ticketId 时优先，避免 LLM 把它压成关键词查询。
+        if ("batch.execute".equals(rule.capabilityId()) && !rule.needClarification()
+                && hasExplicitTicketIds(rule)
+                && ("batch.execute".equals(decision.capabilityId())
+                || decision.needClarification())) {
+            return rule;
+        }
         return decision;
+    }
+
+    private static boolean hasExplicitTicketIds(RouteDecision rule) {
+        Object items = rule.args() == null ? null : rule.args().get("items");
+        if (!(items instanceof java.util.List<?> list)) {
+            return false;
+        }
+        for (Object item : list) {
+            if (item instanceof java.util.Map<?, ?> map
+                    && map.get("args") instanceof java.util.Map<?, ?> args
+                    && args.get("ticketId") != null) {
+                return true;
+            }
+        }
+        return false;
     }
 }

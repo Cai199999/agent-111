@@ -289,10 +289,13 @@
 - 修复主 Agent 委托租户对齐：委托签发请求头原用用户租户 0、claims 用端点租户 1，
   导致 TENANT_MISMATCH；现统一用端点租户，并补委托日志。
 - 合同名称审查走 resolve→review 计划，查询词清洗；显式 contractId 审查成功（10 条 Finding）。
-- 验证：真实 Agent smoke **8/8**（物业 4 + 合同 4）；真实全量 E2E **96/101**；
-  合同失败来自 rules=[]、同名合同 10 个候选、取消不适用；GIS 项目 1 项失败。
+- 验证：真实 Agent smoke **8/8**（物业 4 + 合同 4）；真实全量 E2E **99/101**；
+  合同段全部通过（SERVICE 36 规则、resolve 显式 contractId、审查 10 Findings、终态取消 409）；
+  仅 2 项物业失败因 8200 在测试后段下线。
+- 合同规则查询注意：当前 8400 在 `contractType` 缺省时返回 0，传 `SERVICE` 返回 36；
+  与“默认全部 ENABLED”口径不一致，待合同侧确认版本/契约。
 - 文档：`docs/10-合同Agent-0.8.0-接入验证.md`。
-- 待合同侧确认：`contract.rule.list` 是否应返回 DRAFT 规则；否则先发布种子规则。
+- Java 全量 130/130。
 
 ## 下一步
 

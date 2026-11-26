@@ -84,6 +84,38 @@ class HybridRouterTest {
     }
 
     @Test
+    void batchExplicitTicketIdsRuleBeatsLlmKeywords() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.route("batch.execute", Map.of("items", java.util.List.of(
+                        Map.of("capabilityId", "property.ticket.assign",
+                                "args", Map.of("keyword", "工单1")))), 0.9, "llm")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route(
+                "把工单 ID 111111 派给 10002，把工单 ID 222222 派给 10003");
+
+        assertEquals("batch.execute", decision.capabilityId());
+        assertEquals("RULE", decision.router());
+        assertTrue(decision.args().get("items").toString().contains("ticketId"));
+    }
+
+    @Test
+    void gisPatrolNameParcelFallsBackToRulePlan() {
+        LlmRouterClient llm = message -> Optional.of(
+                RouteDecision.route("gis.patrol.create",
+                        Map.of("parcelNo", "江北 A-01 地块"), 0.9, "llm")
+                        .withRouter("LLM"));
+        HybridRouter router = new HybridRouter(new RuleRouter(), llm, enabled());
+
+        RouteDecision decision = router.route("安排人去江北 A-01 地块做一次变化图斑复核");
+
+        assertEquals("gis.patrol.create", decision.capabilityId());
+        assertTrue(decision.hasPlan());
+        assertEquals("RULE", decision.router());
+    }
+
+    @Test
     void contractReviewPlanBeatsLlmClarification() {
         LlmRouterClient llm = message -> Optional.of(
                 RouteDecision.clarify("请提供 contractId", "missing")
