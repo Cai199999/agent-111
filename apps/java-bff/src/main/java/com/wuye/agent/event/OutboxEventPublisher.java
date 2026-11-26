@@ -22,13 +22,13 @@ public class OutboxEventPublisher implements EventPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxEventPublisher.class);
 
     private final EventOutboxStore outbox;
-    private final EventBus eventBus;
+    private final EventTransport transport;
     private final boolean enabled;
 
-    public OutboxEventPublisher(EventOutboxStore outbox, EventBus eventBus,
+    public OutboxEventPublisher(EventOutboxStore outbox, EventTransport transport,
                                 @Value("${wuye.event.outbox.enabled:true}") boolean enabled) {
         this.outbox = outbox;
-        this.eventBus = eventBus;
+        this.transport = transport;
         this.enabled = enabled;
     }
 
@@ -38,7 +38,7 @@ public class OutboxEventPublisher implements EventPublisher {
             return;
         }
         if (!enabled) {
-            eventBus.publish(event);
+            transport.send(event);
             return;
         }
         try {
@@ -81,7 +81,7 @@ public class OutboxEventPublisher implements EventPublisher {
 
     private void dispatch(EventEnvelope event) {
         try {
-            eventBus.publish(event);
+            transport.send(event);
             outbox.markDispatched(event.eventId());
         } catch (Exception ex) {
             log.warn("event dispatch failed eventId={} type={} error={}",

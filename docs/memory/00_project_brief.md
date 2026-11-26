@@ -219,6 +219,18 @@
 - Java 全量 110/110（新增 `OrchestrationAuditStoreTest` 2 项）。
 - 边界：编排审计重启清空；轮询非实时；无多用户隔离/告警通知。
 
+## 2026-11-26 Redis Stream 事件通道
+
+- 已获用户授权，在 `~/Workspace/RESOURCES.md` 追加本项目条目：
+  `wuye_agent:` 前缀、Stream `wuye_agent:events`、group `wuye_agent-bff`；DB 0，未 FLUSH/重启。
+- `EventTransport` 抽象 `memory/redis`；Outbox → XADD；订阅者 XREADGROUP → 本地 EventBus → ACK；
+  启动补读 PENDING；坏消息 ACK；XADD 失败保持 Outbox PENDING。
+- 新增 `spring-boot-starter-data-redis`；Lettuce 超时 5s（大于 BLOCK 2s）。
+- 实测：应用 Redis 模式启动，backlog 2 条消费；新任务 XLEN=4、lag=0、pending=0；
+  本地总线 4 条、飞轮 +2、Outbox 全 DISPATCHED；`SCAN wuye_agent:*` 仅 stream。
+- 全量 Java 112/112（新增 `RedisEventCodecTest` 2 项）。
+- 边界：单 group；多实例需唯一 consumer；无 lag 告警/死信/归档；未接 Kafka。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

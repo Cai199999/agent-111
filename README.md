@@ -103,6 +103,9 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
   事件故障不影响任务主流程；ADMIN 可查 `GET /api/v1/admin/events/recent`；
 - **Outbox**：任务事件先写 `wa_event_outbox`（V15）再投递，5 秒 relay 补发 PENDING；
   MySQL profile 下跨重启不丢，单事件最多重试 5 次；
+- **Redis Stream**：`EVENT_BACKEND=redis` 时 Outbox relay 写入 `wuye_agent:events`，
+  订阅者 `XREADGROUP` 消费后投递本地总线；前缀/Stream 已登记 `RESOURCES.md`；
+  默认 `memory`，不启用 Redis；
 - 飞轮消费者把任务终态样本落 `data/flywheel/samples.jsonl`（默认/测试）或
   `wa_flywheel_sample`（mysql profile，V16），ADMIN 可查
   `GET /api/v1/admin/flywheel/samples`；只做数据出口，不接训练；

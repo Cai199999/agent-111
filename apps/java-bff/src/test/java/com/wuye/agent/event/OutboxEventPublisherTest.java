@@ -19,7 +19,7 @@ class OutboxEventPublisherTest {
     void publishAppendsThenDispatchesAndMarksDone() {
         InMemoryEventOutboxStore store = new InMemoryEventOutboxStore(3);
         FakeBus bus = new FakeBus();
-        OutboxEventPublisher publisher = new OutboxEventPublisher(store, bus, true);
+        OutboxEventPublisher publisher = new OutboxEventPublisher(store, new LocalEventTransport(bus), true);
 
         publisher.publish(event("evt-1", EventTypes.TASK_REQUESTED));
 
@@ -33,7 +33,7 @@ class OutboxEventPublisherTest {
         InMemoryEventOutboxStore store = new InMemoryEventOutboxStore(3);
         FakeBus bus = new FakeBus();
         bus.fail = true;
-        OutboxEventPublisher publisher = new OutboxEventPublisher(store, bus, true);
+        OutboxEventPublisher publisher = new OutboxEventPublisher(store, new LocalEventTransport(bus), true);
         EventEnvelope event = event("evt-2", EventTypes.TASK_COMPLETED);
 
         publisher.publish(event);
@@ -54,7 +54,7 @@ class OutboxEventPublisherTest {
         store.append(event);
 
         FakeBus bus = new FakeBus();
-        OutboxEventPublisher publisher = new OutboxEventPublisher(store, bus, true);
+        OutboxEventPublisher publisher = new OutboxEventPublisher(store, new LocalEventTransport(bus), true);
         publisher.relay();
 
         assertEquals(1, bus.received.size());
@@ -66,7 +66,7 @@ class OutboxEventPublisherTest {
     void disabledOutboxPublishesDirectlyWithoutStoring() {
         InMemoryEventOutboxStore store = new InMemoryEventOutboxStore(3);
         FakeBus bus = new FakeBus();
-        OutboxEventPublisher publisher = new OutboxEventPublisher(store, bus, false);
+        OutboxEventPublisher publisher = new OutboxEventPublisher(store, new LocalEventTransport(bus), false);
 
         publisher.publish(event("evt-4", EventTypes.TASK_REQUESTED));
 

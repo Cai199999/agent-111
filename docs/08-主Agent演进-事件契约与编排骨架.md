@@ -450,10 +450,74 @@ python3 -I scripts/eval_flywheel.py \
 - 未接 CI 门禁、趋势对比、告警阈值；
 - 候选数据集含业务明文，只允许内网使用。
 
-## 11. 下一步
+## 11. Redis Stream 事件通道（2026-11-26）
 
-1. **Kafka/Redis Stream 适配**：先登记资源，再替换 relay 下游，消费端幂等表；
-2. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
-3. **编排增强**：`NEEDS_INPUT` 自动重新规划一次（仅只读计划）；
-4. **观测增强**：编排结果落库/历史回放、管理端自动刷新与告警；
+### 11.1 资源登记
+
+已在 `~/Workspace/RESOURCES.md` 追加（仅本项目条目）：
+
+- Redis key 前缀：`wuye_agent:`（DB 0，`SCAN MATCH wuye_agent:*` 无冲突）；
+- Stream：`wuye_agent:events`；consumer group：`wuye_agent-bff`；
+- 约束：不 FLUSH/不重启共享 Redis，只读写本项目前缀。
+
+### 11.2 架构
+
+```text
+TaskService → OutboxEventPublisher
+                ├─ append → wa_event_outbox
+                ├─ transport.send
+                │     ├─ memory：LocalEventTransport → EventBus
+                │     └─ redis ：XADD wuye_agent:events（MAXLEN ~10000）
+                └─ markDispatched
+
+RedisStreamSubscriber
+  XREADGROUP group wuye_agent-bff consumer <name> BLOCK 2s
+  → EventEnvelope → 本地 EventBus → FlywheelSampleService
+  → XACK
+```
+
+- `EventTransport` 抽象：`memory`（默认）/ `redis`；
+- Outbox 仍负责可靠落库与重试；Redis 只是 relay 下游；
+- 订阅端启动先补读本 consumer 的 PENDING，再读 `>` 新消息；
+- 坏消息记录日志后 ACK，避免毒消息阻塞；
+- XADD 失败 → outbox 保持 PENDING，relay 5 秒后重试；
+- Redis 不可用时应用仍可启动与处理任务，事件积压在 Outbox。
+
+### 11.3 配置
+
+```dotenv
+EVENT_BACKEND=memory            # memory | redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DATABASE=0
+EVENT_REDIS_STREAM=wuye_agent:events
+EVENT_REDIS_GROUP=wuye_agent-bff
+EVENT_REDIS_CONSUMER=bff-1      # 多实例需唯一
+EVENT_REDIS_MAXLEN=10000
+```
+
+> Lettuce 命令超时需大于 `XREADGROUP BLOCK`（2s），当前配置 5s。
+
+### 11.4 真实验证（2026-11-26）
+
+- 应用以 `EVENT_BACKEND=redis` 启动，订阅者创建 group 并消费历史 backlog（lag 2 → 0）；
+- 新任务：`XLEN=4`、`lag=0`、`pending=0`；本地总线 `published=4`；
+- 飞轮样本同步新增 2 条，Outbox 全部 `DISPATCHED`；
+- `SCAN wuye_agent:*` 只有 `wuye_agent:events`，未产生其他 key；
+- 全量 Java **112/112**（新增 `RedisEventCodecTest` 2 项）。
+
+### 11.5 边界
+
+- 单 consumer group；多实例需各自唯一 `EVENT_REDIS_CONSUMER`，同组竞争消费；
+- 未做消费者 lag 告警、死信队列、Stream 归档；
+- 未接 Kafka；跨实例顺序由 Redis Stream 单 key 顺序近似保证；
+- Redis DB 0 与他人共享，只靠 `wuye_agent:` 前缀隔离。
+
+## 12. 下一步
+
+1. **标注与金标评测**：人工复核候选数据集，补分诊/答案正确率；
+2. **编排增强**：`NEEDS_INPUT` 自动重新规划一次（仅只读计划）；
+3. **观测增强**：编排结果落库/历史回放、消费者 lag/告警；
+4. **Redis 生产化**：死信队列、Stream 归档、多实例压测；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

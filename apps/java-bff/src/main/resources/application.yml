@@ -13,6 +13,15 @@ spring:
     default-property-inclusion: non_null
     serialization:
       write-dates-as-timestamps: false
+  data:
+    redis:
+      # 共享 Redis：只使用本项目前缀 wuye_agent:，不 FLUSH/不重启
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      # 必须大于 XREADGROUP BLOCK（2s），否则每次读都超时
+      timeout: 5s
 
 wuye:
   agent:
@@ -74,14 +83,22 @@ wuye:
   rate-limit:
     per-minute: ${RATE_LIMIT_PER_MINUTE:300}
   event:
-    # 进程内事件总线；Outbox 先落库再投递，后续可替换为 Kafka/Redis Stream
+    # 进程内事件总线；Outbox 先落库再投递，transport 可切 memory/redis
     enabled: ${EVENT_BUS_ENABLED:true}
     buffer-size: ${EVENT_BUFFER_SIZE:500}
     source: ${EVENT_SOURCE:wuye-agent-bff}
+    # memory（默认）| redis（Redis Stream，需登记前缀）
+    backend: ${EVENT_BACKEND:memory}
     outbox:
       enabled: ${EVENT_OUTBOX_ENABLED:true}
       relay-ms: ${EVENT_OUTBOX_RELAY_MS:5000}
       max-attempts: ${EVENT_OUTBOX_MAX_ATTEMPTS:5}
+    redis:
+      # 本项目注册前缀：wuye_agent:（见 ~/Workspace/RESOURCES.md）
+      stream: ${EVENT_REDIS_STREAM:wuye_agent:events}
+      group: ${EVENT_REDIS_GROUP:wuye_agent-bff}
+      consumer: ${EVENT_REDIS_CONSUMER:bff-1}
+      maxlen: ${EVENT_REDIS_MAXLEN:10000}
   flywheel:
     # 任务终态样本落 JSONL，供离线评测/偏好数据使用
     root: ${FLYWHEEL_ROOT:data/flywheel}

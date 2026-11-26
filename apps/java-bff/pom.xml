@@ -63,6 +63,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- 事件通道：Redis Stream（仅 EVENT_BACKEND=redis 时启用） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- 持久化：仅 mysql profile 激活；默认内存 profile 不加载 -->
         <dependency>
             <groupId>org.springframework</groupId>
