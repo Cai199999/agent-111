@@ -5,6 +5,7 @@ import com.wuye.agent.auth.PolicyService;
 import com.wuye.agent.common.ApiResponse;
 import com.wuye.agent.common.Ids;
 import com.wuye.agent.event.EventBus;
+import com.wuye.agent.event.OutboxEventPublisher;
 import com.wuye.agent.flywheel.FlywheelSampleService;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,13 +26,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class EventAdminController {
 
     private final EventBus eventBus;
+    private final OutboxEventPublisher outboxPublisher;
     private final FlywheelSampleService flywheel;
     private final PolicyService policyService;
     private final Ids ids;
 
-    public EventAdminController(EventBus eventBus, FlywheelSampleService flywheel,
+    public EventAdminController(EventBus eventBus, OutboxEventPublisher outboxPublisher,
+                                FlywheelSampleService flywheel,
                                 PolicyService policyService, Ids ids) {
         this.eventBus = eventBus;
+        this.outboxPublisher = outboxPublisher;
         this.flywheel = flywheel;
         this.policyService = policyService;
         this.ids = ids;
@@ -45,6 +49,7 @@ public class EventAdminController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("events", eventBus.recent(limit));
         data.put("stats", eventBus.stats());
+        data.put("outbox", outboxPublisher.stats());
         return ApiResponse.ok(data, trace(traceId));
     }
 

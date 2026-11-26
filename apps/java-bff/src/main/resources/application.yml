@@ -74,10 +74,14 @@ wuye:
   rate-limit:
     per-minute: ${RATE_LIMIT_PER_MINUTE:300}
   event:
-    # 第一阶段为进程内事件总线；后续替换为 Outbox + Kafka/Redis Stream
+    # 进程内事件总线；Outbox 先落库再投递，后续可替换为 Kafka/Redis Stream
     enabled: ${EVENT_BUS_ENABLED:true}
     buffer-size: ${EVENT_BUFFER_SIZE:500}
     source: ${EVENT_SOURCE:wuye-agent-bff}
+    outbox:
+      enabled: ${EVENT_OUTBOX_ENABLED:true}
+      relay-ms: ${EVENT_OUTBOX_RELAY_MS:5000}
+      max-attempts: ${EVENT_OUTBOX_MAX_ATTEMPTS:5}
   flywheel:
     # 任务终态样本落 JSONL，供离线评测/偏好数据使用
     root: ${FLYWHEEL_ROOT:data/flywheel}

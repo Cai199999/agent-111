@@ -101,6 +101,8 @@ WUYE_AI_ENABLED=true bash scripts/start-prototype.sh
   载荷不含确认令牌，信封含 `traceId/actorId/tenantId/subject/idempotencyKey`；
 - Java `EventPublisher` / `EventConsumer` + 进程内 `InMemoryEventBus`：有界缓冲、消费者故障隔离、
   事件故障不影响任务主流程；ADMIN 可查 `GET /api/v1/admin/events/recent`；
+- **Outbox**：任务事件先写 `wa_event_outbox`（V15）再投递，5 秒 relay 补发 PENDING；
+  MySQL profile 下跨重启不丢，单事件最多重试 5 次；
 - 飞轮消费者把任务终态样本落 `data/flywheel/samples.jsonl`，ADMIN 可查
   `GET /api/v1/admin/flywheel/samples`；只做数据出口，不接训练；
 - Python AI 新增 LangGraph 编排骨架 `POST /internal/v1/ai/orchestrate`：

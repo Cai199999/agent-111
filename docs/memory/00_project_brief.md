@@ -158,6 +158,20 @@
 - 测试：Java 新增 8 项（OrchestrationService 5、HTTP 网关 3），全量 103/103；Python 新增 4 项，27/27。
 - 边界：只验收最终任务；`NEEDS_INPUT` 不自动重规划；前端未渲染 `orchestration` 事件。
 
+## 2026-11-26 事件 Outbox 持久化
+
+- V15 `wa_event_outbox`：事件信封全字段 + payload_json + 状态/尝试次数/错误；
+  `EventOutboxStore` 内存/MySQL 两实现；`OutboxEventPublisher` 为 `@Primary`，
+  先 append 再同步投递，每 5 秒 relay 扫描 PENDING，最多重试 5 次后 FAILED。
+- 语义至少一次，消费端按 eventId 幂等；写 Outbox 失败不阻断任务；
+  管理端 `/api/v1/admin/events/recent` 增加 `outbox` 统计。
+- 配置：`EVENT_OUTBOX_ENABLED/RELAY_MS/MAX_ATTEMPTS`。
+- 测试：`OutboxEventPublisherTest` 4 项（同步投递、失败重试、重启补发、关闭直投）；
+  Java 全量 107/107、Python 27/27。
+- 真实验证：mysql profile 启动应用，Flyway v14→v15；一次聊天产生 requested/failed 事件，
+  outbox 均 `DISPATCHED/attempts=1`；手工插入 PENDING 事件后重启应用，relay ~7 秒内补发成功。
+- 边界：relay 单实例；consumer 内部失败只告警；MySQL 表需 mysql profile 启动时 Flyway 应用。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

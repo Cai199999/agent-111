@@ -270,7 +270,7 @@ POST /internal/v1/ai/orchestrate/verify
 
 - 新增 Java：`OrchestrationServiceTest` 5 项、`HttpOrchestrationGatewayTest` 3 项（请求体/令牌/计划解析/验收解析/失败回退）；
 - 新增 Python：`/orchestrate/verify` 4 项（COMPLETE/NEEDS_INPUT/FAILED/HTTP）；
-- 全量：Java **103/103**、Python **27/27**（待全量 Java 回填）。
+- 全量：Java **107/107**（含 Outbox 4 项）、Python **27/27**（2026-11-26）。
 
 ### 6.6 边界
 
@@ -279,10 +279,58 @@ POST /internal/v1/ai/orchestrate/verify
 - 前端尚未渲染 `orchestration` 事件；管理端展示留到下一阶段；
 - 未接 Outbox/Kafka，事件与编排仍是单进程。
 
-## 7. 下一步
+## 7. Outbox 持久化（2026-11-26）
 
-1. **Outbox + Kafka/Redis Stream 适配**：先登记资源，再替换 `InMemoryEventBus`，消费端幂等；
+### 7.1 目标
+
+先解决“进程崩溃/重启导致任务事件丢失”，不引入 Kafka：
+
+```text
+TaskService → OutboxEventPublisher
+                ├─ append → wa_event_outbox (PENDING)
+                ├─ dispatch → InMemoryEventBus（消费端：飞轮等）
+                └─ markDispatched
+                定时 relay：扫描 PENDING → 重新 dispatch
+```
+
+### 7.2 实现
+
+| 组件 | 说明 |
+|---|---|
+| `V15__event_outbox.sql` | `wa_event_outbox`：事件信封全字段 + `payload_json` + 状态/尝试次数/错误 |
+| `EventOutboxStore` | append / pending / markDispatched / markFailed / stats |
+| `InMemoryEventOutboxStore` | 默认/测试 profile；仅进程内“先记录后投递” |
+| `MySqlEventOutboxStore` | mysql profile；跨重启恢复，单事件最多重试 5 次 |
+| `OutboxEventPublisher` | `@Primary` EventPublisher；同步投递 + 每 5 秒 relay |
+| `EventSchedulingConfig` | 只为本项目 relay 开启调度 |
+
+- 投递语义：至少一次；消费端按 `eventId` 幂等；
+- 写 Outbox 失败不阻断任务，仍尝试本次投递；
+- `attempts` 超上限后标记 `FAILED`，不无限重试；
+- 管理端 `/api/v1/admin/events/recent` 新增 `outbox` 统计。
+
+### 7.3 配置
+
+```dotenv
+EVENT_OUTBOX_ENABLED=true
+EVENT_OUTBOX_RELAY_MS=5000
+EVENT_OUTBOX_MAX_ATTEMPTS=5
+```
+
+### 7.4 测试与边界
+
+- `OutboxEventPublisherTest` 4 项：同步投递、失败重试至 FAILED、重启补发、关闭直投；
+- MySQL 表在 `mysql` profile 启动时由 Flyway 应用；
+- 真实验证（2026-11-26）：Flyway v14→v15 成功；一次聊天产生 `agent.task.requested/failed`，
+  outbox 均为 `DISPATCHED/attempts=1`；手工插入一条 PENDING 事件后重启应用，
+  relay 在约 7 秒内将其置为 `DISPATCHED`；
+- 边界：relay 为单实例（多实例需分布式锁或改由 Kafka 消费位点接管）；
+  consumer 内部失败只告警，不自动重投；事件顺序按单 relay + `created_at` 近似保证。
+
+## 8. 下一步
+
+1. **Kafka/Redis Stream 适配**：先登记资源，再替换 relay 下游，消费端幂等表；
 2. **飞轮样本入库/查询**：从 JSONL 迁到 `wa_flywheel_sample`，接评测与偏好数据；
-3. **前端可观测**：管理端展示最近事件、飞轮样本、编排计划与验收结果；
+3. **前端可观测**：管理端展示最近事件、Outbox、飞轮样本、编排计划与验收结果；
 4. **编排增强**：回传只读前置步骤结果、`NEEDS_INPUT` 自动重新规划一次；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。
