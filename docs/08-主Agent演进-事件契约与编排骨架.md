@@ -327,10 +327,36 @@ EVENT_OUTBOX_MAX_ATTEMPTS=5
 - 边界：relay 为单实例（多实例需分布式锁或改由 Kafka 消费位点接管）；
   consumer 内部失败只告警，不自动重投；事件顺序按单 relay + `created_at` 近似保证。
 
-## 8. 下一步
+## 8. 飞轮样本入库（2026-11-26）
+
+### 8.1 实现
+
+| 组件 | 说明 |
+|---|---|
+| `V16__flywheel_sample.sql` | `wa_flywheel_sample`：任务/输入/输出/错误/耗时/来源事件 |
+| `JsonlFlywheelSampleStore` | 默认/测试 profile；JSONL 追加写 |
+| `MySqlFlywheelSampleStore` | mysql profile；按 `event_id` 去重，可按任务/Agent 查询 |
+
+- 样本消费者不变：订阅 `completed/failed/cancelled` 终态事件；
+- 管理端 `GET /api/v1/admin/flywheel/samples` 同时返回 `samples` 与 `stats`；
+- JSONL 仍是本地默认，MySQL 用于演示环境与后续评测流水线。
+
+### 8.2 真实验证（2026-11-26）
+
+- Flyway v15→v16 成功；
+- 一次 `查询我的待处理工单` 生成 3 条样本（初始 + 自修复重试），均为 `FAILED`；
+- 样本包含 `input`、`error{code,category,retryable,message}`、`durationMs`；
+- ADMIN API 能查到同样数据。
+
+### 8.3 边界
+
+- 尚未接评测流水线、样本标注、训练/偏好数据导出；
+- 样本含业务明文，只允许内网存储；保留期/脱敏策略未实现。
+
+## 9. 下一步
 
 1. **Kafka/Redis Stream 适配**：先登记资源，再替换 relay 下游，消费端幂等表；
-2. **飞轮样本入库/查询**：从 JSONL 迁到 `wa_flywheel_sample`，接评测与偏好数据；
-3. **前端可观测**：管理端展示最近事件、Outbox、飞轮样本、编排计划与验收结果；
+2. **前端可观测**：管理端展示最近事件、Outbox、飞轮样本、编排计划与验收结果；
+3. **评测流水线**：样本 → 数据集 → 离线评测 → 报告，形成飞轮闭环；
 4. **编排增强**：回传只读前置步骤结果、`NEEDS_INPUT` 自动重新规划一次；
 5. **多实例**：按 `subject` 分区、消费端幂等表、SSE 跨实例。

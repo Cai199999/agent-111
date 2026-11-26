@@ -172,6 +172,15 @@
   outbox 均 `DISPATCHED/attempts=1`；手工插入 PENDING 事件后重启应用，relay ~7 秒内补发成功。
 - 边界：relay 单实例；consumer 内部失败只告警；MySQL 表需 mysql profile 启动时 Flyway 应用。
 
+## 2026-11-26 飞轮样本入库
+
+- V16 `wa_flywheel_sample`；`JsonlFlywheelSampleStore`（默认/测试）与
+  `MySqlFlywheelSampleStore`（mysql profile，按 event_id 去重）两实现；
+  消费者与 ADMIN 查询接口不变。
+- 真实验证：Flyway v15→v16；一次工单查询生成 3 条样本（初始+自修复重试），
+  含 input/error/durationMs；ADMIN API 可查。
+- 边界：未接评测流水线/标注/导出；样本含业务明文，仅内网；无保留期/脱敏策略。
+
 ## 下一步
 
 1. 事件通道升级：先登记资源，再做 Outbox + Kafka/Redis Stream，消费端幂等表。

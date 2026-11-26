@@ -16,6 +16,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Component;
  * <p>写盘失败只记录日志，不影响任务主流程。文件目录默认 {@code data/flywheel}（已 gitignore）。</p>
  */
 @Component
+@Profile("!mysql")
 public class JsonlFlywheelSampleStore implements FlywheelSampleStore {
 
     private static final Logger log = LoggerFactory.getLogger(JsonlFlywheelSampleStore.class);
